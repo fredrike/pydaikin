@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import httpentity
-import discovery
+import pydaikin.appliance as appliance
+import pydaikin.discovery as discovery
 import time
 import argparse
 
@@ -28,7 +28,7 @@ if args.list:
         print "%18s: %s" % (dev['ip'], dev['name'])
 
 else:
-    e = httpentity.HttpEntity(args.device)
+    e = appliance.Appliance(args.device)
     if not args.all:
         only_summary = True
     else:

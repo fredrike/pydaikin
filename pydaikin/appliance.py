@@ -19,7 +19,7 @@ HTTP_RESOURCES = ['common/basic_info'
                   , 'aircon/get_scdltimer'
               ]
 
-class HttpEntity(entity.Entity):
+class Appliance(entity.Entity):
     def __init__(self, id):
 
         entity.Entity.__init__(self)
