@@ -1,5 +1,5 @@
-import entity
-import discovery
+import pydaikin.entity as entity
+import pydaikin.discovery as discovery
 
 import socket
 import requests
@@ -121,7 +121,7 @@ class Appliance(entity.Entity):
         for key in keys:
             if key in self.values:
                 (k, v) = self.represent(key)
-                print "%18s: %s" % (k, v)
+                print("%18s: %s" % (k, v))
 
 
     def translate_mac(self, value):

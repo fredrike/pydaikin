@@ -9,7 +9,7 @@
     :license: BSD, see LICENSE for more details.
 """
 
-import urllib
+import urllib.parse
 
 class Entity:
     def __init__(self):
@@ -28,7 +28,7 @@ class Entity:
             raise ValueError("non-OK return on response")
 
         if 'name' in d:
-            d['name'] = urllib.unquote(d['name'])
+            d['name'] = urllib.parse.unquote(d['name'])
 
         return d
 
