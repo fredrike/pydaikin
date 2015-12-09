@@ -1,7 +1,7 @@
 import socket
 import entity
+import netifaces
 
-UDP_DST_IP   = "192.168.10.255"
 UDP_SRC_PORT = 30000
 UDP_DST_PORT = 30050
 RCV_BUFSIZ   = 1024
@@ -49,7 +49,21 @@ class Discovery():
         self.dev  = {}
 
     def poll(self, stop_if_found = None):
-        self.sock.sendto(DISCOVERY_MSG, (UDP_DST_IP, UDP_DST_PORT))
+        # get all IPv4 definitions in the system
+        net_groups = [ netifaces.ifaddresses(i)[netifaces.AF_INET] for
+                       i in netifaces.interfaces() if
+                       netifaces.AF_INET in netifaces.ifaddresses(i) ]
+
+        # flatten the previous list
+        net_ips = [ item for sublist in net_groups for item in sublist ]
+
+        # from those, get the broadcast IPs, if available
+        broadcast_ips = [ i['broadcast'] for i in net_ips if
+                          'broadcast' in i.keys() ]
+
+        # send a daikin broadcast to each one of the ips
+        for ip in broadcast_ips:
+            self.sock.sendto(DISCOVERY_MSG, (ip, UDP_DST_PORT))
 
         try:
             while True: # for anyone who ansers
