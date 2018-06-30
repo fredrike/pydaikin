@@ -9,15 +9,12 @@ HTTP_RESOURCES = ['common/basic_info'
                   , 'aircon/get_sensor_info'
                   , 'aircon/get_model_info'
                   , 'aircon/get_control_info'
-                  , 'aircon/get_timer'
                   , 'aircon/get_target'
                   , 'aircon/get_price'
-                  , 'aircon/get_program'
                   , 'common/get_holiday'
                   , 'common/get_notify'
                   , 'aircon/get_week_power'
                   , 'aircon/get_year_power'
-                  , 'aircon/get_scdltimer'
               ]
 
 VALUES_SUMMARY = ['name', 'ip', 'mac', 'mode', 'f_rate', 'f_dir'
@@ -159,20 +156,24 @@ class Appliance(entity.Entity):
 
     def set(self, settings):
         # start with current values
-        pow   = self.values['pow']
-        mode  = self.values['mode']
-        temp  = self.values['stemp']
-        hum   = self.values['shum']
-        fan   = self.values['f_rate']
-        dir   = self.values['f_dir']
+        current_val = self.get_resource('aircon/get_control_info')
+
+        pow   = current_val['pow']
+        mode  = current_val['mode']
+        temp  = current_val['stemp']
+        hum   = current_val['shum']
+        fan   = current_val['f_rate']
+        dir   = current_val['f_dir']
         hol   = self.values['en_hol']
 
         # update them with the ones requested
+        if 'pow' in settings:
+            pow = settings["pow"]
+
         if 'mode' in settings:
             # we are using an extra mode "off" to power off the unit
             if settings['mode'] == 'off':
                 pow = '0'
-                mode = human_to_daikin('mode', 'auto')
             else:
                 if hol != "0":
                     raise ValueError("device is in holiday mode")
@@ -193,13 +194,15 @@ class Appliance(entity.Entity):
             dir = human_to_daikin('f_dir', settings['f_dir'])
 
         if 'en_hol' in settings:
-            hol = human_to_daikin('en_hol', settings['en_hol'])    
+            hol = human_to_daikin('en_hol', settings['en_hol'])
 
-        if not hum.isdigit():
-            hum = '0'
-
-        if not temp.isdigit():
-            temp = '22'
+        self.values['pow'] = pow
+        self.values['mode'] = mode
+        self.values['stemp'] = temp
+        self.values['shum'] = hum
+        self.values['f_rate'] = fan
+        self.values['f_dir'] = dir
+        self.values['en_hol'] = hol
 
         query_c = 'aircon/set_control_info?'
         query_c += ('pow=%s&mode=%s&stemp=%s&shum=%s&f_rate=%s&f_dir=%s' %
