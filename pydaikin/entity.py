@@ -9,7 +9,7 @@
     :license: BSD, see LICENSE for more details.
 """
 
-import urllib.parse
+import urllib
 
 class Entity:
     def __init__(self):
@@ -24,11 +24,8 @@ class Entity:
     def parse_response(self, body):
         d = dict([ e.split('=') for e in body.split(',') ])
 
-        if not 'ret' in d:
-            raise ValueError("missing 'ret' field in response")
-
-        if d['ret'] != 'OK':
-            raise ValueError("response returned '%s'" % d['ret'])
+        if not 'ret' in d or d['ret'] != 'OK':
+            raise ValueError("non-OK return on response")
 
         if 'name' in d:
             d['name'] = urllib.parse.unquote(d['name'])

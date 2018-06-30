@@ -1,6 +1,5 @@
-import pydaikin.entity as entity
-
 import socket
+import pydaikin.entity as entity
 import netifaces
 
 UDP_SRC_PORT = 30000
@@ -64,14 +63,14 @@ class Discovery():
 
         # send a daikin broadcast to each one of the ips
         for ip in broadcast_ips:
-            self.sock.sendto(DISCOVERY_MSG.encode(), (ip, UDP_DST_PORT))
+            self.sock.sendto(bytes(DISCOVERY_MSG, 'UTF-8'), (ip, UDP_DST_PORT))
 
         try:
             while True: # for anyone who ansers
                 data, addr = self.sock.recvfrom(RCV_BUFSIZ)
 
                 try:
-                    d = DiscoveredObject(addr[0], addr[1], data.decode())
+                    d = DiscoveredObject(addr[0], addr[1], data.decode('UTF-8'))
 
                     new_mac = d['mac']
                     self.dev[new_mac] = d

@@ -13,15 +13,16 @@ HTTP_RESOURCES = ['common/basic_info'
                   , 'aircon/get_target'
                   , 'aircon/get_price'
                   , 'aircon/get_program'
+                  , 'common/get_holiday'
                   , 'common/get_notify'
                   , 'aircon/get_week_power'
                   , 'aircon/get_year_power'
                   , 'aircon/get_scdltimer'
               ]
 
-VALUES_SUMMARY = ['name', 'ip', 'mac', 'pow', 'mode', 'f_rate', 'f_dir'
+VALUES_SUMMARY = ['name', 'ip', 'mac', 'mode', 'f_rate', 'f_dir'
                   , 'htemp', 'otemp', 'stemp'
-                  , 'cmpfreq', 'err']
+                  , 'cmpfreq', 'en_hol', 'err']
 
 VALUES_TRANSLATION = {
     'otemp'    : 'outside temp'
@@ -33,23 +34,21 @@ VALUES_TRANSLATION = {
     , 'f_rate' : 'fan rate'
     , 'f_dir'  : 'fan direction'
     , 'err'    : 'error code'
+    , 'en_hol' : 'away_mode'
 }
 
 TRANSLATIONS = {
     'mode' : {
-        '2': 'dehumidificator',
-        '3': 'cold',
+        '2': 'dry',
+        '3': 'cool',
         '4': 'hot',
         '6': 'fan',
         '0': 'auto',
         '1': 'auto-1',
-        '7': 'auto-7'
+        '7': 'auto-7',
+        '10': 'off'
     },
-    'power' : {
-        '0': 'off',
-        '1': 'on'
-    },
-    'fan' : {
+    'f_rate' : {
         'A': 'auto',
         'B': 'silence',
         '3': '1',
@@ -58,17 +57,21 @@ TRANSLATIONS = {
         '6': '4',
         '7': '5'
     },
-    'direction' : {
-        '0': "stopped",
-        '1': "vertical",
-        '2': "horizontal",
-        '3': "all"
+    'f_dir' : {
+        '0': 'off',
+        '1': 'vertical',
+        '2': 'horizontal',
+        '3': '3d'
+    },
+    'en_hol' : {
+        '0': 'off',
+        '1': 'on'
     }
 }
 
 def daikin_to_human(dimension, value):
     if value in TRANSLATIONS[dimension].keys():
-        return TRANSLATIONS[dimension][value].upper()
+        return TRANSLATIONS[dimension][value]
     else:
         return "UNKNOWN (%s)" % value
 
@@ -77,7 +80,7 @@ def human_to_daikin(dimension, value):
     return ivd[value]
 
 def daikin_values(dimension):
-    return TRANSLATIONS[dimension].values()
+    return sorted(list(TRANSLATIONS[dimension].values()))
 
 class Appliance(entity.Entity):
     def __init__(self, id):
@@ -102,10 +105,9 @@ class Appliance(entity.Entity):
 
         self.values['ip'] = ip
 
-        self.session = requests.Session()
-
-        for resource in HTTP_RESOURCES:
-            self.values.update(self.get_resource(resource))
+        with requests.Session() as self.session:
+            for resource in HTTP_RESOURCES:
+                self.values.update(self.get_resource(resource))
 
     def get_resource(self, resource):
         r = self.session.get('http://%s/%s' % (self.ip, resource))
@@ -121,8 +123,7 @@ class Appliance(entity.Entity):
         for key in keys:
             if key in self.values:
                 (k, v) = self.represent(key)
-                print("%18s: %s" % (k, v))
-
+                print ("%18s: %s" % (k, v))
 
     def translate_mac(self, value):
         r = ""
@@ -143,14 +144,14 @@ class Appliance(entity.Entity):
         # adapt the value
         v = self.values[key]
 
-        if key == 'mode':
-            v = daikin_to_human('mode', v)
-        elif key == 'pow':
-            v = daikin_to_human('power', v)
-        elif key == 'f_rate':
-            v = daikin_to_human('fan', v)
-        elif key == 'f_dir':
-            v = daikin_to_human('direction', v)
+        if (key == 'mode'):
+            if self.values['pow'] == '0':
+                v = 'off'
+            else:
+                v = daikin_to_human(key, v)
+
+        elif (key in TRANSLATIONS.keys()):
+            v = daikin_to_human(key, v)
         elif key == 'mac':
             v = self.translate_mac(v)
 
@@ -164,26 +165,51 @@ class Appliance(entity.Entity):
         hum   = self.values['shum']
         fan   = self.values['f_rate']
         dir   = self.values['f_dir']
+        hol   = self.values['en_hol']
 
         # update them with the ones requested
-        if 'power' in settings:
-            pow = human_to_daikin('power', settings['power'])
-
         if 'mode' in settings:
-            mode = human_to_daikin('mode', settings['mode'])
+            # we are using an extra mode "off" to power off the unit
+            if settings['mode'] == 'off':
+                pow = '0'
+                mode = human_to_daikin('mode', 'auto')
+            else:
+                if hol != "0":
+                    raise ValueError("device is in holiday mode")
 
-        if 'temp' in settings:
-            temp = settings['temp']
+                pow = '1'
+                mode = human_to_daikin('mode', settings['mode'])
 
-        if 'humidity' in settings:
-            hum = settings['humidity']
+        if 'stemp' in settings:
+            temp = settings['stemp']
 
-        if 'fan' in settings:
-            fan = human_to_daikin('fan', settings['fan'])
+        if 'shum' in settings:
+            hum = settings['shum']
 
-        if 'direction' in settings:
-            dir = human_to_daikin('direction', settings['direction'])
+        if 'f_rate' in settings:
+            fan = human_to_daikin('f_rate', settings['f_rate'])
 
-        self.get_resource('aircon/set_control_info?pow=%s&mode=%s&stemp=%s&shum=%s&f_rate=%s&f_dir=%s' %
-                          (pow, mode, temp, hum, fan, dir))
+        if 'f_dir' in settings:
+            dir = human_to_daikin('f_dir', settings['f_dir'])
+
+        if 'en_hol' in settings:
+            hol = human_to_daikin('en_hol', settings['en_hol'])    
+
+        if not hum.isdigit():
+            hum = '0'
+
+        if not temp.isdigit():
+            temp = '22'
+
+        query_c = 'aircon/set_control_info?'
+        query_c += ('pow=%s&mode=%s&stemp=%s&shum=%s&f_rate=%s&f_dir=%s' %
+                    (pow, mode, temp, hum, fan, dir))
+
+        query_h = 'common/set_holiday?'
+        query_h += ('en_hol=%s' % hol)
+
+        with requests.Session() as self.session:
+            self.get_resource(query_h)
+            if (hol == "0"):
+                self.get_resource(query_c)
 
