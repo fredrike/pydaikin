@@ -24,8 +24,11 @@ class Entity:
     def parse_response(self, body):
         d = dict([ e.split('=') for e in body.split(',') ])
 
-        if not 'ret' in d or d['ret'] != 'OK':
-            raise ValueError("non-OK return on response")
+        if not 'ret' in d:
+            raise ValueError("missing 'ret' field in response")
+
+        if d['ret'] != 'OK':
+            return {}
 
         if 'name' in d:
             d['name'] = urllib.parse.unquote(d['name'])
