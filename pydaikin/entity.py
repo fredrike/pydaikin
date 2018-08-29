@@ -28,7 +28,7 @@ class Entity:
             raise ValueError("missing 'ret' field in response")
 
         if d['ret'] != 'OK':
-            raise ValueError("response returned '%s'" % d['ret'])
+            return {}
 
         if 'name' in d:
             d['name'] = urllib.parse.unquote(d['name'])
