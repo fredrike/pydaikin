@@ -202,19 +202,19 @@ class Appliance(entity.Entity):
         self.values['mode'] = mode
         self.values['stemp'] = temp
         self.values['shum'] = hum
-        self.values['f_dir'] = dir
         self.values['en_hol'] = hol
 
-        # Apparently some models don't have f_rate
+        # Apparently some models don't have f_rate and f_dir
         if "fan" in locals():
             self.values['f_rate'] = fan
+            self.values['f_dir'] = dir
             query_c = 'aircon/set_control_info?'
             query_c += ('pow=%s&mode=%s&stemp=%s&shum=%s&f_rate=%s&f_dir=%s' %
                     (pow, mode, temp, hum, fan, dir))
 
         query_c = 'aircon/set_control_info?'
-        query_c += ('pow=%s&mode=%s&stemp=%s&shum=%s&f_dir=%s' %
-               (pow, mode, temp, hum, dir))
+        query_c += ('pow=%s&mode=%s&stemp=%s&shum=%s' %
+               (pow, mode, temp, hum))
 
         query_h = 'common/set_holiday?'
         query_h += ('en_hol=%s' % hol)
