@@ -162,7 +162,7 @@ class Appliance(entity.Entity):
         mode  = current_val['mode']
         temp  = current_val['stemp']
         hum   = current_val['shum']
-        # Apparently some models don't have f_rate
+        # Apparently some remote controllers SUCK
         if "f_rate" in current_val:
             fan   = current_val['f_rate']
         dir   = current_val['f_dir']
@@ -202,22 +202,24 @@ class Appliance(entity.Entity):
         self.values['mode'] = mode
         self.values['stemp'] = temp
         self.values['shum'] = hum
-        self.values['en_hol'] = hol
 
-        # Apparently some models don't have f_rate and f_dir
+        # Apparently some remote controllers SUCK
         if "fan" in locals():
             self.values['f_rate'] = fan
             self.values['f_dir'] = dir
+            self.values['en_hol'] = hol
             query_c = 'aircon/set_control_info?'
             query_c += ('pow=%s&mode=%s&stemp=%s&shum=%s&f_rate=%s&f_dir=%s' %
                     (pow, mode, temp, hum, fan, dir))
+
+            query_h = 'common/set_holiday?'
+            query_h += ('en_hol=%s' % hol)
+
 
         query_c = 'aircon/set_control_info?'
         query_c += ('pow=%s&mode=%s&stemp=%s&shum=%s' %
                (pow, mode, temp, hum))
 
-        query_h = 'common/set_holiday?'
-        query_h += ('en_hol=%s' % hol)
 
         with requests.Session() as self.session:
             self.get_resource(query_h)
