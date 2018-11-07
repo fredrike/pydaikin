@@ -130,13 +130,7 @@ class Appliance(entity.Entity):
                 print("%18s: %s" % (k, v))
 
     def translate_mac(self, value):
-        r = ""
-        for b in range(0, len(value)):
-            r += value[b]
-            if 1 == (b % 2) and b < len(value) - 1:
-                r += ":"
-
-        return r
+        return ':'.join(value[i:i + 2] for i in range(0, len(value), 2))
 
     def represent(self, key):
         # adapt the key
