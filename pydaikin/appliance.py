@@ -15,12 +15,22 @@ HTTP_RESOURCES = [
     'common/get_holiday',
     'common/get_notify',
     'aircon/get_week_power',
-    'aircon/get_year_power'
+    'aircon/get_year_power',
 ]
 
 VALUES_SUMMARY = [
-    'name', 'ip', 'mac', 'mode', 'f_rate', 'f_dir', 'htemp', 'otemp', 'stemp',
-    'cmpfreq', 'en_hol', 'err'
+    'name',
+    'ip',
+    'mac',
+    'mode',
+    'f_rate',
+    'f_dir',
+    'htemp',
+    'otemp',
+    'stemp',
+    'cmpfreq',
+    'en_hol',
+    'err',
 ]
 
 VALUES_TRANSLATION = {
@@ -33,7 +43,7 @@ VALUES_TRANSLATION = {
     'f_rate': 'fan rate',
     'f_dir': 'fan direction',
     'err': 'error code',
-    'en_hol': 'away_mode'
+    'en_hol': 'away_mode',
 }
 
 TRANSLATIONS = {
@@ -45,7 +55,7 @@ TRANSLATIONS = {
         '0': 'auto',
         '1': 'auto-1',
         '7': 'auto-7',
-        '10': 'off'
+        '10': 'off',
     },
     'f_rate': {
         'A': 'auto',
@@ -54,23 +64,24 @@ TRANSLATIONS = {
         '4': '2',
         '5': '3',
         '6': '4',
-        '7': '5'
+        '7': '5',
     },
     'f_dir': {
         '0': 'off',
         '1': 'vertical',
         '2': 'horizontal',
-        '3': '3d'
+        '3': '3d',
     },
     'en_hol': {
         '0': 'off',
-        '1': 'on'
-    }
+        '1': 'on',
+    },
 }
 
 # Reversed list of translations
 TRANSLATIONS_REV = {
-    dim: {v: k for k, v in item.items()}
+    dim: {v: k
+          for k, v in item.items()}
     for dim, item in TRANSLATIONS.items()
 }
 

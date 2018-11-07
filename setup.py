@@ -14,5 +14,5 @@ setup(
     packages=['pydaikin'],
     keywords=['homeautomation', 'daikin'],
     install_requires=['netifaces', 'requests'],
-    scripts=['bin/pydaikin']
+    scripts=['bin/pydaikin'],
 )
