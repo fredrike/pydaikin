@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from distutils.core import setup
 
@@ -10,6 +10,7 @@ setup(
     author_email='mustang@yadan.org',
     license='GPL',
     url='https://bitbucket.org/mustang51/pydaikin',
+    python_requires='>3.5',
     packages=['pydaikin'],
     keywords=['homeautomation', 'daikin'],
     install_requires=['netifaces', 'requests'],

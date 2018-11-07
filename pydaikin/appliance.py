@@ -68,17 +68,19 @@ TRANSLATIONS = {
     }
 }
 
+# Reversed list of translations
+TRANSLATIONS_REV = {
+    dim: {v: k for k, v in item.items()}
+    for dim, item in TRANSLATIONS.items()
+}
+
 
 def daikin_to_human(dimension, value):
-    if value in TRANSLATIONS[dimension].keys():
-        return TRANSLATIONS[dimension][value]
-    else:
-        return "UNKNOWN (%s)" % value
+    return TRANSLATIONS.get(dimension, {}).get(value, value)
 
 
 def human_to_daikin(dimension, value):
-    ivd = {v: k for k, v in TRANSLATIONS[dimension].items()}
-    return ivd[value]
+    return TRANSLATIONS_REV.get(dimension, {}).get(value, value)
 
 
 def daikin_values(dimension):
@@ -105,7 +107,6 @@ class Appliance(entity.Entity):
             ip = e['ip']
 
         self.ip = ip
-
         self.values['ip'] = ip
 
         with requests.Session() as self.session:
@@ -139,21 +140,18 @@ class Appliance(entity.Entity):
 
     def represent(self, key):
         # adapt the key
-        if key in VALUES_TRANSLATION:
-            k = VALUES_TRANSLATION[key]
-        else:
-            k = key
+        k = VALUES_TRANSLATION.get(key, key)
 
         # adapt the value
         v = self.values[key]
 
-        if (key == 'mode'):
+        if key == 'mode':
             if self.values['pow'] == '0':
                 v = 'off'
             else:
                 v = daikin_to_human(key, v)
 
-        elif (key in TRANSLATIONS.keys()):
+        elif key in TRANSLATIONS:
             v = daikin_to_human(key, v)
         elif key == 'mac':
             v = self.translate_mac(v)
@@ -164,67 +162,41 @@ class Appliance(entity.Entity):
         # start with current values
         current_val = self.get_resource('aircon/get_control_info')
 
-        pow = current_val['pow']
-        mode = current_val['mode']
-        temp = current_val['stemp']
-        hum = current_val['shum']
-        # Apparently some remote controllers SUCK
+        # we are using an extra mode "off" to power off the unit
+        if settings.get('mode', '') == 'off':
+            settings['pow'] = '0'
+        else:
+            if self.values['en_hol'] != '0':
+                raise ValueError("device is in holiday mode")
+            settings['pow'] = '1'
+
+        # Merge current_val with mapped settings
+        current_val.update(
+            {k: human_to_daikin(k, v)
+             for k, v in settings.items()})
+        self.values = current_val
+
+        query_c = \
+            'aircon/set_control_info?pow=%s&mode=%s&stemp=%s&shum=%s' % \
+            (
+                self.values['pow'],
+                self.values['mode'],
+                self.values['stemp'],
+                self.values['shum'],
+            )
+
+        # Apparently some remote controllers SUCK (don't support f_rate)
         if "f_rate" in current_val:
-            fan = current_val['f_rate']
-        dir = current_val['f_dir']
-        hol = self.values['en_hol']
+            query_c += '&f_rate=%s&f_dir=%s' % \
+                (
+                    self.values['f_rate'],
+                    self.values['f_dir'],
+                )
 
-        # update them with the ones requested
-        if 'pow' in settings:
-            pow = settings["pow"]
-
-        if 'mode' in settings:
-            # we are using an extra mode "off" to power off the unit
-            if settings['mode'] == 'off':
-                pow = '0'
-            else:
-                if hol != "0":
-                    raise ValueError("device is in holiday mode")
-
-                pow = '1'
-                mode = human_to_daikin('mode', settings['mode'])
-
-        if 'stemp' in settings:
-            temp = settings['stemp']
-
-        if 'shum' in settings:
-            hum = settings['shum']
-
-        if 'f_rate' in settings:
-            fan = human_to_daikin('f_rate', settings['f_rate'])
-
-        if 'f_dir' in settings:
-            dir = human_to_daikin('f_dir', settings['f_dir'])
-
-        if 'en_hol' in settings:
-            hol = human_to_daikin('en_hol', settings['en_hol'])
-
-        self.values['pow'] = pow
-        self.values['mode'] = mode
-        self.values['stemp'] = temp
-        self.values['shum'] = hum
-
-        # Apparently some remote controllers SUCK
-        if "fan" in locals():
-            self.values['f_rate'] = fan
-            self.values['f_dir'] = dir
-            self.values['en_hol'] = hol
-            query_c = 'aircon/set_control_info?'
-            query_c += ('pow=%s&mode=%s&stemp=%s&shum=%s&f_rate=%s&f_dir=%s' %
-                        (pow, mode, temp, hum, fan, dir))
-
-            query_h = 'common/set_holiday?'
-            query_h += ('en_hol=%s' % hol)
-
-        query_c = 'aircon/set_control_info?'
-        query_c += ('pow=%s&mode=%s&stemp=%s&shum=%s' % (pow, mode, temp, hum))
+        query_h = ('common/set_holiday?en_hol=%s' % self.values['en_hol'])
 
         with requests.Session() as self.session:
-            self.get_resource(query_h)
-            if (hol == "0"):
+            if "f_rate" in settings:
+                self.get_resource(query_h)
+            if self.values['en_hol'] == "0":
                 self.get_resource(query_c)
