@@ -11,6 +11,7 @@
 
 import urllib
 
+
 class Entity:
     def __init__(self):
         self.values = {}
@@ -22,9 +23,9 @@ class Entity:
             raise AttributeError("No such attribute: " + name)
 
     def parse_response(self, body):
-        d = dict([ e.split('=') for e in body.split(',') ])
+        d = dict([e.split('=') for e in body.split(',')])
 
-        if not 'ret' in d:
+        if 'ret' not in d:
             raise ValueError("missing 'ret' field in response")
 
         if d['ret'] != 'OK':
@@ -34,4 +35,3 @@ class Entity:
             d['name'] = urllib.parse.unquote(d['name'])
 
         return d
-

@@ -4,38 +4,40 @@ import pydaikin.discovery as discovery
 import socket
 import requests
 
-HTTP_RESOURCES = ['common/basic_info'
-                  , 'common/get_remote_method'
-                  , 'aircon/get_sensor_info'
-                  , 'aircon/get_model_info'
-                  , 'aircon/get_control_info'
-                  , 'aircon/get_target'
-                  , 'aircon/get_price'
-                  , 'common/get_holiday'
-                  , 'common/get_notify'
-                  , 'aircon/get_week_power'
-                  , 'aircon/get_year_power'
-              ]
+HTTP_RESOURCES = [
+    'common/basic_info',
+    'common/get_remote_method',
+    'aircon/get_sensor_info',
+    'aircon/get_model_info',
+    'aircon/get_control_info',
+    'aircon/get_target',
+    'aircon/get_price',
+    'common/get_holiday',
+    'common/get_notify',
+    'aircon/get_week_power',
+    'aircon/get_year_power'
+]
 
-VALUES_SUMMARY = ['name', 'ip', 'mac', 'mode', 'f_rate', 'f_dir'
-                  , 'htemp', 'otemp', 'stemp'
-                  , 'cmpfreq', 'en_hol', 'err']
+VALUES_SUMMARY = [
+    'name', 'ip', 'mac', 'mode', 'f_rate', 'f_dir', 'htemp', 'otemp', 'stemp',
+    'cmpfreq', 'en_hol', 'err'
+]
 
 VALUES_TRANSLATION = {
-    'otemp'    : 'outside temp'
-    , 'htemp'  : 'inside temp'
-    , 'stemp'  : 'target temp'
-    , 'ver'    : 'firmware adapter'
-    , 'pow'    : 'power'
-    , 'cmpfreq': 'compressor demand'
-    , 'f_rate' : 'fan rate'
-    , 'f_dir'  : 'fan direction'
-    , 'err'    : 'error code'
-    , 'en_hol' : 'away_mode'
+    'otemp': 'outside temp',
+    'htemp': 'inside temp',
+    'stemp': 'target temp',
+    'ver': 'firmware adapter',
+    'pow': 'power',
+    'cmpfreq': 'compressor demand',
+    'f_rate': 'fan rate',
+    'f_dir': 'fan direction',
+    'err': 'error code',
+    'en_hol': 'away_mode'
 }
 
 TRANSLATIONS = {
-    'mode' : {
+    'mode': {
         '2': 'dry',
         '3': 'cool',
         '4': 'hot',
@@ -45,7 +47,7 @@ TRANSLATIONS = {
         '7': 'auto-7',
         '10': 'off'
     },
-    'f_rate' : {
+    'f_rate': {
         'A': 'auto',
         'B': 'silence',
         '3': '1',
@@ -54,17 +56,18 @@ TRANSLATIONS = {
         '6': '4',
         '7': '5'
     },
-    'f_dir' : {
+    'f_dir': {
         '0': 'off',
         '1': 'vertical',
         '2': 'horizontal',
         '3': '3d'
     },
-    'en_hol' : {
+    'en_hol': {
         '0': 'off',
         '1': 'on'
     }
 }
+
 
 def daikin_to_human(dimension, value):
     if value in TRANSLATIONS[dimension].keys():
@@ -72,12 +75,15 @@ def daikin_to_human(dimension, value):
     else:
         return "UNKNOWN (%s)" % value
 
+
 def human_to_daikin(dimension, value):
     ivd = {v: k for k, v in TRANSLATIONS[dimension].items()}
     return ivd[value]
 
+
 def daikin_values(dimension):
     return sorted(list(TRANSLATIONS[dimension].values()))
+
 
 class Appliance(entity.Entity):
     def __init__(self, id):
@@ -90,10 +96,10 @@ class Appliance(entity.Entity):
         except socket.error:
             ip = None
 
-        if None == ip:
+        if ip is None:
             # id is a common name, try discovery
             e = discovery.get_name(id)
-            if None == e:
+            if e is None:
                 raise ValueError("no device found for %s" % id)
 
             ip = e['ip']
@@ -111,7 +117,7 @@ class Appliance(entity.Entity):
 
         return self.parse_response(r.text)
 
-    def show_values(self, only_summary = False):
+    def show_values(self, only_summary=False):
         if only_summary:
             keys = VALUES_SUMMARY
         else:
@@ -120,7 +126,7 @@ class Appliance(entity.Entity):
         for key in keys:
             if key in self.values:
                 (k, v) = self.represent(key)
-                print ("%18s: %s" % (k, v))
+                print("%18s: %s" % (k, v))
 
     def translate_mac(self, value):
         r = ""
@@ -158,15 +164,15 @@ class Appliance(entity.Entity):
         # start with current values
         current_val = self.get_resource('aircon/get_control_info')
 
-        pow   = current_val['pow']
-        mode  = current_val['mode']
-        temp  = current_val['stemp']
-        hum   = current_val['shum']
+        pow = current_val['pow']
+        mode = current_val['mode']
+        temp = current_val['stemp']
+        hum = current_val['shum']
         # Apparently some remote controllers SUCK
         if "f_rate" in current_val:
-            fan   = current_val['f_rate']
-        dir   = current_val['f_dir']
-        hol   = self.values['en_hol']
+            fan = current_val['f_rate']
+        dir = current_val['f_dir']
+        hol = self.values['en_hol']
 
         # update them with the ones requested
         if 'pow' in settings:
@@ -210,19 +216,15 @@ class Appliance(entity.Entity):
             self.values['en_hol'] = hol
             query_c = 'aircon/set_control_info?'
             query_c += ('pow=%s&mode=%s&stemp=%s&shum=%s&f_rate=%s&f_dir=%s' %
-                    (pow, mode, temp, hum, fan, dir))
+                        (pow, mode, temp, hum, fan, dir))
 
             query_h = 'common/set_holiday?'
             query_h += ('en_hol=%s' % hol)
 
-
         query_c = 'aircon/set_control_info?'
-        query_c += ('pow=%s&mode=%s&stemp=%s&shum=%s' %
-               (pow, mode, temp, hum))
-
+        query_c += ('pow=%s&mode=%s&stemp=%s&shum=%s' % (pow, mode, temp, hum))
 
         with requests.Session() as self.session:
             self.get_resource(query_h)
             if (hol == "0"):
                 self.get_resource(query_c)
-
