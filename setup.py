@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='pydaikin',
-      version='0.4',
+      version='0.5',
       description='Python Daikin HVAC appliances interface',
       author='Yari Adan',
       author_email='mustang@yadan.org',
