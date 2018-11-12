@@ -170,19 +170,17 @@ class Appliance(entity.Entity):
         # start with current values
         current_val = self.get_resource('aircon/get_control_info')
 
-        # we are using an extra mode "off" to power off the unit
-        if settings.get('mode', '') == 'off':
-            settings['pow'] = '0'
-        else:
-            if 'en_hol' in self.values and self.values['en_hol'] != '0':
-                raise ValueError("device is in holiday mode")
-            settings['pow'] = '1'
-
         # Merge current_val with mapped settings
         current_val.update(
             {k: human_to_daikin(k, v)
              for k, v in settings.items()})
-        self.values = current_val
+        self.values.update(current_val)
+
+        # we are using an extra mode "off" to power off the unit
+        if settings.get('mode', '') == 'off':
+            self.values['pow'] = '0'
+        else:
+            self.values['pow'] = '1'
 
         query_c = \
             'aircon/set_control_info?pow=%s&mode=%s&stemp=%s&shum=%s' % \
@@ -194,17 +192,17 @@ class Appliance(entity.Entity):
             )
 
         # Apparently some remote controllers SUCK (don't support f_rate)
-        if "f_rate" in current_val:
+        if "f_rate" in self.values:
             query_c += '&f_rate=%s&f_dir=%s' % \
                 (
                     self.values['f_rate'],
                     self.values['f_dir'],
                 )
-        if "en_hol" in self.values:
-            query_h = ('common/set_holiday?en_hol=%s' % self.values['en_hol'])
+
+        query_h = ('common/set_holiday?en_hol=%s' % self.values.get('en_hol'))
 
         with requests.Session() as self.session:
-            if "f_rate" in settings:
+            if self.values.get('en_hol', '') == "1":
                 self.get_resource(query_h)
-            if 'en_hol' in self.values and self.values['en_hol'] == "0":
+            else:
                 self.get_resource(query_c)
