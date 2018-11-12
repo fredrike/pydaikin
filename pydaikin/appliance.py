@@ -176,8 +176,8 @@ class Appliance(entity.Entity):
 
     def set(self, settings):
         # start with current values
-        current_val = self.get_resource('aircon/get_control_info')
-
+        current_val  = self.get_resource('aircon/get_control_info')
+        current_mode = current_val['mode']
         # Merge current_val with mapped settings
         current_val.update(
             {k: human_to_daikin(k, v)
@@ -187,6 +187,7 @@ class Appliance(entity.Entity):
         # we are using an extra mode "off" to power off the unit
         if settings.get('mode', '') == 'off':
             self.values['pow'] = '0'
+            self.values['mode'] = current_mode # some units are picky with the off mode
         else:
             self.values['pow'] = '1'
 
