@@ -18,6 +18,11 @@ HTTP_RESOURCES = [
     'aircon/get_year_power',
 ]
 
+INFO_RESOURCES = [
+    'aircon/get_sensor_info',
+    'aircon/get_control_info',
+]
+
 VALUES_SUMMARY = [
     'name',
     'ip',
@@ -123,14 +128,17 @@ class Appliance(entity.Entity):
 
         self.ip = ip
 
-        with requests.Session() as self.session:
-            for resource in HTTP_RESOURCES:
-                self.values.update(self.get_resource(resource))
+        self.update_status(HTTP_RESOURCES)
 
     def get_resource(self, resource):
         r = self.session.get('http://%s/%s' % (self.ip, resource))
 
         return self.parse_response(r.text)
+
+    def update_status(self, resources=INFO_RESOURCES):
+        for resource in resources:
+            with requests.Session() as self.session:
+                self.values.update(self.get_resource(resource))
 
     def show_values(self, only_summary=False):
         if only_summary:
