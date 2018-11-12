@@ -174,7 +174,7 @@ class Appliance(entity.Entity):
         if settings.get('mode', '') == 'off':
             settings['pow'] = '0'
         else:
-            if self.values['en_hol'] != '0':
+            if 'en_hol' in self.values and self.values['en_hol'] != '0':
                 raise ValueError("device is in holiday mode")
             settings['pow'] = '1'
 
@@ -200,11 +200,11 @@ class Appliance(entity.Entity):
                     self.values['f_rate'],
                     self.values['f_dir'],
                 )
-
-        query_h = ('common/set_holiday?en_hol=%s' % self.values['en_hol'])
+        if "en_hol" in self.values:
+            query_h = ('common/set_holiday?en_hol=%s' % self.values['en_hol'])
 
         with requests.Session() as self.session:
             if "f_rate" in settings:
                 self.get_resource(query_h)
-            if self.values['en_hol'] == "0":
+            if 'en_hol' in self.values and self.values['en_hol'] == "0":
                 self.get_resource(query_c)
