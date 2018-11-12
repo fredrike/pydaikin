@@ -4,96 +4,85 @@ import pydaikin.appliance as appliance
 import pydaikin.discovery as discovery
 import time
 import argparse
-import sys
 
 def list_all_devices():
     for dev in discovery.get_devices():
-        print("%18s: %s" % (dev['ip'], dev['name']))
+        print ("%18s: %s" % (dev['ip'], dev['name']))
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description = 'Daikin wireless interface.')
+parser = argparse.ArgumentParser(description = 'Daikin wireless interface.')
 
-    group = parser.add_mutually_exclusive_group(required = True)
+group = parser.add_mutually_exclusive_group(required = True)
 
-    group.add_argument('device', metavar='dev', nargs='?',
-                       help='device, either ip or common name')
+group.add_argument('device', metavar='dev', nargs='?',
+                   help='device, either ip or common name')
 
-    group.add_argument('-l', '--list', action='store_true',
-                       help='list all the devices found')
+group.add_argument('-l', '--list', action='store_true',
+                   help='list all the devices found')
 
-    parser.add_argument('-a', '--all', action='store_true',
-                        help='show all the values available for the device')
+parser.add_argument('-a', '--all', action='store_true',
+                    help='show all the values available for the device')
 
-    settings = parser.add_argument_group('device settings',
-                                         'Modify paramaters of a device')
+settings = parser.add_argument_group('device settings',
+                                     'Modify paramaters of a device')
 
-    settings.add_argument('-p', '--power',
-                          choices = appliance.daikin_values('power'),
-                          help='turn the device on or off')
+settings.add_argument('-m', '--mode',
+                    choices = appliance.daikin_values('mode'),
+                    help='set working mode')
 
-    settings.add_argument('-m', '--mode',
-                        choices = appliance.daikin_values('mode'),
-                        help='set working mode')
+settings.add_argument('-t', '--temp', type = int,
+                      help='set target temperature')
 
-    settings.add_argument('-t', '--temp', type = float,
-                          help='set target temperature')
+settings.add_argument('-y', '--humidity', type = int,
+                      help='set target humidity')
 
-    settings.add_argument('-y', '--humidity', type = float,
-                          help='set target humidity')
+settings.add_argument('-f', '--fan',
+                      choices = appliance.daikin_values('f_rate'),
+                      help='set fan speed')
 
-    settings.add_argument('-f', '--fan',
-                          choices = appliance.daikin_values('fan'),
-                          help='set fan speed')
+settings.add_argument('-d', '--direction',
+                      choices = appliance.daikin_values('f_dir'),
+                      help='set fan movement')
 
-    settings.add_argument('-d', '--direction',
-                          choices = appliance.daikin_values('direction'),
-                          help='set fan movement')
+settings.add_argument('-w', '--away',
+                      choices = appliance.daikin_values('en_hol'),
+                      help='set away mode')
 
-    return parser.parse_args()
+args = parser.parse_args()
 
-def main():
-    args = parse_args()
+if args.list:
+    list_all_devices()
 
-    if args.list:
-        list_all_devices()
+else:
+    settings = {}
+
+    if args.mode:
+        settings.update({"mode": args.mode})
+
+    if args.temp:
+        settings.update({"stemp": str(args.temp)})
+
+    if args.humidity:
+        settings.update({"shum": str(args.humidity)})
+
+    if args.fan:
+        settings.update({"f_rate": args.fan})
+
+    if args.direction:
+        settings.update({"f_dir": args.direction})
+
+    if args.away:
+        settings.update({"en_hol": args.away})
+
+    if args.all:
+        only_summary = False
+    else:
+        only_summary = True
+
+    e = appliance.Appliance(args.device)
+
+    if settings == {}:
+        e.show_values(only_summary)
 
     else:
-        settings = {}
-
-        if args.power:
-            settings.update({"power": args.power})
-
-        if args.mode:
-            settings.update({"mode": args.mode})
-
-        if args.temp:
-            settings.update({"temp": args.temp})
-
-        if args.humidity:
-            settings.update({"humidity": args.humidity})
-
-        if args.fan:
-            settings.update({"fan": args.fan})
-
-        if args.direction:
-            settings.update({"direction": args.direction})
-
-        if args.all:
-            only_summary = False
-        else:
-            only_summary = True
-
-        e = appliance.Appliance(args.device)
-
-        if settings == {}:
-            e.show_values(only_summary)
-
-        else:
-            e.set(settings)
-
-try:
-    main()
-except Exception as inst:
-    print("ERROR: " + str(inst))
-    sys.exit(1)
+        e.set(settings)

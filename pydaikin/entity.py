@@ -9,7 +9,7 @@
     :license: BSD, see LICENSE for more details.
 """
 
-import urllib.parse
+import urllib
 
 class Entity:
     def __init__(self):
