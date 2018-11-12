@@ -94,9 +94,13 @@ class Appliance(entity.Entity):
             # id is a common name, try discovery
             e = discovery.get_name(id)
             if None == e:
-                raise ValueError("no device found for %s" % id)
-
-            ip = e['ip']
+		# try DNS
+                try:
+                    ip = socket.gethostbyname(id)
+                except socket.gaierror:
+                    raise ValueError("no device found for %s" % id)
+            else:
+                ip = e['ip']
 
         self.ip = ip
 
