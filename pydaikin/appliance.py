@@ -176,20 +176,29 @@ class Appliance(entity.Entity):
 
     def set(self, settings):
         # start with current values
-        current_val  = self.get_resource('aircon/get_control_info')
-        current_mode = current_val['mode']
+        current_val = self.get_resource('aircon/get_control_info')
+
         # Merge current_val with mapped settings
-        current_val.update(
+        self.values.update(current_val)
+        self.values.update(
             {k: human_to_daikin(k, v)
              for k, v in settings.items()})
-        self.values.update(current_val)
 
         # we are using an extra mode "off" to power off the unit
         if settings.get('mode', '') == 'off':
             self.values['pow'] = '0'
-            self.values['mode'] = current_mode # some units are picky with the off mode
+            self.values['mode'] = current_val['mode']  # some units are picky with the off mode
         else:
             self.values['pow'] = '1'
+
+        # Use settings for respecitve mode (dh and dt)
+        for k, v in {'stemp': 'dt', 'shum': 'dh'}.items():
+            if k not in settings:
+                key = v + self.values['mode']
+                if key in current_val:
+                    self.values[k] = current_val[key]
+
+        print(self.values)
 
         query_c = \
             'aircon/set_control_info?pow=%s&mode=%s&stemp=%s&shum=%s' % \
@@ -200,8 +209,8 @@ class Appliance(entity.Entity):
                 self.values['shum'],
             )
 
-        # Apparently some remote controllers SUCK (don't support f_rate)
-        if "f_rate" in self.values:
+        # Apparently some remote controllers doesn't support f_rate and f_dir
+        if "f_rate" in current_val:
             query_c += '&f_rate=%s&f_dir=%s' % \
                 (
                     self.values['f_rate'],
