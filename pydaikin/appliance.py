@@ -198,8 +198,6 @@ class Appliance(entity.Entity):
                 if key in current_val:
                     self.values[k] = current_val[key]
 
-        print(self.values)
-
         query_c = \
             'aircon/set_control_info?pow=%s&mode=%s&stemp=%s&shum=%s' % \
             (
