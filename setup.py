@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name='pydaikin',
-    version='0.7',
+    version='0.8',
     description='Python Daikin HVAC appliances interface',
     author='Yari Adan',
     author_email='mustang@yadan.org',
