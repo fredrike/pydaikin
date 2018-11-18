@@ -1,52 +1,64 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import pydaikin.appliance as appliance
 import pydaikin.discovery as discovery
-import time
 import argparse
+
 
 def list_all_devices():
     for dev in discovery.get_devices():
-        print ("%18s: %s" % (dev['ip'], dev['name']))
+        print("%18s: %s" % (dev['ip'], dev['name']))
 
 
-parser = argparse.ArgumentParser(description = 'Daikin wireless interface.')
+parser = argparse.ArgumentParser(description='Daikin wireless interface.')
 
-group = parser.add_mutually_exclusive_group(required = True)
+group = parser.add_mutually_exclusive_group(required=True)
 
-group.add_argument('device', metavar='dev', nargs='?',
-                   help='device, either ip or common name')
+group.add_argument(
+    'device',
+    metavar='dev',
+    nargs='?',
+    help='device, either ip or common name')
 
-group.add_argument('-l', '--list', action='store_true',
-                   help='list all the devices found')
+group.add_argument(
+    '-l', '--list', action='store_true', help='list all the devices found')
 
-parser.add_argument('-a', '--all', action='store_true',
-                    help='show all the values available for the device')
+parser.add_argument(
+    '-a',
+    '--all',
+    action='store_true',
+    help='show all the values available for the device')
 
 settings = parser.add_argument_group('device settings',
                                      'Modify paramaters of a device')
 
-settings.add_argument('-m', '--mode',
-                    choices = appliance.daikin_values('mode'),
-                    help='set working mode')
+settings.add_argument(
+    '-m',
+    '--mode',
+    choices=appliance.daikin_values('mode'),
+    help='set working mode')
 
-settings.add_argument('-t', '--temp', type = int,
-                      help='set target temperature')
+settings.add_argument('-t', '--temp', type=int, help='set target temperature')
 
-settings.add_argument('-y', '--humidity', type = int,
-                      help='set target humidity')
+settings.add_argument('-y', '--humidity', type=int, help='set target humidity')
 
-settings.add_argument('-f', '--fan',
-                      choices = appliance.daikin_values('f_rate'),
-                      help='set fan speed')
+settings.add_argument(
+    '-f',
+    '--fan',
+    choices=appliance.daikin_values('f_rate'),
+    help='set fan speed')
 
-settings.add_argument('-d', '--direction',
-                      choices = appliance.daikin_values('f_dir'),
-                      help='set fan movement')
+settings.add_argument(
+    '-d',
+    '--direction',
+    choices=appliance.daikin_values('f_dir'),
+    help='set fan movement')
 
-settings.add_argument('-w', '--away',
-                      choices = appliance.daikin_values('en_hol'),
-                      help='set away mode')
+settings.add_argument(
+    '-w',
+    '--away',
+    choices=appliance.daikin_values('en_hol'),
+    help='set away mode')
 
 args = parser.parse_args()
 
