@@ -132,8 +132,9 @@ class Appliance(entity.Entity):
 
     def get_resource(self, resource):
         r = self.session.get('http://%s/%s' % (self.ip, resource))
-
-        return self.parse_response(r.text)
+        if r.status_code == 200:
+            return self.parse_response(r.text)
+        return {}
 
     def update_status(self, resources=INFO_RESOURCES):
         for resource in resources:
