@@ -130,6 +130,14 @@ class Appliance(entity.Entity):
 
         self.update_status(HTTP_RESOURCES)
 
+    @property
+    def support_fan_mode(self):
+        return self.values.get('f_rate') is not None
+
+    @property
+    def support_swing_mode(self):
+        return self.values.get('f_dir') is not None
+
     def get_resource(self, resource):
         r = self.session.get('http://%s/%s' % (self.ip, resource))
         if r.status_code == 200:
@@ -211,7 +219,7 @@ class Appliance(entity.Entity):
             )
 
         # Apparently some remote controllers doesn't support f_rate and f_dir
-        if "f_rate" in current_val:
+        if self.support_fan_mode:
             query_c += '&f_rate=%s&f_dir=%s' % \
                 (
                     self.values['f_rate'],
