@@ -218,11 +218,9 @@ class Appliance(entity.Entity):
 
         # Apparently some remote controllers doesn't support f_rate and f_dir
         if self.support_fan_mode:
-            query_c += '&f_rate=%s&f_dir=%s' % \
-                (
-                    self.values['f_rate'],
-                    self.values['f_dir'],
-                )
+            query_c += '&f_rate=%s' % self.values['f_rate']
+        if self.support_swing_mode:
+            query_c += '&f_dir=%s' % self.values['f_dir']
 
         query_h = ('common/set_holiday?en_hol=%s' % self.values.get('en_hol'))
 
