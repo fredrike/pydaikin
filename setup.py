@@ -13,6 +13,6 @@ setup(
     python_requires='>3.5',
     packages=['pydaikin'],
     keywords=['homeautomation', 'daikin'],
-    install_requires=['netifaces', 'requests'],
+    install_requires=['netifaces', 'aiohttp'],
     scripts=['bin/pydaikin'],
 )

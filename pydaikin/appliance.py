@@ -1,8 +1,12 @@
-import pydaikin.entity as entity
-import pydaikin.discovery as discovery
-
 import socket
-import requests
+
+import pydaikin.discovery as discovery
+import pydaikin.entity as entity
+
+import aiohttp
+import logging
+
+_LOGGER = logging.getLogger(__name__)
 
 HTTP_RESOURCES = [
     'common/basic_info',
@@ -128,7 +132,9 @@ class Appliance(entity.Entity):
 
         self.ip = ip
 
-        self.update_status(HTTP_RESOURCES)
+    async def init(self):
+        """Init status."""
+        await self.update_status(HTTP_RESOURCES)
 
     @property
     def support_fan_mode(self):
@@ -138,16 +144,18 @@ class Appliance(entity.Entity):
     def support_swing_mode(self):
         return self.values.get('f_dir') is not None
 
-    def get_resource(self, resource):
-        r = self.session.get('http://%s/%s' % (self.ip, resource))
-        if r.status_code == 200:
-            return self.parse_response(r.text)
-        return {}
+    async def get_resource(self, resource):
+        async with self.session.get(
+                'http://%s/%s' % (self.ip, resource)) as resp:
+            if resp.status == 200:
+                return self.parse_response(await resp.text())
+            return {}
 
-    def update_status(self, resources=INFO_RESOURCES):
-        for resource in resources:
-            with requests.Session() as self.session:
-                self.values.update(self.get_resource(resource))
+    async def update_status(self, resources=INFO_RESOURCES):
+        _LOGGER.debug("Updating %s", resources)
+        async with aiohttp.ClientSession() as self.session:
+            for resource in resources:
+                self.values.update(await self.get_resource(resource))
 
     def show_values(self, only_summary=False):
         if only_summary:
@@ -183,9 +191,10 @@ class Appliance(entity.Entity):
 
         return (k, v)
 
-    def set(self, settings):
+    async def set(self, settings):
         # start with current values
-        current_val = self.get_resource('aircon/get_control_info')
+        async with aiohttp.ClientSession() as self.session:
+            current_val = await self.get_resource('aircon/get_control_info')
 
         # Merge current_val with mapped settings
         self.values.update(current_val)
@@ -196,7 +205,8 @@ class Appliance(entity.Entity):
         # we are using an extra mode "off" to power off the unit
         if settings.get('mode', '') == 'off':
             self.values['pow'] = '0'
-            self.values['mode'] = current_val['mode']  # some units are picky with the off mode
+            # some units are picky with the off mode
+            self.values['mode'] = current_val['mode']
         else:
             self.values['pow'] = '1'
 
@@ -224,8 +234,8 @@ class Appliance(entity.Entity):
 
         query_h = ('common/set_holiday?en_hol=%s' % self.values.get('en_hol'))
 
-        with requests.Session() as self.session:
+        async with aiohttp.ClientSession() as self.session:
             if self.values.get('en_hol', '') == "1":
-                self.get_resource(query_h)
+                await self.get_resource(query_h)
             else:
-                self.get_resource(query_c)
+                await self.get_resource(query_c)

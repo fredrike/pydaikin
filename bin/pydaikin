@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
+import argparse
+import asyncio
+
 import pydaikin.appliance as appliance
 import pydaikin.discovery as discovery
-import argparse
 
 
 def list_all_devices():
@@ -91,10 +93,12 @@ else:
     else:
         only_summary = True
 
+    loop = asyncio.get_event_loop()
     e = appliance.Appliance(args.device)
+    loop.run_until_complete(e.init())
 
     if settings == {}:
         e.show_values(only_summary)
 
     else:
-        e.set(settings)
+        loop.run_until_complete(e.set(settings))
