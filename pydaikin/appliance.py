@@ -108,9 +108,15 @@ def daikin_values(dimension):
 
 
 class Appliance(entity.Entity):
-    def __init__(self, id):
+    def __init__(self, id, session=None):
 
         entity.Entity.__init__(self)
+        self.session = session
+
+        if session:
+            self.ip = id
+            self.session = session
+            return
 
         try:
             socket.inet_aton(id)
@@ -145,6 +151,13 @@ class Appliance(entity.Entity):
         return self.values.get('f_dir') is not None
 
     async def get_resource(self, resource):
+        if self.session and not self.session.closed:
+            return await self._get_resource(resource)
+        else:
+            async with aiohttp.ClientSession() as self.session:
+                return await self._get_resource(resource)
+
+    async def _get_resource(self, resource):
         async with self.session.get(
                 'http://%s/%s' % (self.ip, resource)) as resp:
             if resp.status == 200:
@@ -153,9 +166,8 @@ class Appliance(entity.Entity):
 
     async def update_status(self, resources=INFO_RESOURCES):
         _LOGGER.debug("Updating %s", resources)
-        async with aiohttp.ClientSession() as self.session:
-            for resource in resources:
-                self.values.update(await self.get_resource(resource))
+        for resource in resources:
+            self.values.update(await self.get_resource(resource))
 
     def show_values(self, only_summary=False):
         if only_summary:
@@ -193,8 +205,7 @@ class Appliance(entity.Entity):
 
     async def set(self, settings):
         # start with current values
-        async with aiohttp.ClientSession() as self.session:
-            current_val = await self.get_resource('aircon/get_control_info')
+        current_val = await self.get_resource('aircon/get_control_info')
 
         # Merge current_val with mapped settings
         self.values.update(current_val)
@@ -234,8 +245,7 @@ class Appliance(entity.Entity):
 
         query_h = ('common/set_holiday?en_hol=%s' % self.values.get('en_hol'))
 
-        async with aiohttp.ClientSession() as self.session:
-            if self.values.get('en_hol', '') == "1":
-                await self.get_resource(query_h)
-            else:
-                await self.get_resource(query_c)
+        if self.values.get('en_hol', '') == "1":
+            await self.get_resource(query_h)
+        else:
+            await self.get_resource(query_c)
