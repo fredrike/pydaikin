@@ -22,6 +22,12 @@ HTTP_RESOURCES = [
     'aircon/get_year_power',
 ]
 
+AIRBASE_RESOURCES = [
+    'common/basic_info',
+    'aircon/get_control_info',
+    'aircon/get_model_info',
+]
+
 INFO_RESOURCES = [
     'aircon/get_sensor_info',
     'aircon/get_control_info',
@@ -87,20 +93,54 @@ TRANSLATIONS = {
     },
 }
 
-# Reversed list of translations
-TRANSLATIONS_REV = {
-    dim: {v: k
-          for k, v in item.items()}
-    for dim, item in TRANSLATIONS.items()
+TRANSLATIONS_AIRBASE = {
+    'mode': {
+        '0': 'fan',
+        '1': 'hot',
+        '2': 'cool',
+        '7': 'dry',
+    },
+    'f_rate': {
+        'A': 'auto',
+        'B': 'silence',
+        '1': '1',
+        '2': '2',
+        '3': '3',
+        '4': '4',
+        '5': '5',
+    },
+    'f_dir': {
+        '0': 'off',
+        '1': 'vertical',
+        '2': 'horizontal',
+        '3': '3d',
+    },
+    'en_hol': {
+        '0': 'off',
+        '1': 'on',
+    },
 }
 
 
-def daikin_to_human(dimension, value):
-    return TRANSLATIONS.get(dimension, {}).get(value, value)
+def daikin_to_human(dimension, value, airbase=False):
+    if airbase:
+        translations = TRANSLATIONS_AIRBASE
+    else:
+        translations = TRANSLATIONS
+    return translations.get(dimension, {}).get(value, str(value))
 
 
-def human_to_daikin(dimension, value):
-    return TRANSLATIONS_REV.get(dimension, {}).get(value, value)
+def human_to_daikin(dimension, value, airbase=False):
+    if airbase:
+        translations = TRANSLATIONS_AIRBASE
+    else:
+        translations = TRANSLATIONS
+    translations_rev = {
+        dim: {v: k
+              for k, v in item.items()}
+        for dim, item in translations.items()
+    }
+    return translations_rev.get(dimension, {}).get(value, value)
 
 
 def daikin_values(dimension):
@@ -111,11 +151,11 @@ class Appliance(entity.Entity):
     def __init__(self, id, session=None):
 
         entity.Entity.__init__(self)
+        self._airbase = False
         self.session = session
 
         if session:
             self.ip = id
-            self.session = session
             return
 
         try:
@@ -140,7 +180,13 @@ class Appliance(entity.Entity):
 
     async def init(self):
         """Init status."""
-        await self.update_status(HTTP_RESOURCES)
+        await self.update_status(HTTP_RESOURCES[:1])
+        if self.values == {}:
+            self._airbase = True
+            self.values.update({'htemp': '-', 'otemp': '-', 'shum': '--'})
+            await self.update_status(AIRBASE_RESOURCES)
+        else:
+            await self.update_status(HTTP_RESOURCES[1:])
 
     @property
     def support_fan_mode(self):
@@ -148,7 +194,7 @@ class Appliance(entity.Entity):
 
     @property
     def support_swing_mode(self):
-        return self.values.get('f_dir') is not None
+        return self.values.get('f_dir') is not None and not self._airbase
 
     async def get_resource(self, resource):
         if self.session and not self.session.closed:
@@ -158,6 +204,8 @@ class Appliance(entity.Entity):
                 return await self._get_resource(resource)
 
     async def _get_resource(self, resource):
+        if self._airbase:
+            resource = 'skyfi/%s' % resource
         async with self.session.get(
                 'http://%s/%s' % (self.ip, resource)) as resp:
             if resp.status == 200:
@@ -190,17 +238,14 @@ class Appliance(entity.Entity):
         # adapt the value
         v = self.values[key]
 
-        if key == 'mode':
-            if self.values['pow'] == '0':
+        if key == 'mode' and self.values['pow'] == '0':
                 v = 'off'
-            else:
-                v = daikin_to_human(key, v)
-
-        elif key in TRANSLATIONS:
-            v = daikin_to_human(key, v)
         elif key == 'mac':
             v = self.translate_mac(v)
+        else:
+            v = daikin_to_human(key, v, self._airbase)
 
+        _LOGGER.debug('Represent: %s, %s, %s', key, k, v)
         return (k, v)
 
     async def set(self, settings):
@@ -209,9 +254,10 @@ class Appliance(entity.Entity):
 
         # Merge current_val with mapped settings
         self.values.update(current_val)
-        self.values.update(
-            {k: human_to_daikin(k, v)
-             for k, v in settings.items()})
+        self.values.update({
+            k: human_to_daikin(k, v, self._airbase)
+            for k, v in settings.items()
+        })
 
         # we are using an extra mode "off" to power off the unit
         if settings.get('mode', '') == 'off':
@@ -222,7 +268,7 @@ class Appliance(entity.Entity):
             self.values['pow'] = '1'
 
         # Use settings for respecitve mode (dh and dt)
-        for k, v in {'stemp': 'dt', 'shum': 'dh'}.items():
+        for k, v in {'stemp': 'dt', 'shum': 'dh', 'f_rate': 'dfr'}.items():
             if k not in settings:
                 key = v + self.values['mode']
                 if key in current_val:
@@ -239,12 +285,18 @@ class Appliance(entity.Entity):
 
         # Apparently some remote controllers doesn't support f_rate and f_dir
         if self.support_fan_mode:
+            if self._airbase and self.values['f_rate'] != 5:
+                    self.values['f_rate'] = 1
             query_c += '&f_rate=%s' % self.values['f_rate']
-        if self.support_swing_mode:
+        if self.support_swing_mode or self._airbase:
             query_c += '&f_dir=%s' % self.values['f_dir']
+
+        if self._airbase:
+            query_c += '&lpw=&f_airside=0'
 
         query_h = ('common/set_holiday?en_hol=%s' % self.values.get('en_hol'))
 
+        _LOGGER.debug("Sending query_c: %s", query_c)
         if self.values.get('en_hol', '') == "1":
             await self.get_resource(query_h)
         else:
