@@ -239,7 +239,7 @@ class Appliance(entity.Entity):
         v = self.values[key]
 
         if key == 'mode' and self.values['pow'] == '0':
-                v = 'off'
+            v = 'off'
         elif key == 'mac':
             v = self.translate_mac(v)
         else:
@@ -286,7 +286,7 @@ class Appliance(entity.Entity):
         # Apparently some remote controllers doesn't support f_rate and f_dir
         if self.support_fan_mode:
             if self._airbase and self.values['f_rate'] != 5:
-                    self.values['f_rate'] = 1
+                self.values['f_rate'] = 1
             query_c += '&f_rate=%s' % self.values['f_rate']
         if self.support_swing_mode or self._airbase:
             query_c += '&f_dir=%s' % self.values['f_dir']
