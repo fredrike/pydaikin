@@ -26,6 +26,7 @@ AIRBASE_RESOURCES = [
     'common/basic_info',
     'aircon/get_control_info',
     'aircon/get_model_info',
+    'aircon/get_zone_setting'
 ]
 
 INFO_RESOURCES = [
@@ -183,6 +184,7 @@ class Appliance(entity.Entity):
         await self.update_status(HTTP_RESOURCES[:1])
         if self.values == {}:
             self._airbase = True
+            INFO_RESOURCES.append('aircon/get_zone_setting')
             self.values.update({'htemp': '-', 'otemp': '-', 'shum': '--'})
             await self.update_status(AIRBASE_RESOURCES)
         else:
@@ -232,6 +234,7 @@ class Appliance(entity.Entity):
         return ':'.join(value[i:i + 2] for i in range(0, len(value), 2))
 
     def represent(self, key):
+        from urllib.parse import unquote
         # adapt the key
         k = VALUES_TRANSLATION.get(key, key)
 
@@ -242,6 +245,8 @@ class Appliance(entity.Entity):
             v = 'off'
         elif key == 'mac':
             v = self.translate_mac(v)
+        elif key in ['zone_name', 'zone_onoff']:
+            v = unquote(self.values[key]).split(';')
         else:
             v = daikin_to_human(key, v, self._airbase)
 
@@ -301,3 +306,29 @@ class Appliance(entity.Entity):
             await self.get_resource(query_h)
         else:
             await self.get_resource(query_c)
+
+    @property
+    def zones(self):
+        """Return list of zones."""
+        if not self.values.get('zone_name'):
+            return
+        zone_onoff = self.represent('zone_onoff')[1]
+        return [(name.strip(' +,'), zone_onoff[i])
+                for i, name in enumerate(self.represent('zone_name')[1])]
+
+    async def set_zone(self, zone_id, status):
+        """Set zone status."""
+        from urllib.parse import quote
+        current_state = await self.get_resource('aircon/get_zone_setting')
+        self.values.update(current_state)
+        zone_onoff = self.represent('zone_onoff')[1]
+        zone_onoff[zone_id] = status
+        self.values['zone_onoff'] = quote(';'.join(zone_onoff)).lower()
+
+        query = 'aircon/set_zone_setting?zone_name={}&zone_onoff={}'.format(
+            current_state['zone_name'],
+            self.values['zone_onoff'],
+        )
+
+        _LOGGER.debug("Set zone:: %s", query)
+        await self.get_resource(query)
