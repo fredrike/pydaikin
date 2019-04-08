@@ -1,10 +1,10 @@
+import logging
 import socket
+
+from aiohttp import ClientSession, ServerDisconnectedError
 
 import pydaikin.discovery as discovery
 import pydaikin.entity as entity
-
-import aiohttp
-import logging
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -198,12 +198,18 @@ class Appliance(entity.Entity):
     def support_swing_mode(self):
         return self.values.get('f_dir') is not None and not self._airbase
 
-    async def get_resource(self, resource):
-        if self.session and not self.session.closed:
-            return await self._get_resource(resource)
-        else:
-            async with aiohttp.ClientSession() as self.session:
+    async def get_resource(self, resource, retries=3):
+        try:
+            if self.session and not self.session.closed:
                 return await self._get_resource(resource)
+            else:
+                async with ClientSession() as self.session:
+                    return await self._get_resource(resource)
+        except ServerDisconnectedError as error:
+            _LOGGER.warning("ServerDisconnectedError %d", retries)
+            if retries == 0:
+                raise error
+            return await self.get_resource(resource, retries=retries - 1)
 
     async def _get_resource(self, resource):
         if self._airbase:
