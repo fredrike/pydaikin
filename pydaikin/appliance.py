@@ -197,12 +197,22 @@ class Appliance(entity.Entity):
         return list(map(str.title, self._fan_modes.keys()))
 
     @property
+    def support_away_mode(self):
+        """Return True if the device is not an AirBase unit."""
+        return not self._airbase
+
+    @property
     def support_fan_mode(self):
         return self.values.get('f_rate') is not None
 
     @property
     def support_swing_mode(self):
         return self.values.get('f_dir') is not None and not self._airbase
+
+    @property
+    def support_outside_temperature(self):
+        """Return True if the device is not an AirBase unit."""
+        return not self._airbase
 
     async def get_resource(self, resource, retries=3):
         try:
