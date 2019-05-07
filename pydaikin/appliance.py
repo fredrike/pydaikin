@@ -149,6 +149,7 @@ class Appliance(entity.Entity):
 
         entity.Entity.__init__(self)
         self._airbase = False
+        self._fan_modes = TRANSLATIONS['f_rate']
         self.session = session
 
         if session:
@@ -174,7 +175,6 @@ class Appliance(entity.Entity):
                 ip = e['ip']
 
         self.ip = ip
-        self._fan_modes = TRANSLATIONS['f_rate']
 
     async def init(self):
         """Init status."""
