@@ -102,13 +102,9 @@ TRANSLATIONS_AIRBASE = {
         '7': 'dry',
     },
     'f_rate': {
-        'A': 'auto',
-        'B': 'silence',
-        '1': '1',
-        '2': '2',
-        '3': '3',
-        '4': '4',
-        '5': '5',
+        'low': '1',
+        'mid': '3',
+        'high': '5',
     },
     'f_dir': {
         '0': 'off',
@@ -178,6 +174,7 @@ class Appliance(entity.Entity):
                 ip = e['ip']
 
         self.ip = ip
+        self._fan_modes = TRANSLATIONS['f_rate']
 
     async def init(self):
         """Init status."""
@@ -187,8 +184,22 @@ class Appliance(entity.Entity):
             INFO_RESOURCES.append('aircon/get_zone_setting')
             self.values.update({'htemp': '-', 'otemp': '-', 'shum': '--'})
             await self.update_status(AIRBASE_RESOURCES)
+            if self.values['frate_steps'] == 2:
+                self._fan_modes = {'low': 1, 'high': 5}
+            else:
+                self._fan_modes = TRANSLATIONS_AIRBASE['f_rate']
         else:
             await self.update_status(HTTP_RESOURCES[1:])
+
+    @property
+    def fan_modes(self):
+        """Return list of supported fan modes."""
+        return list(map(str.title, self._fan_modes.keys()))
+
+    @property
+    def support_away_mode(self):
+        """Return True if the device is not an AirBase unit."""
+        return not self._airbase
 
     @property
     def support_fan_mode(self):
@@ -197,6 +208,11 @@ class Appliance(entity.Entity):
     @property
     def support_swing_mode(self):
         return self.values.get('f_dir') is not None and not self._airbase
+
+    @property
+    def support_outside_temperature(self):
+        """Return True if the device is not an AirBase unit."""
+        return not self._airbase
 
     async def get_resource(self, resource, retries=3):
         try:
@@ -296,8 +312,6 @@ class Appliance(entity.Entity):
 
         # Apparently some remote controllers doesn't support f_rate and f_dir
         if self.support_fan_mode:
-            if self._airbase and self.values['f_rate'] != 5:
-                self.values['f_rate'] = 1
             query_c += '&f_rate=%s' % self.values['f_rate']
         if self.support_swing_mode or self._airbase:
             query_c += '&f_dir=%s' % self.values['f_dir']
