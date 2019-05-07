@@ -102,9 +102,9 @@ TRANSLATIONS_AIRBASE = {
         '7': 'dry',
     },
     'f_rate': {
-        'low': '1',
-        'mid': '3',
-        'high': '5',
+        '1': 'low',
+        '3': 'mid',
+        '5': 'high',
     },
     'f_dir': {
         '0': 'off',
@@ -194,7 +194,7 @@ class Appliance(entity.Entity):
     @property
     def fan_modes(self):
         """Return list of supported fan modes."""
-        return list(map(str.title, self._fan_modes.keys()))
+        return list(map(str.title, self._fan_modes.values()))
 
     @property
     def support_away_mode(self):
