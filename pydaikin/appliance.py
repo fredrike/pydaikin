@@ -149,7 +149,7 @@ class Appliance(entity.Entity):
 
         entity.Entity.__init__(self)
         self._airbase = False
-        self._fan_modes = TRANSLATIONS['f_rate']
+        self._fan_rate = TRANSLATIONS['f_rate']
         self.session = session
 
         if session:
@@ -185,16 +185,16 @@ class Appliance(entity.Entity):
             self.values.update({'htemp': '-', 'otemp': '-', 'shum': '--'})
             await self.update_status(AIRBASE_RESOURCES)
             if self.values['frate_steps'] == 2:
-                self._fan_modes = {'low': 1, 'high': 5}
+                self._fan_rate = {'1': 'low', '5': 'high'}
             else:
-                self._fan_modes = TRANSLATIONS_AIRBASE['f_rate']
+                self._fan_rate = TRANSLATIONS_AIRBASE['f_rate']
         else:
             await self.update_status(HTTP_RESOURCES[1:])
 
     @property
-    def fan_modes(self):
+    def fan_rate(self):
         """Return list of supported fan modes."""
-        return list(map(str.title, self._fan_modes.values()))
+        return list(map(str.title, self._fan_rate.values()))
 
     @property
     def support_away_mode(self):
@@ -202,7 +202,7 @@ class Appliance(entity.Entity):
         return not self._airbase
 
     @property
-    def support_fan_mode(self):
+    def support_fan_rate(self):
         return self.values.get('f_rate') is not None
 
     @property
