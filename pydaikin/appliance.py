@@ -1,3 +1,5 @@
+"""Pydaikin appliance, represent a Daikin device."""
+
 import logging
 import socket
 
@@ -120,6 +122,7 @@ TRANSLATIONS_AIRBASE = {
 
 
 def daikin_to_human(dimension, value, airbase=False):
+    """Return converted values from Daikin to Human."""
     if airbase:
         translations = TRANSLATIONS_AIRBASE
     else:
@@ -128,6 +131,7 @@ def daikin_to_human(dimension, value, airbase=False):
 
 
 def human_to_daikin(dimension, value, airbase=False):
+    """Return converted values from Human to Daikin."""
     if airbase:
         translations = TRANSLATIONS_AIRBASE
     else:
@@ -141,12 +145,15 @@ def human_to_daikin(dimension, value, airbase=False):
 
 
 def daikin_values(dimension):
+    """Return sorted list of translated values."""
     return sorted(list(TRANSLATIONS[dimension].values()))
 
 
 class Appliance(entity.Entity):
-    def __init__(self, id, session=None):
+    """Daikin appliance class."""
 
+    def __init__(self, id, session=None):
+        """Init the pydaikin appliance, representing one Daikin device."""
         entity.Entity.__init__(self)
         self._airbase = False
         self._fan_rate = TRANSLATIONS['f_rate']
@@ -198,15 +205,17 @@ class Appliance(entity.Entity):
 
     @property
     def support_away_mode(self):
-        """Return True if the device is not an AirBase unit."""
-        return not self._airbase
+        """Return True if the device support away_mode."""
+        return not self._airbase and 'en_hol' in self.values
 
     @property
     def support_fan_rate(self):
+        """Return True if the device support setting fan_rate."""
         return self.values.get('f_rate') is not None
 
     @property
     def support_swing_mode(self):
+        """Return True if the device support setting swing_mode."""
         return self.values.get('f_dir') is not None and not self._airbase
 
     @property
@@ -215,6 +224,7 @@ class Appliance(entity.Entity):
         return not self._airbase
 
     async def get_resource(self, resource, retries=3):
+        """Update resource."""
         try:
             if self.session and not self.session.closed:
                 return await self._get_resource(resource)
@@ -228,6 +238,7 @@ class Appliance(entity.Entity):
             return await self.get_resource(resource, retries=retries - 1)
 
     async def _get_resource(self, resource):
+        """Make the http request."""
         if self._airbase:
             resource = 'skyfi/%s' % resource
         async with self.session.get(
@@ -237,11 +248,13 @@ class Appliance(entity.Entity):
             return {}
 
     async def update_status(self, resources=INFO_RESOURCES):
+        """Update status from resources."""
         _LOGGER.debug("Updating %s", resources)
         for resource in resources:
             self.values.update(await self.get_resource(resource))
 
     def show_values(self, only_summary=False):
+        """Print values."""
         if only_summary:
             keys = VALUES_SUMMARY
         else:
@@ -253,9 +266,11 @@ class Appliance(entity.Entity):
                 print("%18s: %s" % (k, v))
 
     def translate_mac(self, value):
+        """Return translated MAC address."""
         return ':'.join(value[i:i + 2] for i in range(0, len(value), 2))
 
     def represent(self, key):
+        """Return translated value from key."""
         from urllib.parse import unquote
         # adapt the key
         k = VALUES_TRANSLATION.get(key, key)
@@ -276,6 +291,7 @@ class Appliance(entity.Entity):
         return (k, v)
 
     async def set(self, settings):
+        """Set settings on Daikin device."""
         # start with current values
         current_val = await self.get_resource('aircon/get_control_info')
 
