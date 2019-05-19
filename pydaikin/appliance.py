@@ -311,7 +311,7 @@ class Appliance(entity.Entity):
             )
 
         # Apparently some remote controllers doesn't support f_rate and f_dir
-        if self.support_fan_mode:
+        if self.support_fan_rate:
             query_c += '&f_rate=%s' % self.values['f_rate']
         if self.support_swing_mode or self._airbase:
             query_c += '&f_dir=%s' % self.values['f_dir']
