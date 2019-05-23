@@ -191,7 +191,7 @@ class Appliance(entity.Entity):
             INFO_RESOURCES.append('aircon/get_zone_setting')
             self.values.update({'htemp': '-', 'otemp': '-', 'shum': '--'})
             await self.update_status(AIRBASE_RESOURCES)
-            if self.values['frate_steps'] == 2:
+            if self.values['frate_steps'] == '2':
                 self._fan_rate = {'1': 'low', '5': 'high'}
             else:
                 self._fan_rate = TRANSLATIONS_AIRBASE['f_rate']
