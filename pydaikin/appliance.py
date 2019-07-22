@@ -221,7 +221,7 @@ class Appliance(entity.Entity):
     @property
     def support_outside_temperature(self):
         """Return True if the device is not an AirBase unit."""
-        return not self._airbase
+        return not (self._airbase and not self.outside_temperature)
 
     async def get_resource(self, resource, retries=3):
         """Update resource."""
