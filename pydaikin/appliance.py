@@ -335,13 +335,15 @@ class Appliance(entity.Entity):
         if self._airbase:
             query_c += '&lpw=&f_airside=0'
 
-        query_h = ('common/set_holiday?en_hol=%s' % self.values.get('en_hol'))
-
         _LOGGER.debug("Sending query_c: %s", query_c)
-        if self.values.get('en_hol', '') == "1":
-            await self.get_resource(query_h)
-        else:
-            await self.get_resource(query_c)
+        await self.get_resource(query_c)
+
+    async def set_holiday(self, mode):
+        """Set holiday mode."""
+        query_h = 'common/set_holiday?en_hol={}'.format(
+            human_to_daikin('en_hol', mode, self._airbase))
+        _LOGGER.debug("Sending query: %s", query_h)
+        await self.get_resource(query_h)
 
     @property
     def zones(self):
