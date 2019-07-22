@@ -372,3 +372,25 @@ class Appliance(entity.Entity):
 
         _LOGGER.debug("Set zone:: %s", query)
         await self.get_resource(query)
+
+    def _temperature(self, dimension):
+        """Parse temperature."""
+        try:
+            return float(self.values.get(dimension))
+        except ValueError:
+            return
+
+    @property
+    def outside_temperature(self):
+        """Return current outside temperature."""
+        return self._temperature('otemp')
+
+    @property
+    def inside_temperature(self):
+        """Return current inside temperature."""
+        return self._temperature('htemp')
+
+    @property
+    def target_temperature(self):
+        """Return current target temperature."""
+        return self._temperature('stemp')
