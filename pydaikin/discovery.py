@@ -40,7 +40,7 @@ class DiscoveredObject(entity.Entity):
         return str(self.values)
 
 
-class Discovery():
+class Discovery:
     def __init__(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -62,9 +62,7 @@ class Discovery():
         net_ips = [item for sublist in net_groups for item in sublist]
 
         # from those, get the broadcast IPs, if available
-        broadcast_ips = [
-            i['broadcast'] for i in net_ips if 'broadcast' in i.keys()
-        ]
+        broadcast_ips = [i['broadcast'] for i in net_ips if 'broadcast' in i.keys()]
 
         # send a daikin broadcast to each one of the ips
         for ip in broadcast_ips:
@@ -75,14 +73,15 @@ class Discovery():
                 data, addr = self.sock.recvfrom(RCV_BUFSIZ)
 
                 try:
-                    d = DiscoveredObject(addr[0], addr[1],
-                                         data.decode('UTF-8'))
+                    d = DiscoveredObject(addr[0], addr[1], data.decode('UTF-8'))
 
                     new_mac = d['mac']
                     self.dev[new_mac] = d
 
-                    if stop_if_found is not None and \
-                            d['name'].lower() == stop_if_found.lower():
+                    if (
+                        stop_if_found is not None
+                        and d['name'].lower() == stop_if_found.lower()
+                    ):
                         return self.dev.values()
 
                 except ValueError:  # invalid message received
