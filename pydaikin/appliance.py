@@ -89,7 +89,7 @@ TRANSLATIONS = {
 }
 
 TRANSLATIONS_AIRBASE = {
-    'mode': {'0': 'fan', '1': 'hot', '2': 'cool', '7': 'dry',},
+    'mode': {'0': 'fan', '1': 'hot', '2': 'cool', '3': 'auto', '7': 'dry',},
     'f_rate': {'1': 'low', '3': 'mid', '5': 'high',},
     'f_dir': {'0': 'off', '1': 'vertical', '2': 'horizontal', '3': '3d',},
     'en_hol': {'0': 'off', '1': 'on',},
