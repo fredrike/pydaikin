@@ -205,7 +205,7 @@ class Appliance(entity.Entity):
                 async with ClientSession() as self.session:
                     return await self._get_resource(resource)
         except ServerDisconnectedError as error:
-            _LOGGER.warning("ServerDisconnectedError %d", retries)
+            _LOGGER.debug("ServerDisconnectedError %d", retries)
             if retries == 0:
                 raise error
             return await self.get_resource(resource, retries=retries - 1)
