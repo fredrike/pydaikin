@@ -20,6 +20,6 @@ setup(
         "Topic :: Software Development :: Libraries :: Application Frameworks",
         "Topic :: Home Automation",
     ],
-    install_requires=['netifaces', 'aiohttp'],
+    install_requires=['netifaces', 'aiohttp', 'urllib'],
     scripts=['bin/pydaikin'],
 )
