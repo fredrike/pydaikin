@@ -1,3 +1,18 @@
 [tool.black]
 skip-string-normalization = true
+target-version = ["py37", "py38"]
+include = '\.pyi?$|pydaikin$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
 
