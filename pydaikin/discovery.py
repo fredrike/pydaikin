@@ -1,6 +1,8 @@
 import socket
-import pydaikin.entity as entity
+
 import netifaces
+
+import pydaikin.entity as entity
 
 UDP_SRC_PORT = 30000
 UDP_DST_PORT = 30050
