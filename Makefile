@@ -14,7 +14,7 @@ lint: requirements.txt setup.py
 	flake8
 	
 
-check: lint format
+check: format lint
 
 clean:
 	rm -f *.pyc
