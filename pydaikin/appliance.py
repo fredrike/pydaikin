@@ -49,7 +49,7 @@ class Appliance:
         return _class
 
     @staticmethod
-    def _parse_response(response_body):
+    def parse_response(response_body):
         """Parse respose from Daikin."""
         response = dict([e.split('=') for e in response_body.split(',')])
         if 'ret' not in response:
@@ -99,24 +99,24 @@ class Appliance:
             return self.values[name]
         raise AttributeError("No such attribute: " + name)
 
-    async def get_resource(self, resource, retries=3):
+    async def _get_resource(self, resource, retries=3):
         """Update resource."""
         try:
             if self.session and not self.session.closed:
-                return await self._get_resource(resource)
+                return await self._run_get_resource(resource)
             async with ClientSession() as self.session:
-                return await self._get_resource(resource)
+                return await self._run_get_resource(resource)
         except ServerDisconnectedError as error:
             _LOGGER.debug("ServerDisconnectedError %d", retries)
             if retries == 0:
                 raise error
-            return await self.get_resource(resource, retries=retries - 1)
+            return await self._get_resource(resource, retries=retries - 1)
 
-    async def _get_resource(self, resource):
+    async def _run_get_resource(self, resource):
         """Make the http request."""
         async with self.session.get(f'http://{self._device_ip}/{resource}') as resp:
             if resp.status == 200:
-                return self._parse_response(await resp.text())
+                return self.parse_response(await resp.text())
             return {}
 
     async def update_status(self, resources=None):
@@ -125,7 +125,7 @@ class Appliance:
             resources = self.INFO_RESOURCES
         _LOGGER.debug("Updating %s", resources)
         for resource in resources:
-            self.values.update(await self.get_resource(resource))
+            self.values.update(await self._get_resource(resource))
 
     def show_values(self, only_summary=False):
         """Print values."""
@@ -308,7 +308,7 @@ class DaikinBRP069(Appliance):
     async def set(self, settings):
         """Set settings on Daikin device."""
         # start with current values
-        current_val = await self.get_resource('aircon/get_control_info')
+        current_val = await self._get_resource('aircon/get_control_info')
 
         # Merge current_val with mapped settings
         self.values.update(current_val)
@@ -343,7 +343,7 @@ class DaikinBRP069(Appliance):
             query_c += '&f_dir=%s' % self.values['f_dir']
 
         _LOGGER.debug("Sending query_c: %s", query_c)
-        await self.get_resource(query_c)
+        await self._get_resource(query_c)
 
     async def set_holiday(self, mode):
         """Set holiday mode."""
@@ -352,7 +352,7 @@ class DaikinBRP069(Appliance):
             query_h = 'common/set_holiday?en_hol=%s' % value
             self.values['en_hol'] = value
             _LOGGER.debug("Sending query: %s", query_h)
-            await self.get_resource(query_h)
+            await self._get_resource(query_h)
 
     async def set_zone(self, zone_id, status):
         """Set zone status."""
@@ -390,10 +390,10 @@ class DaikinAirBase(DaikinBRP069):
             self.TRANSLATIONS['f_rate'] = {'1': 'low', '5': 'high'}
         return self
 
-    async def _get_resource(self, resource):
+    async def _run_get_resource(self, resource):
         """Make the http request."""
         resource = 'skyfi/%s' % resource
-        return await super()._get_resource(resource)
+        return await super()._run_get_resource(resource)
 
     @property
     def support_away_mode(self):
@@ -413,7 +413,7 @@ class DaikinAirBase(DaikinBRP069):
     async def set(self, settings):
         """Set settings on Daikin device."""
         # start with current values
-        current_val = await self.get_resource('aircon/get_control_info')
+        current_val = await self._get_resource('aircon/get_control_info')
 
         # Merge current_val with mapped settings
         self.values.update(current_val)
@@ -446,7 +446,7 @@ class DaikinAirBase(DaikinBRP069):
         query_c += '&lpw=&f_airside=0'
 
         _LOGGER.debug("Sending query_c: %s", query_c)
-        await self.get_resource(query_c)
+        await self._get_resource(query_c)
 
     def _represent(self, key):
         """Return translated value from key."""
@@ -470,7 +470,7 @@ class DaikinAirBase(DaikinBRP069):
 
     async def set_zone(self, zone_id, status):
         """Set zone status."""
-        current_state = await self.get_resource('aircon/get_zone_setting')
+        current_state = await self._get_resource('aircon/get_zone_setting')
         self.values.update(current_state)
         zone_onoff = self._represent('zone_onoff')[1]
         zone_onoff[zone_id] = status
@@ -481,4 +481,4 @@ class DaikinAirBase(DaikinBRP069):
         )
 
         _LOGGER.debug("Set zone:: %s", query)
-        await self.get_resource(query)
+        await self._get_resource(query)
