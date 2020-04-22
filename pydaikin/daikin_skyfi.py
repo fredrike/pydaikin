@@ -3,12 +3,12 @@
 import logging
 from urllib.parse import unquote
 
-import pydaikin.appliance as appl
+from .appliance import Appliance
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class DaikinSkyFi(appl.Appliance):
+class DaikinSkyFi(Appliance):
     """Daikin class for SkyFi units."""
 
     HTTP_RESOURCES = ['ac.cgi?', 'zones.cgi?']

@@ -31,6 +31,10 @@ parser.add_argument(
     help='show all the values available for the device',
 )
 
+parser.add_argument(
+    '-p', '--password', help='unit\'s password (only used by SkyFi devices)'
+)
+
 settings = parser.add_argument_group('device settings', 'Modify paramaters of a device')
 
 settings.add_argument(
@@ -88,7 +92,9 @@ else:
         only_summary = True
 
     loop = asyncio.get_event_loop()
-    daikin = loop.run_until_complete(appliance.factory(args.device))
+    daikin = loop.run_until_complete(
+        appliance.factory(args.device, password=args.password)
+    )
 
     if settings == {}:
         daikin.show_values(only_summary)
