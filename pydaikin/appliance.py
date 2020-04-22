@@ -11,7 +11,7 @@ import pydaikin.discovery as discovery
 _LOGGER = logging.getLogger(__name__)
 
 
-class Appliance:
+class Appliance:  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
 
     TRANSLATIONS = {}
@@ -44,9 +44,12 @@ class Appliance:
     @staticmethod
     async def factory(device_id, session=None):
         """Factory to init the corresponding Daikin class."""
-        _class = DaikinBRP069(device_id, session)
-        _class = await _class.init()
-        return _class
+        appl = DaikinBRP069(device_id, session)
+        await appl.update_status(appl.HTTP_RESOURCES[:1])
+        if appl.values == {}:
+            appl = DaikinAirBase(device_id, session)
+        await appl.init()
+        return appl
 
     @staticmethod
     def parse_response(response_body):
@@ -65,14 +68,9 @@ class Appliance:
         """Return translated MAC address."""
         return ':'.join(value[i : i + 2] for i in range(0, len(value), 2))
 
-    def __init__(self, device_id, session=None):
-        """Init the pydaikin appliance, representing one Daikin device."""
-        self.values = {}
-        self.session = session
-        if session:
-            self._device_ip = device_id
-            return
-
+    @staticmethod
+    def discover_ip(device_id):
+        """Return translated name to ip address."""
         try:
             socket.inet_aton(device_id)
             device_ip = device_id  # id is an IP
@@ -90,14 +88,26 @@ class Appliance:
                     raise ValueError("no device found for %s" % device_id)
             else:
                 device_ip = device_name['ip']
+        return device_id
 
-        self._device_ip = device_ip
+    def __init__(self, device_id, session=None):
+        """Init the pydaikin appliance, representing one Daikin device."""
+        self.values = {}
+        self.session = session
+        if session:
+            self._device_ip = device_id
+        else:
+            self._device_ip = self.discover_ip(device_id)
 
     def __getitem__(self, name):
         """Return values from self.value."""
         if name in self.values:
             return self.values[name]
         raise AttributeError("No such attribute: " + name)
+
+    async def init(self):
+        """Init status."""
+        await self.update_status()
 
     async def _get_resource(self, resource, retries=3):
         """Update resource."""
@@ -298,12 +308,7 @@ class DaikinBRP069(Appliance):
 
     async def init(self):
         """Init status."""
-        await self.update_status(self.HTTP_RESOURCES[:1])
-        if self.values == {}:
-            # The device is most likely an AirBase unit.
-            return await DaikinAirBase(self._device_ip, self.session).init()
         await self.update_status(self.HTTP_RESOURCES[1:])
-        return self
 
     async def set(self, settings):
         """Set settings on Daikin device."""
@@ -388,7 +393,6 @@ class DaikinAirBase(DaikinBRP069):
         await self.update_status(self.RESOURCES)
         if self.values['frate_steps'] == '2':
             self.TRANSLATIONS['f_rate'] = {'1': 'low', '5': 'high'}
-        return self
 
     async def _run_get_resource(self, resource):
         """Make the http request."""
