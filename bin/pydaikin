@@ -35,6 +35,8 @@ parser.add_argument(
     '-p', '--password', help='unit\'s password (only used by SkyFi devices)'
 )
 
+parser.add_argument('-k', '--key', help='unit\'s key (only used by BRP072Cxx devices)')
+
 settings = parser.add_argument_group('device settings', 'Modify paramaters of a device')
 
 settings.add_argument(
@@ -93,7 +95,7 @@ else:
 
     loop = asyncio.get_event_loop()
     daikin = loop.run_until_complete(
-        appliance.factory(args.device, password=args.password)
+        appliance.factory(args.device, key=args.key, password=args.password)
     )
 
     if settings == {}:
