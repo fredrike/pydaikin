@@ -3,7 +3,7 @@
 import argparse
 import asyncio
 
-import pydaikin.appliance as appliance
+from pydaikin.daikin_brp069 import DaikinBRP069 as appliance
 import pydaikin.discovery as discovery
 
 
@@ -88,11 +88,10 @@ else:
         only_summary = True
 
     loop = asyncio.get_event_loop()
-    e = appliance.Appliance(args.device)
-    loop.run_until_complete(e.init())
+    daikin = loop.run_until_complete(appliance.factory(args.device))
 
     if settings == {}:
-        e.show_values(only_summary)
+        daikin.show_values(only_summary)
 
     else:
-        loop.run_until_complete(e.set(settings))
+        loop.run_until_complete(daikin.set(settings))

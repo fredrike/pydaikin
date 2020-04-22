@@ -2,7 +2,7 @@ import socket
 
 import netifaces
 
-import pydaikin.entity as entity
+import pydaikin.daikin_base as appl
 
 UDP_SRC_PORT = 30000
 UDP_DST_PORT = 30050
@@ -13,16 +13,16 @@ GRACE_SECONDS = 1
 DISCOVERY_MSG = "DAIKIN_UDP/common/basic_info"
 
 
-class DiscoveredObject(entity.Entity):
+class DiscoveredObject:
     def __init__(self, ip, port, basic_info_string):
-        entity.Entity.__init__(self)
+        self.values = {}
 
         self.values['ip'] = ip
         self.values['port'] = port
         self.values.update(self.parse_basic_info(basic_info_string))
 
     def parse_basic_info(self, basic_info):
-        d = self.parse_response(basic_info)
+        d = appl.Appliance.parse_response(basic_info)
 
         if 'mac' not in d:
             raise ValueError("no mac found for device")
