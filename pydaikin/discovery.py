@@ -2,7 +2,7 @@ import socket
 
 import netifaces
 
-import pydaikin.appliance as appl
+import pydaikin.daikin_base as appl
 
 UDP_SRC_PORT = 30000
 UDP_DST_PORT = 30050

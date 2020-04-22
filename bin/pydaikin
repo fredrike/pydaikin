@@ -3,7 +3,7 @@
 import argparse
 import asyncio
 
-from pydaikin.appliance import DaikinBRP069 as appliance
+from pydaikin.daikin_brp069 import DaikinBRP069 as appliance
 import pydaikin.discovery as discovery
 
 
