@@ -3,7 +3,7 @@
 import logging
 from urllib.parse import unquote
 
-from .appliance import Appliance
+from .daikin_base import Appliance
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -146,7 +146,7 @@ class DaikinSkyFi(Appliance):
 
     async def set_zone(self, zone_id, status):
         """Set zone status."""
-        query = '/setzone.cgi?z={zone_id}&s={status}&'
+        query = f'/setzone.cgi?z={zone_id}&s={status}&'
         _LOGGER.debug("Set zone: %s", query)
         current_state = await self._get_resource(query)
         self.values.update(current_state)
