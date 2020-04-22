@@ -42,7 +42,7 @@ class Appliance:  # pylint: disable=too-many-public-methods
         return sorted(list(cls.TRANSLATIONS[dimension].values()))
 
     @staticmethod
-    async def factory(device_id, session=None):
+    async def factory(device_id, session=None, **kwargs):
         """Factory to init the corresponding Daikin class."""
         from .daikin_airbase import (  # pylint: disable=import-outside-toplevel
             DaikinAirBase,
@@ -50,11 +50,15 @@ class Appliance:  # pylint: disable=too-many-public-methods
         from .daikin_brp069 import (  # pylint: disable=import-outside-toplevel
             DaikinBRP069,
         )
+        from .daikin_skyfi import DaikinSkyFi  # pylint: disable=import-outside-toplevel
 
-        appl = DaikinBRP069(device_id, session)
-        await appl.update_status(appl.HTTP_RESOURCES[:1])
-        if appl.values == {}:
-            appl = DaikinAirBase(device_id, session)
+        if 'password' in kwargs and kwargs['password'] is not None:
+            appl = DaikinSkyFi(device_id, session, password=kwargs['password'])
+        else:  # special case for BRP069 and AirBase
+            appl = DaikinBRP069(device_id, session)
+            await appl.update_status(appl.HTTP_RESOURCES[:1])
+            if appl.values == {}:
+                appl = DaikinAirBase(device_id, session)
         await appl.init()
         return appl
 
