@@ -205,6 +205,19 @@ class Appliance:  # pylint: disable=too-many-public-methods
                 (k, val) = self._represent(key)
                 print("%18s: %s" % (k, val))
 
+    def show_sensors(self):
+        sensors = [('in_temp', f'{self.inside_temperature}', 'degC')]
+        if self.support_outside_temperature:
+            sensors.append(('out_temp', f'{self.outside_temperature}', 'degC'))
+        if self.support_energy_consumption:
+            sensors.append(('total_power', f'{self.current_power_consumption():.01f}', 'kW'))
+            sensors.append(('cool_energy', f'{self.last_hour_power_consumption("cool"):.01f}', 'kWh'))
+            sensors.append(('heat_energy', f'{self.last_hour_power_consumption("heat"):.01f}', 'kWh'))
+        print('{}  {}'.format(
+            datetime.utcnow().isoformat(),
+            '  '.join(f'{key}={value}{unit}' for key, value, unit in sensors)
+        ))
+
     def _represent(self, key):
         """Return translated value from key."""
         k = self.VALUES_TRANSLATION.get(key, key)
