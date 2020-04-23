@@ -7,13 +7,13 @@ with open("README.md", "r") as fh:
 
 setup(
     name='pydaikin',
-    version='2.0.0.dev1',
+    version='2.0.0.dev2',
     description='Python Daikin HVAC appliances interface',
     long_description=long_description,
     long_description_content_type="text/markdown",
     author='Yari Adan',
     author_email='mustang@yadan.org',
-    maintainer=', '.join(('Fredrik Erlandsson <fredrik.e+pydaikin@gmail.com>'),),
+    maintainer='Fredrik Erlandsson <fredrik.e+pydaikin@gmail.com>',
     license='GPL',
     url='https://bitbucket.org/mustang51/pydaikin',
     python_requires='>=3.6',
