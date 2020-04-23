@@ -3,7 +3,7 @@ from asyncio import coroutine
 from datetime import datetime, timedelta
 import random
 from unittest.mock import patch
-from pydaikin.daikin_base import Appliance
+from pydaikin.daikin_base import Appliance, ATTR_TOTAL, ATTR_COOL, ATTR_HEAT
 from pydaikin.daikin_brp069 import DaikinBRP069
 
 from freezegun import freeze_time
@@ -129,7 +129,7 @@ VERBOSE_COOL = False
         (datetime.utcnow().replace(hour=20, minute=0), timedelta(hours=36), timedelta(minutes=5)),
     ]
 )
-async def test_power_sensors(initial_date, duration, tick_step, device):
+async def test_power_sensors(initial_date, duration, tick_step, device: DaikinBRP069):
     """Simulate AC consumption and check sensors' state."""
     with freeze_time(initial_date) as ft:
         dt = None
@@ -158,14 +158,14 @@ async def test_power_sensors(initial_date, duration, tick_step, device):
             await device.update_status()
 
             if dt is not None:
-                diff = abs(device._get_total_kW_last_30_minutes() - device.current_power_consumption())
+                diff = abs(device._get_total_kW_last_30_minutes() - device.current_total_power_consumption)
                 if VERBOSE_TOTAL:
                     print('%s total // real=%.02f meas_today=%.02f, meas_yest=%0.2f, meas_current=%.02f %d %s-%s %s' % (
                         datetime.utcnow().time().strftime('%H:%M'),
                         device._get_total_kW_last_30_minutes(),
-                        device.today_energy_consumption(),
-                        device.yesterday_energy_consumption(),
-                        device.current_power_consumption(),
+                        device.today_energy_consumption(ATTR_TOTAL),
+                        device.yesterday_energy_consumption(ATTR_TOTAL),
+                        device.current_total_power_consumption,
                         len(device._energy_consumption_history['heat']),
                         device._energy_consumption_history['total'][-1][0].time().strftime('%H:%M'),
                         device._energy_consumption_history['total'][0][0].time().strftime('%H:%M'),
@@ -173,14 +173,14 @@ async def test_power_sensors(initial_date, duration, tick_step, device):
                     ))
                 assert diff < 1e-6
 
-                diff = abs(device._get_cool_kWh_previous_hour() - device.last_hour_power_consumption('cool'))
+                diff = abs(device._get_cool_kWh_previous_hour() - device.last_hour_cool_power_consumption)
                 if VERBOSE_COOL:
                     print('%s cool  // real=%.02f meas_today=%.02f, meas_yest=%0.2f, meas_current=%.02f %d %s-%s %s' % (
                         datetime.utcnow().time().strftime('%H:%M'),
                         device._get_cool_kWh_previous_hour(),
-                        device.today_energy_consumption('cool'),
-                        device.yesterday_energy_consumption('cool'),
-                        device.last_hour_power_consumption('cool'),
+                        device.today_energy_consumption(ATTR_COOL),
+                        device.yesterday_energy_consumption(ATTR_COOL),
+                        device.last_hour_cool_power_consumption,
                         len(device._energy_consumption_history['cool']),
                         device._energy_consumption_history['cool'][-1][0].time().strftime('%H:%M'),
                         device._energy_consumption_history['cool'][0][0].time().strftime('%H:%M'),
@@ -195,14 +195,14 @@ async def test_power_sensors(initial_date, duration, tick_step, device):
                     cool_error_duration = timedelta(minutes=0)
                 assert cool_error_duration < timedelta(minutes=10) + tick_step
 
-                diff = abs(device._get_heat_kWh_previous_hour() - device.last_hour_power_consumption('heat'))
+                diff = abs(device._get_heat_kWh_previous_hour() - device.last_hour_heat_power_consumption)
                 if VERBOSE_HEAT:
                     print('%s heat  // real=%.02f meas_today=%.02f, meas_yest=%0.2f, meas_current=%.02f %d %s-%s %s' % (
                         datetime.utcnow().time().strftime('%H:%M'),
                         device._get_heat_kWh_previous_hour(),
-                        device.today_energy_consumption('heat'),
-                        device.yesterday_energy_consumption('heat'),
-                        device.last_hour_power_consumption('heat'),
+                        device.today_energy_consumption(ATTR_HEAT),
+                        device.yesterday_energy_consumption(ATTR_HEAT),
+                        device.last_hour_heat_power_consumption,
                         len(device._energy_consumption_history['heat']),
                         device._energy_consumption_history['heat'][-1][0].time().strftime('%H:%M'),
                         device._energy_consumption_history['heat'][0][0].time().strftime('%H:%M'),
