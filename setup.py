@@ -2,15 +2,21 @@
 
 from setuptools import setup
 
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
 setup(
     name='pydaikin',
-    version='1.6.3',
+    version='2.0.0.dev1',
     description='Python Daikin HVAC appliances interface',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     author='Yari Adan',
     author_email='mustang@yadan.org',
+    maintainer=', '.join(('Fredrik Erlandsson <fredrik.e+pydaikin@gmail.com>'),),
     license='GPL',
     url='https://bitbucket.org/mustang51/pydaikin',
-    python_requires='>3.5',
+    python_requires='>=3.6',
     packages=['pydaikin'],
     keywords=['homeautomation', 'daikin'],
     classifiers=[
