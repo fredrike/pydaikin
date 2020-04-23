@@ -55,6 +55,8 @@ def device():
             return "0"
         if key == "frate_steps":
             return "2"
+        if key in ("previous_year", "this_year"):
+            return '/'.join(map(str, range(12)))
         if key == "datas":
             ticks = cool_energy_100w_ticks.union(heat_energy_100w_ticks)
             dt0 = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)

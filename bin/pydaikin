@@ -67,6 +67,9 @@ settings.add_argument('-s', '--sensor', action='store_true', help='tail sensors\
 
 args = parser.parse_args()
 
+# import logging
+# logging.basicConfig(level=logging.DEBUG)
+
 if args.list:
     list_all_devices()
 
@@ -111,6 +114,7 @@ else:
         print('\nPress CTRL+C to stop tailing sensor data...\n')
         try:
             while True:
+                loop.run_until_complete(daikin.update_status())
                 daikin.show_sensors()
                 time.sleep(30)
         except KeyboardInterrupt:

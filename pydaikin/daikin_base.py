@@ -206,17 +206,20 @@ class Appliance:  # pylint: disable=too-many-public-methods
                 print("%18s: %s" % (k, val))
 
     def show_sensors(self):
-        sensors = [('in_temp', f'{self.inside_temperature}', 'degC')]
+        data = [
+            datetime.utcnow().strftime('%m/%d/%Y %H:%M:%S'),
+            f'in_temp={int(self.inside_temperature)}°C'
+        ]
         if self.support_outside_temperature:
-            sensors.append(('out_temp', f'{self.outside_temperature}', 'degC'))
+            data.append(f'out_temp={int(self.outside_temperature)}°C')
         if self.support_energy_consumption:
-            sensors.append(('total_power', f'{self.current_power_consumption():.01f}', 'kW'))
-            sensors.append(('cool_energy', f'{self.last_hour_power_consumption("cool"):.01f}', 'kWh'))
-            sensors.append(('heat_energy', f'{self.last_hour_power_consumption("heat"):.01f}', 'kWh'))
-        print('{}  {}'.format(
-            datetime.utcnow().isoformat(),
-            '  '.join(f'{key}={value}{unit}' for key, value, unit in sensors)
-        ))
+            data.append(f'total_today={self.today_energy_consumption("total"):.01f}kWh')
+            data.append(f'cool_today={self.today_energy_consumption("cool"):.01f}kWh')
+            data.append(f'heat_today={self.today_energy_consumption("heat"):.01f}kWh')
+            data.append(f'total_power={self.current_power_consumption():.01f}kW')
+            data.append(f'cool_power={self.last_hour_power_consumption("cool"):.01f}kW')
+            data.append(f'heat_power={self.last_hour_power_consumption("heat"):.01f}kW')
+        print('  '.join(data))
 
     def _represent(self, key):
         """Return translated value from key."""
@@ -273,7 +276,10 @@ class Appliance:  # pylint: disable=too-many-public-methods
     @property
     def support_energy_consumption(self):
         """Return True if the device supports energy consumption monitoring."""
-        return 'datas' in self.values
+        return sum(map(int, (
+            (self.values.get('previous_year', None) or '0') + '/' +
+            (self.values.get('this_year', None) or '0')
+        ).split('/'))) > 0
 
     @property
     def outside_temperature(self):
