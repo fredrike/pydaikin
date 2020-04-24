@@ -210,6 +210,7 @@ class Appliance:  # pylint: disable=too-many-public-methods
                 print("%18s: %s" % (k, val))
 
     def show_sensors(self):
+        """Print sensors."""
         data = [
             datetime.utcnow().strftime('%m/%d/%Y %H:%M:%S'),
             f'in_temp={int(self.inside_temperature)}°C'
@@ -281,8 +282,9 @@ class Appliance:  # pylint: disable=too-many-public-methods
     def support_energy_consumption(self):
         """Return True if the device supports energy consumption monitoring."""
         return sum(map(int, (
-            (self.values.get('previous_year', None) or '0') + '/' +
-            (self.values.get('this_year', None) or '0')
+            self.values.get('previous_year', '0') +
+            '/' +
+            self.values.get('this_year', '0')
         ).split('/'))) > 0
 
     @property

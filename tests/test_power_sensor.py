@@ -48,7 +48,13 @@ def device():
             0.1 for dt in heat_energy_100w_ticks if dt0 - timedelta(hours=1) < dt <= dt0
         )
 
-    def get_value(key, default=None):
+    def values_get(key, default=None):
+        try:
+            return values_getitem(key)
+        except KeyError:
+            return default
+
+    def values_getitem(key):
         if key == "name":
             return "ac-bedroom"
         if key == "mac":
@@ -92,6 +98,7 @@ def device():
                 )
                 for h in reversed(range(24))
             )
+        raise KeyError(key)
 
     # monkey patch async MagicMock
     async def magic_get_resource(resource, retries=3):
@@ -109,9 +116,9 @@ def device():
 
         with patch.object(device, 'values') as values, patch.object(device, '_get_resource') as get_resource:
             get_resource.side_effect = magic_get_resource
-            values.get.side_effect = get_value
-            values.__getitem__ = get_value
-            values.__contains__ = lambda self, key: get_value(key) is not None
+            values.get.side_effect = values_get
+            values.__getitem__ = values_getitem
+            values.__contains__ = lambda self, key: values_get(key) is not None
 
             yield device
 
