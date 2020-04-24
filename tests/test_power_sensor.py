@@ -1,13 +1,12 @@
 """Test for Daikin AC power & energy sensors."""
-from asyncio import coroutine
 from datetime import datetime, timedelta
 import random
 from unittest.mock import patch
-from pydaikin.daikin_base import Appliance, ATTR_TOTAL, ATTR_COOL, ATTR_HEAT
-from pydaikin.daikin_brp069 import DaikinBRP069
 
 from freezegun import freeze_time
 import pytest
+
+from pydaikin.daikin_brp069 import DaikinBRP069
 
 
 @pytest.fixture
@@ -20,12 +19,10 @@ def device():
 
     def _consume_100w_cool():
         # Simulate 100w consumption in cool mode
-        # print(['COOL', datetime.utcnow().strftime('%H:%M')])
         cool_energy_100w_ticks.add(datetime.utcnow())
 
     def _consume_100w_heat():
         # Simulate 100w consumption in heat mode
-        # print(['HEAT', datetime.utcnow().strftime('%H:%M')])
         heat_energy_100w_ticks.add(datetime.utcnow())
 
     def _get_total_kW_last_30_minutes():
@@ -114,7 +111,9 @@ def device():
         device._get_cool_kWh_previous_hour = _get_cool_kWh_previous_hour
         device._get_heat_kWh_previous_hour = _get_heat_kWh_previous_hour
 
-        with patch.object(device, 'values') as values, patch.object(device, '_get_resource') as get_resource:
+        with patch.object(device, 'values') as values, patch.object(
+            device, '_get_resource'
+        ) as get_resource:
             get_resource.side_effect = magic_get_resource
             values.get.side_effect = values_get
             values.__getitem__ = values_getitem
@@ -123,18 +122,28 @@ def device():
             yield device
 
 
-VERBOSE_TOTAL = False
-VERBOSE_HEAT = False
-VERBOSE_COOL = False
+VERBOSE = False
 
 
 @pytest.mark.parametrize(
     "initial_date,duration,tick_step",
     [
-        (datetime.utcnow().replace(hour=10, minute=10), timedelta(hours=5), timedelta(minutes=2)),
-        (datetime.utcnow().replace(hour=23, minute=5), timedelta(hours=3), timedelta(seconds=30)),
-        (datetime.utcnow().replace(hour=20, minute=0), timedelta(hours=36), timedelta(minutes=5)),
-    ]
+        (
+            datetime.utcnow().replace(hour=10, minute=10),
+            timedelta(hours=5),
+            timedelta(minutes=2),
+        ),
+        (
+            datetime.utcnow().replace(hour=23, minute=5),
+            timedelta(hours=2, minutes=30),
+            timedelta(seconds=30),
+        ),
+        (
+            datetime.utcnow().replace(hour=20, minute=0),
+            timedelta(hours=28),
+            timedelta(minutes=5),
+        ),
+    ],
 )
 async def test_power_sensors(initial_date, duration, tick_step, device: DaikinBRP069):
     """Simulate AC consumption and check sensors' state."""
@@ -155,44 +164,35 @@ async def test_power_sensors(initial_date, duration, tick_step, device: DaikinBR
             # We simulate the consumption
             if random.random() < (0.5 if datetime.utcnow().hour % 6 == 0 else 0.05):
                 if random.random() < 0.7:
-                    if VERBOSE_COOL or VERBOSE_TOTAL: print('%s COOL' % datetime.utcnow().time().strftime('%H:%M'))
+                    if VERBOSE:
+                        print(
+                            '%s COOL' % datetime.utcnow().strftime('%m/%d/%Y %H:%M:%S')
+                        )
                     device._consume_100w_cool()
                 else:
-                    if VERBOSE_HEAT or VERBOSE_TOTAL: print('%s HEAT' % datetime.utcnow().time().strftime('%H:%M'))
+                    if VERBOSE:
+                        print(
+                            '%s HEAT' % datetime.utcnow().strftime('%m/%d/%Y %H:%M:%S')
+                        )
                     device._consume_100w_heat()
 
             # We update the device
             await device.update_status()
 
+            if VERBOSE:
+                device.show_sensors()
+
             if dt is not None:
-                diff = abs(device._get_total_kW_last_30_minutes() - device.current_total_power_consumption)
-                if VERBOSE_TOTAL:
-                    print('%s total // real=%.02f meas_today=%.02f, meas_yest=%0.2f, meas_current=%.02f %d %s-%s %s' % (
-                        datetime.utcnow().time().strftime('%H:%M'),
-                        device._get_total_kW_last_30_minutes(),
-                        device.today_energy_consumption(ATTR_TOTAL),
-                        device.yesterday_energy_consumption(ATTR_TOTAL),
-                        device.current_total_power_consumption,
-                        len(device._energy_consumption_history['heat']),
-                        device._energy_consumption_history['total'][-1][0].time().strftime('%H:%M'),
-                        device._energy_consumption_history['total'][0][0].time().strftime('%H:%M'),
-                        ' DIFF !!' if diff > 1e-6 else '',
-                    ))
+                diff = abs(
+                    device._get_total_kW_last_30_minutes()
+                    - device.current_total_power_consumption
+                )
                 assert diff < 1e-6
 
-                diff = abs(device._get_cool_kWh_previous_hour() - device.last_hour_cool_power_consumption)
-                if VERBOSE_COOL:
-                    print('%s cool  // real=%.02f meas_today=%.02f, meas_yest=%0.2f, meas_current=%.02f %d %s-%s %s' % (
-                        datetime.utcnow().time().strftime('%H:%M'),
-                        device._get_cool_kWh_previous_hour(),
-                        device.today_energy_consumption(ATTR_COOL),
-                        device.yesterday_energy_consumption(ATTR_COOL),
-                        device.last_hour_cool_power_consumption,
-                        len(device._energy_consumption_history['cool']),
-                        device._energy_consumption_history['cool'][-1][0].time().strftime('%H:%M'),
-                        device._energy_consumption_history['cool'][0][0].time().strftime('%H:%M'),
-                        ' DIFF !!' if diff > 1e-6 else '',
-                    ))
+                diff = abs(
+                    device._get_cool_kWh_previous_hour()
+                    - device.last_hour_cool_power_consumption
+                )
                 if device._get_cool_kWh_previous_hour() > 1e-6:
                     assert diff < 1e-6
                 elif diff >= 1e-6:
@@ -202,19 +202,10 @@ async def test_power_sensors(initial_date, duration, tick_step, device: DaikinBR
                     cool_error_duration = timedelta(minutes=0)
                 assert cool_error_duration < timedelta(minutes=10) + tick_step
 
-                diff = abs(device._get_heat_kWh_previous_hour() - device.last_hour_heat_power_consumption)
-                if VERBOSE_HEAT:
-                    print('%s heat  // real=%.02f meas_today=%.02f, meas_yest=%0.2f, meas_current=%.02f %d %s-%s %s' % (
-                        datetime.utcnow().time().strftime('%H:%M'),
-                        device._get_heat_kWh_previous_hour(),
-                        device.today_energy_consumption(ATTR_HEAT),
-                        device.yesterday_energy_consumption(ATTR_HEAT),
-                        device.last_hour_heat_power_consumption,
-                        len(device._energy_consumption_history['heat']),
-                        device._energy_consumption_history['heat'][-1][0].time().strftime('%H:%M'),
-                        device._energy_consumption_history['heat'][0][0].time().strftime('%H:%M'),
-                        ' DIFF !!' if diff > 1e-6 else '',
-                    ))
+                diff = abs(
+                    device._get_heat_kWh_previous_hour()
+                    - device.last_hour_heat_power_consumption
+                )
                 if device._get_heat_kWh_previous_hour() > 1e-6:
                     assert diff < 1e-6
                 elif diff >= 1e-6:
@@ -225,5 +216,8 @@ async def test_power_sensors(initial_date, duration, tick_step, device: DaikinBR
                 assert heat_error_duration < timedelta(minutes=10) + tick_step
 
             # Random ticking
-            dt = timedelta(seconds=random.randint(1, tick_step.total_seconds()), milliseconds=random.randint(0, 1000))
+            dt = timedelta(
+                seconds=random.randint(1, tick_step.total_seconds()),
+                milliseconds=random.randint(0, 1000),
+            )
             ft.tick(dt)

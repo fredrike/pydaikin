@@ -1,12 +1,12 @@
 """Pydaikin base appliance, represent a Daikin device."""
 
+from collections import defaultdict
+from datetime import datetime, timedelta
 import logging
 import socket
 from urllib.parse import unquote
 
 from aiohttp import ClientSession, ServerDisconnectedError
-from collections import defaultdict
-from datetime import datetime, timedelta
 
 import pydaikin.discovery as discovery
 
@@ -190,12 +190,23 @@ class Appliance:  # pylint: disable=too-many-public-methods
             self._energy_consumption_history[mode].insert(0, new_state)
 
             # We can remove very old states (except the latest one)
-            idx = min((
-                i for i, (dt, _, _) in enumerate(self._energy_consumption_history[mode])
-                if dt < datetime.utcnow() - POWER_CONSUMPTION_MAX_HISTORY
-            ), default=len(self._energy_consumption_history[mode])) + 1
+            idx = (
+                min(
+                    (
+                        i
+                        for i, (dt, _, _) in enumerate(
+                            self._energy_consumption_history[mode]
+                        )
+                        if dt < datetime.utcnow() - POWER_CONSUMPTION_MAX_HISTORY
+                    ),
+                    default=len(self._energy_consumption_history[mode]),
+                )
+                + 1
+            )
 
-            self._energy_consumption_history[mode] = self._energy_consumption_history[mode][:idx]
+            self._energy_consumption_history[mode] = self._energy_consumption_history[
+                mode
+            ][:idx]
 
     def show_values(self, only_summary=False):
         """Print values."""
@@ -213,14 +224,20 @@ class Appliance:  # pylint: disable=too-many-public-methods
         """Print sensors."""
         data = [
             datetime.utcnow().strftime('%m/%d/%Y %H:%M:%S'),
-            f'in_temp={int(self.inside_temperature)}°C'
+            f'in_temp={int(self.inside_temperature)}°C',
         ]
         if self.support_outside_temperature:
             data.append(f'out_temp={int(self.outside_temperature)}°C')
         if self.support_energy_consumption:
-            data.append(f'total_today={self.today_energy_consumption(ATTR_TOTAL):.01f}kWh')
-            data.append(f'cool_today={self.today_energy_consumption(ATTR_COOL):.01f}kWh')
-            data.append(f'heat_today={self.today_energy_consumption(ATTR_HEAT):.01f}kWh')
+            data.append(
+                f'total_today={self.today_energy_consumption(ATTR_TOTAL):.01f}kWh'
+            )
+            data.append(
+                f'cool_today={self.today_energy_consumption(ATTR_COOL):.01f}kWh'
+            )
+            data.append(
+                f'heat_today={self.today_energy_consumption(ATTR_HEAT):.01f}kWh'
+            )
             data.append(f'total_power={self.current_total_power_consumption:.01f}kW')
             data.append(f'cool_power={self.last_hour_cool_power_consumption:.01f}kW')
             data.append(f'heat_power={self.last_hour_heat_power_consumption:.01f}kW')
@@ -281,11 +298,19 @@ class Appliance:  # pylint: disable=too-many-public-methods
     @property
     def support_energy_consumption(self):
         """Return True if the device supports energy consumption monitoring."""
-        return sum(map(int, (
-            self.values.get('previous_year', '0') +
-            '/' +
-            self.values.get('this_year', '0')
-        ).split('/'))) > 0
+        return (
+            sum(
+                map(
+                    int,
+                    (
+                        self.values.get('previous_year', '0')
+                        + '/'
+                        + self.values.get('this_year', '0')
+                    ).split('/'),
+                )
+            )
+            > 0
+        )
 
     @property
     def outside_temperature(self):

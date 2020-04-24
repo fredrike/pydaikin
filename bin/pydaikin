@@ -63,12 +63,20 @@ settings.add_argument(
     '-w', '--away', choices=appliance.daikin_values('en_hol'), help='set away mode'
 )
 
-settings.add_argument('-s', '--sensor', action='store_true', help='tail sensors\'s value')
+settings.add_argument(
+    '-s', '--sensor', action='store_true', help='tail sensors\'s value'
+)
+
+settings.add_argument(
+    '-v', '--verbose', action='store_true', help='enable logging debug'
+)
 
 args = parser.parse_args()
 
-# import logging
-# logging.basicConfig(level=logging.DEBUG)
+if args.verbose:
+    import logging
+
+    logging.basicConfig(level=logging.DEBUG)
 
 if args.list:
     list_all_devices()
