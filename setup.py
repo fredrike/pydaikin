@@ -13,7 +13,12 @@ setup(
     long_description_content_type="text/markdown",
     author='Yari Adan',
     author_email='mustang@yadan.org',
-    maintainer='Fredrik Erlandsson <fredrik.e+pydaikin@gmail.com>',
+    maintainer=', '.join(
+        (
+            'Fredrik Erlandsson <fredrik.e+pydaikin@gmail.com>',
+            'Matthias Lemainque <matthias.lemainque+pydaikin@gmail.com>',
+        )
+    ),
     license='GPL',
     url='https://bitbucket.org/mustang51/pydaikin',
     python_requires='>=3.6',
@@ -27,5 +32,6 @@ setup(
         "Topic :: Home Automation",
     ],
     install_requires=['netifaces', 'aiohttp', 'urllib3'],
+    tests_require=['pytest', 'pytest-aiohttp', 'freezegun'],
     scripts=['bin/pydaikin'],
 )

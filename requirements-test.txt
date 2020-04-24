@@ -1,0 +1,5 @@
+pytest
+pytest-aiohttp
+freezegun
+black
+flake8
