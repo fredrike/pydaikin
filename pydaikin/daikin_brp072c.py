@@ -1,7 +1,7 @@
 """Pydaikin appliance, represent a Daikin device."""
 
 import logging
-from uuid import uuid3
+from uuid import NAMESPACE_OID, uuid3
 
 from .daikin_brp069 import DaikinBRP069
 
@@ -16,7 +16,7 @@ class DaikinBRP072C(DaikinBRP069):
         super().__init__(device_id, session)
         self._key = key
         if uuid is None:
-            uuid = uuid3(__name__, 'pydaikin')
+            uuid = uuid3(NAMESPACE_OID, 'pydaikin')
         self._uuid = uuid.replace('-', '')
         self._headers = {"X-Daikin-uuid": self._uuid}
         print("BRP072C")
