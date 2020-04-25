@@ -21,6 +21,7 @@ class DiscoveredObject:
 
     def parse_basic_info(self, basic_info):
         from pydaikin.daikin_base import Appliance
+
         d = Appliance.parse_response(basic_info)
 
         if 'mac' not in d:
