@@ -17,7 +17,7 @@ class DaikinBRP072C(DaikinBRP069):
         self._key = key
         if uuid is None:
             uuid = uuid3(NAMESPACE_OID, 'pydaikin')
-        self._uuid = uuid.replace('-', '')
+        self._uuid = str(uuid).replace('-', '')
         self._headers = {"X-Daikin-uuid": self._uuid}
         print("BRP072C")
 
