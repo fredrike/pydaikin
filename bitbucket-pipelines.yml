@@ -12,4 +12,4 @@ pipelines:
           - flake8 .
           - isort .
           # We are not checking pylint strictly
-          - pylint bin/pydaikin pydaikin/*.py || echo $?
+          - pylint bin/pydaikin pydaikin/*.py --exit-zero
