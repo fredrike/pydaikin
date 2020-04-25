@@ -3,7 +3,7 @@
 default: check
 
 format: white
-	isort ./*py pydaikin/*.py
+	isort .
 
 white: black
 
@@ -12,7 +12,6 @@ black:
 
 lint: requirements.txt setup.py
 	flake8
-	
 
 check: format lint
 

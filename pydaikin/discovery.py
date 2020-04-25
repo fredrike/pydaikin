@@ -2,8 +2,6 @@ import socket
 
 import netifaces
 
-import pydaikin.daikin_base as appl
-
 UDP_SRC_PORT = 30000
 UDP_DST_PORT = 30050
 RCV_BUFSIZ = 1024
@@ -22,7 +20,8 @@ class DiscoveredObject:
         self.values.update(self.parse_basic_info(basic_info_string))
 
     def parse_basic_info(self, basic_info):
-        d = appl.Appliance.parse_response(basic_info)
+        from pydaikin.daikin_base import Appliance
+        d = Appliance.parse_response(basic_info)
 
         if 'mac' not in d:
             raise ValueError("no mac found for device")

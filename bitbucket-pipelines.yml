@@ -1,0 +1,15 @@
+image: python:3.7
+
+pipelines:
+  default:
+    - step:
+        caches:
+          - pip
+        script:
+          - pip install -r requirements.txt
+          - pip install -r requirements-test.txt
+          - black .
+          - flake8 .
+          - isort .
+          # We are not checking pylint strictly
+          - pylint bin/pydaikin pydaikin/*.py --exit-zero
