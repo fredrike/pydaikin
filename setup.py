@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='pydaikin',
-    version='2.0.0.dev2',
+    version='2.0.0.dev3',
     description='Python Daikin HVAC appliances interface',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -26,6 +26,6 @@ setup(
         "Topic :: Software Development :: Libraries :: Application Frameworks",
         "Topic :: Home Automation",
     ],
-    install_requires=['netifaces', 'aiohttp', 'urllib'],
+    install_requires=['netifaces', 'aiohttp', 'urllib3'],
     scripts=['bin/pydaikin'],
 )
