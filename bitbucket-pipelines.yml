@@ -8,6 +8,8 @@ pipelines:
         script:
           - pip install -r requirements.txt
           - pip install -r requirements-test.txt
-          - flake8 ./pydaikin/
-          - black ./pydaikin/
-          - pytest ./tests/
+          - black .
+          - flake8 .
+          - isort .
+          # We are not checking pylint strictly
+          - pylint bin/pydaikin pydaikin/*.py || echo $?
