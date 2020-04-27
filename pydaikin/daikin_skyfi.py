@@ -1,7 +1,10 @@
 """Pydaikin appliance, represent a Daikin device."""
 
+from asyncio import sleep
 import logging
 from urllib.parse import unquote
+
+from aiohttp.client_exceptions import ClientOSError, ClientResponseError
 
 from .daikin_base import Appliance
 
@@ -11,7 +14,7 @@ _LOGGER = logging.getLogger(__name__)
 class DaikinSkyFi(Appliance):
     """Daikin class for SkyFi units."""
 
-    HTTP_RESOURCES = ['ac.cgi?', 'zones.cgi?']
+    HTTP_RESOURCES = ['ac.cgi?pass={}', 'zones.cgi?pass={}']
 
     INFO_RESOURCES = HTTP_RESOURCES
 
@@ -25,6 +28,8 @@ class DaikinSkyFi(Appliance):
         'acmode': 'mode',
     }
 
+    DAIKIN_TO_SKYFI = {val: k for k, val in SKYFI_TO_DAIKIN.items()}
+
     TRANSLATIONS = {
         'mode': {
             '0': 'Off',
@@ -34,18 +39,11 @@ class DaikinSkyFi(Appliance):
             '4': 'dry',
             '8': 'cool',
             '9': 'auto-9',
-            '16': 'dry',
+            '16': 'fan',
         },
-        'f_rate': {'1': 'low', '2': 'mid', '3': 'high'},
+        'f_rate': {'0': 'auto', '1': 'low', '2': 'medium', '3': 'high'},
         'f_mode': {'1': 'manual', '3': 'auto'},
     }
-
-    @classmethod
-    def daikin_to_skyfi(cls, dimension):
-        """Return converted values from Daikin to SkyFi."""
-        return {val: key for key, val in cls.SKYFI_TO_DAIKIN.items()}.get(
-            dimension, dimension
-        )
 
     def __init__(self, device_id, session=None, password=None):
         """Init the pydaikin appliance, representing one Daikin SkyFi device."""
@@ -83,65 +81,78 @@ class DaikinSkyFi(Appliance):
     @staticmethod
     def parse_response(response_body):
         """Parse response from Daikin and map it to general Daikin format."""
-        response = dict([e.split('=') for e in response_body.split(',')])
+        _LOGGER.debug("Parsing %s", response_body)
+        response = dict([e.split('=') for e in response_body.split('&')])
+        response.update(
+            {
+                DaikinSkyFi.SKYFI_TO_DAIKIN.get(key, key): val
+                for key, val in response.items()
+            }
+        )
         return response
 
     async def _run_get_resource(self, resource):
         """Make the http request."""
-        resource = "{}pass={}".format(resource, self._password)
-        return await super()._run_get_resource(resource)
+        resource = resource.format(self._password)
+        for i in range(4):
+            try:
+                return await super()._run_get_resource(resource)
+            except (ClientOSError, ClientResponseError) as err:
+                _LOGGER.debug("%s #%s", repr(err), i)
+                await sleep(1)
+                if i >= 3:
+                    raise
 
     def represent(self, key):
         """Return translated value from key."""
-        k, val = super().represent(key)
+        k, val = super().represent(self.SKYFI_TO_DAIKIN.get(key, key))
         if key in [f'zone{i}' for i in range(1, 9)]:
             val = unquote(self[key])
         if key == 'zone':
             # zone is a binary representation of zone status
-            val = list(str(bin(int(self[key])) + 256))[3:]
+            val = list(str(bin(int(self[key]) + 256)))[3:]
         return (k, val)
 
     async def set(self, settings):
         """Set settings on Daikin device."""
-        # start with current values
-        current_val = await self._get_resource('ac.cgi?')
+        _LOGGER.debug("Updating settings: %s", settings)
+        await self.update_status(['ac.cgi?pass={}'])
 
         # Merge current_val with mapped settings
-        self.values.update(current_val)
         self.values.update(
             {
-                self.daikin_to_skyfi(k): self.human_to_daikin(k, v)
+                self.DAIKIN_TO_SKYFI[k]: self.human_to_daikin(k, v)
                 for k, v in settings.items()
             }
         )
+        _LOGGER.debug("Updated values: %s", self.values)
 
         # we are using an extra mode "off" to power off the unit
         if settings.get('mode', '') == 'off':
-            self.values['pow'] = '0'
+            self.values['opmode'] = '0'
+            query_c = 'set.cgi?pass={}&p=0'
         else:
-            self.values['pow'] = '1'
+            if 'mode' in settings:
+                self.values['opmode'] = '1'
+            query_c = 'set.cgi?pass={{}}&p={opmode}&t={settemp}&f={fanspeed}&m={acmode}'.format(
+                **self.values
+            )
 
-        query_c = 'set.cgi?p={pow}&t={stemp}&f={f_rate}&m={mode}&'.format(**self.values)
-
-        _LOGGER.debug("Sending query_c: %s", query_c)
-        await self._get_resource(query_c)
+        await self.update_status([query_c])
 
     @property
     def zones(self):
         """Return list of zones."""
         if 'nz' not in self.values:
             return False
-        zone_onoff = self.represent('zone')
         return [
-            (name.strip(' +,'), zone_onoff)
-            for i, name in enumerate(
-                [self.represent(f'zone{i}') for i in range(1, int(self['nz']) + 1)]
-            )
+            (self.represent(f'zone{i+1}')[1].strip(' +,'), onoff)
+            for i, onoff in enumerate(self.represent('zone'))
         ]
 
     async def set_zone(self, zone_id, status):
         """Set zone status."""
-        query = f'/setzone.cgi?z={zone_id}&s={status}&'
+        query = f'/setzone.cgi?pass={{}}&z={zone_id}&s={status}'
         _LOGGER.debug("Set zone: %s", query)
         current_state = await self._get_resource(query)
         self.values.update(current_state)

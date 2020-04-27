@@ -76,7 +76,7 @@ args = parser.parse_args()
 if args.verbose:
     import logging
 
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.NOTSET)
 
 if args.list:
     list_all_devices()

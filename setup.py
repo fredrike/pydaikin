@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='pydaikin',
-    version='2.0.0.dev20',
+    version='2.0.0.dev28',
     description='Python Daikin HVAC appliances interface',
     long_description=long_description,
     long_description_content_type="text/markdown",

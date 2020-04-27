@@ -258,14 +258,14 @@ class Appliance:  # pylint: disable=too-many-public-methods
         else:
             val = self.daikin_to_human(key, val)
 
-        _LOGGER.debug('Represent: %s, %s, %s', key, k, val)
+        _LOGGER.log(logging.NOTSET, 'Represent: %s, %s, %s', key, k, val)
         return (k, val)
 
     def _temperature(self, dimension):
         """Parse temperature."""
         try:
             return float(self.values.get(dimension))
-        except ValueError:
+        except (TypeError, ValueError):
             return False
 
     def _energy_consumption(self, dimension):
