@@ -76,9 +76,9 @@ class DaikinAirBase(DaikinBRP069):
         _LOGGER.debug("Sending query_c: %s", query_c)
         await self._get_resource(query_c)
 
-    def _represent(self, key):
+    def represent(self, key):
         """Return translated value from key."""
-        k, val = super()._represent(key)
+        k, val = super().represent(key)
 
         if key in ['zone_name', 'zone_onoff']:
             val = unquote(self.values[key]).split(';')
@@ -90,17 +90,17 @@ class DaikinAirBase(DaikinBRP069):
         """Return list of zones."""
         if not self.values.get('zone_name'):
             return None
-        zone_onoff = self._represent('zone_onoff')[1]
+        zone_onoff = self.represent('zone_onoff')[1]
         return [
             (name.strip(' +,'), zone_onoff[i])
-            for i, name in enumerate(self._represent('zone_name')[1])
+            for i, name in enumerate(self.represent('zone_name')[1])
         ]
 
     async def set_zone(self, zone_id, status):
         """Set zone status."""
         current_state = await self._get_resource('aircon/get_zone_setting')
         self.values.update(current_state)
-        zone_onoff = self._represent('zone_onoff')[1]
+        zone_onoff = self.represent('zone_onoff')[1]
         zone_onoff[zone_id] = status
         self.values['zone_onoff'] = quote(';'.join(zone_onoff)).lower()
 

@@ -217,7 +217,7 @@ class Appliance:  # pylint: disable=too-many-public-methods
 
         for key in keys:
             if key in self.values:
-                (k, val) = self._represent(key)
+                (k, val) = self.represent(key)
                 print("%18s: %s" % (k, val))
 
     def show_sensors(self):
@@ -243,7 +243,7 @@ class Appliance:  # pylint: disable=too-many-public-methods
             data.append(f'heat_power={self.last_hour_heat_power_consumption:.01f}kW')
         print('  '.join(data))
 
-    def _represent(self, key):
+    def represent(self, key):
         """Return translated value from key."""
         k = self.VALUES_TRANSLATION.get(key, key)
 
@@ -274,6 +274,16 @@ class Appliance:  # pylint: disable=too-many-public-methods
             return [int(x) for x in self.values.get(dimension).split('/')]
         except ValueError:
             return None
+
+    @property
+    def device_ip(self):
+        """Return device's IP address."""
+        return self._device_ip
+
+    @property
+    def mac(self):
+        """Return device's MAC address."""
+        return self.values.get('mac', self._device_ip)
 
     @property
     def support_away_mode(self):
@@ -414,8 +424,13 @@ class Appliance:  # pylint: disable=too-many-public-methods
 
     @property
     def fan_rate(self):
-        """Return list of supported fan modes."""
+        """Return list of supported fan rates."""
         return list(map(str.title, self.TRANSLATIONS.get('f_rate', {}).values()))
+
+    @property
+    def swing_modes(self):
+        """Return list of supported swing modes."""
+        return list(map(str.title, self.TRANSLATIONS.get('f_dir', {}).values()))
 
     async def set(self, settings):
         """Set settings on Daikin device."""
