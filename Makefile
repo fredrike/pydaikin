@@ -3,7 +3,7 @@
 default: check
 
 format: white
-	isort .
+	isort setup.py bin/pydaikin pydaikin/*.py
 
 white: black
 
