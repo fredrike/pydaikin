@@ -84,10 +84,13 @@ class DaikinBRP069(Appliance):
 
     async def init(self):
         """Init status."""
-        await self.update_status(self.HTTP_RESOURCES[1:])
+        if self.values:
+            await self.update_status(self.HTTP_RESOURCES[1:])
+        else:
+            await self.update_status(self.HTTP_RESOURCES)
 
         if self.support_energy_consumption:
-            self.INFO_RESOURCES += [
+            self.INFO_RESOURCES += [  # pylint: disable=invalid-name
                 'aircon/get_day_power_ex',
                 'aircon/get_week_power',
             ]

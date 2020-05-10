@@ -19,7 +19,7 @@ class DaikinAirBase(DaikinBRP069):
         },
     )
 
-    RESOURCES = [
+    HTTP_RESOURCES = [
         'common/basic_info',
         'aircon/get_control_info',
         'aircon/get_model_info',
@@ -35,7 +35,7 @@ class DaikinAirBase(DaikinBRP069):
 
     async def init(self):
         """Init status and set defaults."""
-        await self.update_status(self.RESOURCES)
+        await super().init()
         if self.values['frate_steps'] == '2':
             self.TRANSLATIONS['f_rate'] = {'1': 'low', '5': 'high'}
 
