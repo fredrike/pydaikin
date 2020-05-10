@@ -7,6 +7,7 @@ import socket
 from urllib.parse import unquote
 
 from aiohttp import ClientSession, ServerDisconnectedError
+from aiohttp.web_exceptions import HTTPForbidden
 
 import pydaikin.discovery as discovery
 
@@ -154,6 +155,8 @@ class Appliance:  # pylint: disable=too-many-public-methods
         async with self.session.get(f'http://{self._device_ip}/{resource}') as resp:
             if resp.status == 200:
                 return self.parse_response(await resp.text())
+            elif resp.status == 403:
+                raise HTTPForbidden
             return {}
 
     async def update_status(self, resources=None):

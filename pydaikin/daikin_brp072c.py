@@ -3,6 +3,8 @@
 import logging
 from uuid import NAMESPACE_OID, uuid3
 
+from aiohttp.web_exceptions import HTTPForbidden
+
 from .daikin_brp069 import DaikinBRP069
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,4 +35,6 @@ class DaikinBRP072C(DaikinBRP069):
         ) as resp:
             if resp.status == 200:
                 return self.parse_response(await resp.text())
+            elif resp.status == 403:
+                raise HTTPForbidden
         return {}
