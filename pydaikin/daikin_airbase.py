@@ -36,6 +36,8 @@ class DaikinAirBase(DaikinBRP069):
     async def init(self):
         """Init status and set defaults."""
         await super().init()
+        if not self.values:
+            raise Exception("Empty values.")
         if self.values['frate_steps'] == '2':
             self.TRANSLATIONS['f_rate'] = {'1': 'low', '5': 'high'}
 
