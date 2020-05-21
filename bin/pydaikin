@@ -44,7 +44,7 @@ settings.add_argument(
     '-m', '--mode', choices=appliance.daikin_values('mode'), help='set working mode'
 )
 
-settings.add_argument('-t', '--temp', type=int, help='set target temperature')
+settings.add_argument('-t', '--temp', type=float, help='set target temperature')
 
 settings.add_argument('-y', '--humidity', type=int, help='set target humidity')
 
