@@ -41,8 +41,14 @@ class DaikinSkyFi(Appliance):
             '9': 'auto-9',
             '16': 'fan',
         },
-        'f_rate': {'0': 'auto', '1': 'low', '2': 'medium', '3': 'high'},
-        'f_mode': {'1': 'manual', '3': 'auto'},
+        'f_rate': {
+            '1': 'low',
+            '2': 'medium',
+            '3': 'high',
+            '5': 'low/auto',
+            '6': 'medium/auto',
+            '7': 'high/auto',
+        },
     }
 
     def __init__(self, device_id, session=None, password=None):
@@ -83,6 +89,8 @@ class DaikinSkyFi(Appliance):
         """Parse response from Daikin and map it to general Daikin format."""
         _LOGGER.debug("Parsing %s", response_body)
         response = dict([e.split('=') for e in response_body.split('&')])
+        if response['fanflags'] == '3':
+            response['fanspeed'] = str(int(response['fanspeed']) + 4)
         response.update(
             {
                 DaikinSkyFi.SKYFI_TO_DAIKIN.get(key, key): val
