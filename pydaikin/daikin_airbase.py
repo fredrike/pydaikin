@@ -63,7 +63,7 @@ class DaikinAirBase(DaikinBRP069):
 
     async def set(self, settings):
         """Set settings on Daikin device."""
-        self._update_settings(settings)
+        await self._update_settings(settings)
 
         query_c = 'aircon/set_control_info?pow={pow}&mode={mode}&stemp={stemp}&shum={shum}'.format(
             **self.values
