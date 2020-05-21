@@ -275,7 +275,7 @@ class Appliance:  # pylint: disable=too-many-public-methods
         """Parse energy consumption."""
         try:
             return [int(x) for x in self.values.get(dimension).split('/')]
-        except ValueError:
+        except (AttributeError, ValueError):
             return None
 
     @property
