@@ -9,9 +9,6 @@ Currently the following Daikin WiFi modules are supported:
 
 * BRP069Axx/BRP069Bxx/BRP072Axx
 * BRP15B61 aka. AirBase (similar protocol as BRP069Axx)
-
-Version 2.0 will add support for the following models:
-
 * BRP072B/Cxx (needs https access and a key)
 * SKYFi (different protocol, have a password)
 
