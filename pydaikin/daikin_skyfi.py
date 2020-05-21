@@ -147,12 +147,12 @@ class DaikinSkyFi(Appliance):
             return False
         return [
             (self.represent(f'zone{i+1}')[1].strip(' +,'), onoff)
-            for i, onoff in enumerate(self.represent('zone'))
+            for i, onoff in enumerate(self.represent('zone')[1])
         ]
 
     async def set_zone(self, zone_id, status):
         """Set zone status."""
-        query = f'/setzone.cgi?pass={{}}&z={zone_id}&s={status}'
+        query = f'setzone.cgi?pass={{}}&z={zone_id}&s={status}'
         _LOGGER.debug("Set zone: %s", query)
         current_state = await self._get_resource(query)
         self.values.update(current_state)
