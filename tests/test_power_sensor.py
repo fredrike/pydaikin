@@ -60,6 +60,10 @@ def device():
             return "2"
         if key in ("previous_year", "this_year"):
             return '/'.join(map(str, range(12)))
+        if key == "htemp":
+            return 22.0
+        if key == "otemp":
+            return 14.0
         if key == "datas":
             ticks = cool_energy_100w_ticks.union(heat_energy_100w_ticks)
             dt0 = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -122,26 +126,30 @@ def device():
             yield device
 
 
-VERBOSE = False
+VERBOSE = True
+
+
+def relative_error(measured, expected):
+    return abs(measured - expected) / expected
 
 
 @pytest.mark.parametrize(
     "initial_date,duration,tick_step",
     [
         (
-            datetime.utcnow().replace(hour=10, minute=10),
-            timedelta(hours=5),
+            datetime.utcnow().replace(hour=10, minute=0),
+            timedelta(hours=5, minutes=20),
             timedelta(minutes=2),
         ),
         (
             datetime.utcnow().replace(hour=23, minute=5),
-            timedelta(hours=2, minutes=30),
+            timedelta(hours=3, minutes=30),
             timedelta(seconds=30),
         ),
         (
             datetime.utcnow().replace(hour=20, minute=0),
             timedelta(hours=28),
-            timedelta(minutes=5),
+            timedelta(minutes=4),
         ),
     ],
 )
@@ -159,22 +167,30 @@ async def test_power_sensors(initial_date, duration, tick_step, device: DaikinBR
         cool_error_duration = timedelta(minutes=0)
         heat_error_duration = timedelta(minutes=0)
 
+        total_energy = 0
+        cool_energy = 0
+        heat_energy = 0
+
         while datetime.utcnow() < initial_date + duration:
 
             # We simulate the consumption
-            if random.random() < (0.5 if datetime.utcnow().hour % 6 == 0 else 0.05):
-                if random.random() < 0.7:
-                    if VERBOSE:
-                        print(
-                            '%s COOL' % datetime.utcnow().strftime('%m/%d/%Y %H:%M:%S')
-                        )
-                    device._consume_100w_cool()
-                else:
-                    if VERBOSE:
-                        print(
-                            '%s HEAT' % datetime.utcnow().strftime('%m/%d/%Y %H:%M:%S')
-                        )
-                    device._consume_100w_heat()
+            # The consumption is stopped 2 hours before the end of the simulation to let the monitoring stabilize
+            if datetime.utcnow() < initial_date + duration - timedelta(hours=2):
+                if random.random() < (0.5 if datetime.utcnow().hour % 6 == 0 else 0.05):
+                    if random.random() < 0.7:
+                        if VERBOSE:
+                            print(
+                                '%s COOL'
+                                % datetime.utcnow().strftime('%m/%d/%Y %H:%M:%S')
+                            )
+                        device._consume_100w_cool()
+                    else:
+                        if VERBOSE:
+                            print(
+                                '%s HEAT'
+                                % datetime.utcnow().strftime('%m/%d/%Y %H:%M:%S')
+                            )
+                        device._consume_100w_heat()
 
             # We update the device
             await device.update_status()
@@ -191,11 +207,9 @@ async def test_power_sensors(initial_date, duration, tick_step, device: DaikinBR
 
                 diff = abs(
                     device._get_cool_kWh_previous_hour()
-                    - device.last_hour_cool_power_consumption
+                    - device.last_hour_cool_energy_consumption
                 )
-                if device._get_cool_kWh_previous_hour() > 1e-6:
-                    assert diff < 1e-6
-                elif diff >= 1e-6:
+                if diff >= 1e-6:
                     # If the expected measure is 0 the appliance will measure it with a delay
                     cool_error_duration += dt
                 else:
@@ -204,16 +218,24 @@ async def test_power_sensors(initial_date, duration, tick_step, device: DaikinBR
 
                 diff = abs(
                     device._get_heat_kWh_previous_hour()
-                    - device.last_hour_heat_power_consumption
+                    - device.last_hour_heat_energy_consumption
                 )
-                if device._get_heat_kWh_previous_hour() > 1e-6:
-                    assert diff < 1e-6
-                elif diff >= 1e-6:
+                if diff >= 1e-6:
                     # If the expected measure is 0 the appliance will measure it with a delay
                     heat_error_duration += dt
                 else:
                     heat_error_duration = timedelta(minutes=0)
                 assert heat_error_duration < timedelta(minutes=10) + tick_step
+
+                total_energy += (
+                    device.current_total_power_consumption * dt / timedelta(hours=1)
+                )
+                cool_energy += (
+                    device.last_hour_cool_energy_consumption * dt / timedelta(hours=1)
+                )
+                heat_energy += (
+                    device.last_hour_heat_energy_consumption * dt / timedelta(hours=1)
+                )
 
             # Random ticking
             dt = timedelta(
@@ -221,3 +243,21 @@ async def test_power_sensors(initial_date, duration, tick_step, device: DaikinBR
                 milliseconds=random.randint(0, 1000),
             )
             ft.tick(dt)
+
+    max_relative_error = tick_step.total_seconds() / timedelta(hours=1).total_seconds()
+    assert (
+        relative_error(
+            total_energy,
+            (len(device._cool_energy_100w_ticks) + len(device._heat_energy_100w_ticks))
+            / 10,
+        )
+        < max_relative_error
+    )
+    assert (
+        relative_error(cool_energy, len(device._cool_energy_100w_ticks) / 10)
+        < max_relative_error
+    )
+    assert (
+        relative_error(heat_energy, len(device._heat_energy_100w_ticks) / 10)
+        < max_relative_error
+    )

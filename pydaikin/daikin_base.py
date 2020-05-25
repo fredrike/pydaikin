@@ -242,8 +242,8 @@ class Appliance:  # pylint: disable=too-many-public-methods
                 f'heat_today={self.today_energy_consumption(ATTR_HEAT):.01f}kWh'
             )
             data.append(f'total_power={self.current_total_power_consumption:.01f}kW')
-            data.append(f'cool_power={self.last_hour_cool_power_consumption:.01f}kW')
-            data.append(f'heat_power={self.last_hour_heat_power_consumption:.01f}kW')
+            data.append(f'cool_power={self.last_hour_cool_energy_consumption:.01f}kW')
+            data.append(f'heat_power={self.last_hour_heat_energy_consumption:.01f}kW')
         print('  '.join(data))
 
     def represent(self, key):
@@ -372,22 +372,31 @@ class Appliance:  # pylint: disable=too-many-public-methods
             return None
         raise ValueError(f'Unsupported mode {mode}.')
 
-    def delta_energy_consumption(self, time_window, mode=ATTR_TOTAL, early_break=False):
-        """Return the delta energy consumption of a given mode."""
+    def delta_energy_consumption(
+        self, time_window, mode=ATTR_TOTAL, lag_window=None, early_break=False
+    ):
+        """Return the delta energy consumption of a given mode and over the given time_window."""
+        if lag_window is None:
+            lag_window = timedelta(seconds=0)
         energy = 0
         history = self._energy_consumption_history[mode]
-        for (dt2, st2, sy2), (_, st1, _) in zip(history, history[1:]):
-            if dt2 <= datetime.utcnow() - time_window:
+        for (dt_curr, today_curr, yesterday_curr), (_, today_prev, _) in zip(
+            history, history[1:]
+        ):
+            # We iterate over the history backward and pairwise
+            if dt_curr > datetime.utcnow() - lag_window:
+                continue
+            if dt_curr <= datetime.utcnow() - (time_window + lag_window):
                 break
-            if st2 > st1:
+            if today_curr > today_prev:
                 # Normal behavior, today state is growing
-                energy += st2 - st1
-            elif sy2 >= st1:
+                energy += today_curr - today_prev
+            elif yesterday_curr >= today_prev:
                 # If today state is not growing (or even declines), we probably have shifted 1 day
                 # Thus we should have yesterday state greater or equal to previous today state
                 # (in most cases it will be equal)
-                energy += sy2 - st1
-                energy += st2
+                energy += yesterday_curr - today_prev
+                energy += today_curr
             else:
                 _LOGGER.error('Impossible energy consumption measure')
                 return None
@@ -408,27 +417,29 @@ class Appliance:  # pylint: disable=too-many-public-methods
         )
 
     @property
-    def last_hour_cool_power_consumption(self):
+    def last_hour_cool_energy_consumption(self):
         """Return the last hour cool power consumption of a given mode in kWh."""
         if not self._energy_consumption_history:
             return None
 
-        # We tolerate a 5-minutes margin
-        time_window = timedelta(minutes=65)
+        # We tolerate a 5 minutes delay in consumption measure
+        time_window = timedelta(minutes=60)
+        lag_window = timedelta(minutes=5)
         return self.delta_energy_consumption(
-            time_window, mode=ATTR_COOL, early_break=True
+            time_window, mode=ATTR_COOL, lag_window=lag_window, early_break=True
         )
 
     @property
-    def last_hour_heat_power_consumption(self):
+    def last_hour_heat_energy_consumption(self):
         """Return the last hour heat power consumption of a given mode in kWh."""
         if not self._energy_consumption_history:
             return None
 
-        # We tolerate a 5-minutes margin
-        time_window = timedelta(minutes=65)
+        # We tolerate a 5 minutes margin in consumption measure
+        time_window = timedelta(minutes=60)
+        lag_window = timedelta(minutes=5)
         return self.delta_energy_consumption(
-            time_window, mode=ATTR_HEAT, early_break=True
+            time_window, mode=ATTR_HEAT, lag_window=lag_window, early_break=True
         )
 
     @property
