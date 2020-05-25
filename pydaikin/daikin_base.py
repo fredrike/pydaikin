@@ -342,28 +342,34 @@ class Appliance:  # pylint: disable=too-many-public-methods
 
     def today_energy_consumption(self, mode=ATTR_TOTAL):
         """Return today energy consumption in kWh."""
-        if mode == ATTR_TOTAL:
-            # Return total energy consumption. Updated in live
-            return self._energy_consumption('datas')[-1] / 1000
-        if mode == ATTR_COOL:
-            # Return cool energy consumption of this AC. Updated hourly
-            return sum(self._energy_consumption('curr_day_cool')) / 10
-        if mode == ATTR_HEAT:
-            # Return heat energy consumption of this AC. Updated hourly
-            return sum(self._energy_consumption('curr_day_heat')) / 10
+        try:
+            if mode == ATTR_TOTAL:
+                # Return total energy consumption. Updated in live
+                return self._energy_consumption('datas')[-1] / 1000
+            if mode == ATTR_COOL:
+                # Return cool energy consumption of this AC. Updated hourly
+                return sum(self._energy_consumption('curr_day_cool')) / 10
+            if mode == ATTR_HEAT:
+                # Return heat energy consumption of this AC. Updated hourly
+                return sum(self._energy_consumption('curr_day_heat')) / 10
+        except (TypeError, IndexError):
+            return None
         raise ValueError(f'Unsupported mode {mode}.')
 
     def yesterday_energy_consumption(self, mode=ATTR_TOTAL):
         """Return yesterday energy consumption in kWh."""
-        if mode == ATTR_TOTAL:
-            # Return total energy consumption.
-            return self._energy_consumption('datas')[-2] / 1000
-        if mode == ATTR_COOL:
-            # Return cool energy consumption of this AC.
-            return sum(self._energy_consumption('prev_1day_cool')) / 10
-        if mode == ATTR_HEAT:
-            # Return heat energy consumption of this AC.
-            return sum(self._energy_consumption('prev_1day_heat')) / 10
+        try:
+            if mode == ATTR_TOTAL:
+                # Return total energy consumption.
+                return self._energy_consumption('datas')[-2] / 1000
+            if mode == ATTR_COOL:
+                # Return cool energy consumption of this AC.
+                return sum(self._energy_consumption('prev_1day_cool')) / 10
+            if mode == ATTR_HEAT:
+                # Return heat energy consumption of this AC.
+                return sum(self._energy_consumption('prev_1day_heat')) / 10
+        except (TypeError, IndexError):
+            return None
         raise ValueError(f'Unsupported mode {mode}.')
 
     def delta_energy_consumption(self, time_window, mode=ATTR_TOTAL, early_break=False):
@@ -384,7 +390,7 @@ class Appliance:  # pylint: disable=too-many-public-methods
                 energy += st2
             else:
                 _LOGGER.error('Impossible energy consumption measure')
-                return 0
+                return None
             if early_break:
                 break
 
