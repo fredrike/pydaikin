@@ -15,7 +15,14 @@ class DaikinAirBase(DaikinBRP069):
         DaikinBRP069.TRANSLATIONS,
         **{
             'mode': {'0': 'fan', '1': 'hot', '2': 'cool', '3': 'auto', '7': 'dry',},
-            'f_rate': {'1': 'low', '3': 'mid', '5': 'high',},
+            'f_rate': {
+                '1': 'low',
+                '3': 'mid',
+                '5': 'high',
+                '1a': 'low/auto',
+                '3a': 'mid/auto',
+                '5a': 'high/auto',
+            },
         },
     )
 
@@ -27,6 +34,15 @@ class DaikinAirBase(DaikinBRP069):
     ]
 
     INFO_RESOURCES = DaikinBRP069.INFO_RESOURCES + ['aircon/get_zone_setting']
+
+    @staticmethod
+    def parse_response(response_body):
+        """Parse response from Daikin, add support for f_rate-auto."""
+        _LOGGER.debug("Parsing %s", response_body)
+        response = super().parse_response(response_body)
+        if response.get('f_auto') == '1':
+            response['f_rate'] = f'{response["f_rate"]}a'
+        return response
 
     def __init__(self, device_id, session=None):
         """Init the pydaikin appliance, representing one Daikin AirBase (BRP15B61) device."""
@@ -65,15 +81,13 @@ class DaikinAirBase(DaikinBRP069):
         """Set settings on Daikin device."""
         await self._update_settings(settings)
 
-        query_c = 'aircon/set_control_info?pow={pow}&mode={mode}&stemp={stemp}&shum={shum}'.format(
-            **self.values
-        )
-        query_c += '&lpw=&f_airside=0'
-
-        # Apparently some remote controllers doesn't support f_rate and f_dir
-        if self.support_fan_rate:
-            query_c += f'&f_rate={self.values["f_rate"]}'
-        query_c += f'&f_dir={self.values["f_dir"]}'
+        self.values['f_auto'] = '1' if 'a' in self.values["f_rate"] else '0'
+        query_c = (
+            'aircon/set_control_info'
+            '?pow={pow}&mode={mode}&stemp={stemp}&shum={shum}'
+            '&f_rate={f_rate[0]}&f_auto={f_auto}&f_dir={f_dir}'
+            '&lpw=&f_airside=0'
+        ).format(**self.values)
 
         _LOGGER.debug("Sending query_c: %s", query_c)
         await self._get_resource(query_c)
