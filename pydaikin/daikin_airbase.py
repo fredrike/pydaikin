@@ -54,8 +54,6 @@ class DaikinAirBase(DaikinBRP069):
         await super().init()
         if not self.values:
             raise Exception("Empty values.")
-        if self.values['frate_steps'] == '2':
-            self.TRANSLATIONS['f_rate'] = {'1': 'low', '5': 'high'}
 
     async def _run_get_resource(self, resource):
         """Make the http request."""
@@ -76,6 +74,18 @@ class DaikinAirBase(DaikinBRP069):
     def support_outside_temperature(self):
         """Return True if the device is not an AirBase unit."""
         return False
+
+    @property
+    def fan_rate(self):
+        """Return list of supported fan rates."""
+        fan_rates = list(map(str.title, self.TRANSLATIONS.get('f_rate', {}).values()))
+        if self.values.get('frate_steps') == '2':
+            if self.values.get('en_frate_auto') == '0':
+                return fan_rates[:3:2]
+            return fan_rates[:3:2] + fan_rates[3::2]
+        if self.values.get('en_frate_auto') == '0':
+            return fan_rates[:3]
+        return fan_rates
 
     async def set(self, settings):
         """Set settings on Daikin device."""
