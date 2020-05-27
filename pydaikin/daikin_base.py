@@ -28,6 +28,10 @@ EnergyConsumptionParser = namedtuple(
     'EnergyConsumptionParser', ['dimension', 'reducer', 'divider']
 )
 
+EnergyConsumptionState = namedtuple(
+    'EnergyConsumptionState', ['datetime', 'today', 'yesterday']
+)
+
 
 class Appliance:  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
@@ -210,19 +214,22 @@ class Appliance:  # pylint: disable=too-many-public-methods
             return
 
         for mode in (ATTR_TOTAL, ATTR_COOL, ATTR_HEAT):
-            new_state = (
-                datetime.utcnow(),
-                self.energy_consumption(mode=mode, time=TIME_TODAY),
-                self.energy_consumption(mode=mode, time=TIME_YESTERDAY),
+            new_state = EnergyConsumptionState(
+                datetime=datetime.utcnow(),
+                today=self.energy_consumption(mode=mode, time=TIME_TODAY),
+                yesterday=self.energy_consumption(mode=mode, time=TIME_YESTERDAY),
             )
 
             if self._energy_consumption_history[mode]:
                 old_state = self._energy_consumption_history[mode][0]
             else:
-                old_state = (None, None, None)
+                old_state = EnergyConsumptionState(None, None, None)
 
-            if old_state[1] is not None and new_state[1] == old_state[1]:
-                if old_state[2] is not None and new_state[2] == old_state[2]:
+            if old_state.today is not None and new_state.today == old_state.today:
+                if (
+                    old_state.yesterday is not None
+                    and new_state.yesterday == old_state.yesterday
+                ):
                     # State has not changed, nothing to register
                     continue
 
@@ -386,23 +393,21 @@ class Appliance:  # pylint: disable=too-many-public-methods
 
         energy = 0
         history = self._energy_consumption_history[mode]
-        for (dt_curr, today_curr, yesterday_curr), (_, today_prev, _) in zip(
-            history, history[1:]
-        ):
+        for curr, prev in zip(history, history[1:]):
             # We iterate over the history backward and pairwise
-            if dt_curr > datetime.utcnow() - lag_window:
+            if curr.datetime > datetime.utcnow() - lag_window:
                 continue
-            if dt_curr <= datetime.utcnow() - (time_window + lag_window):
+            if curr.datetime <= datetime.utcnow() - (time_window + lag_window):
                 break
-            if today_curr > today_prev:
+            if curr.today > prev.today:
                 # Normal behavior, today state is growing
-                energy += today_curr - today_prev
-            elif yesterday_curr >= today_prev:
+                energy += curr.today - prev.today
+            elif curr.yesterday >= prev.today:
                 # If today state is not growing (or even declines), we probably have shifted 1 day
                 # Thus we should have yesterday state greater or equal to previous today state
                 # (in most cases it will be equal)
-                energy += yesterday_curr - today_prev
-                energy += today_curr
+                energy += curr.yesterday - prev.today
+                energy += curr.today
             else:
                 _LOGGER.error('Impossible energy consumption measure')
                 return None
