@@ -1,6 +1,6 @@
 """Pydaikin base appliance, represent a Daikin device."""
 
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from datetime import datetime, timedelta
 import logging
 import socket
@@ -13,11 +13,18 @@ import pydaikin.discovery as discovery
 
 _LOGGER = logging.getLogger(__name__)
 
-POWER_CONSUMPTION_MAX_HISTORY = timedelta(hours=3)
+ENERGY_CONSUMPTION_MAX_HISTORY = timedelta(hours=3)
 
 ATTR_TOTAL = 'total'
 ATTR_COOL = 'cool'
 ATTR_HEAT = 'heat'
+
+DAY_TODAY = 'today'
+DAY_YESTERDAY = 'yesterday'
+
+EnergyConsumptionParser = namedtuple(
+    'EnergyConsumptionParser', ['dimension', 'reducer', 'divider']
+)
 
 
 class Appliance:  # pylint: disable=too-many-public-methods
@@ -30,6 +37,27 @@ class Appliance:  # pylint: disable=too-many-public-methods
     VALUES_SUMMARY = []
 
     INFO_RESOURCES = []
+
+    ENERGY_CONSUMPTION_PARSERS = {
+        f'{ATTR_TOTAL}_{DAY_TODAY}': EnergyConsumptionParser(
+            dimension='datas', reducer=lambda values: values[-1], divider=1000
+        ),
+        f'{ATTR_COOL}_{DAY_TODAY}': EnergyConsumptionParser(
+            dimension='curr_day_cool', reducer=sum, divider=10
+        ),
+        f'{ATTR_HEAT}_{DAY_TODAY}': EnergyConsumptionParser(
+            dimension='curr_day_heat', reducer=sum, divider=10
+        ),
+        f'{ATTR_TOTAL}_{DAY_YESTERDAY}': EnergyConsumptionParser(
+            dimension='datas', reducer=lambda values: values[-2], divider=1000
+        ),
+        f'{ATTR_COOL}_{DAY_YESTERDAY}': EnergyConsumptionParser(
+            dimension='prev_1day_cool', reducer=sum, divider=10
+        ),
+        f'{ATTR_HEAT}_{DAY_YESTERDAY}': EnergyConsumptionParser(
+            dimension='prev_1day_heat', reducer=sum, divider=10
+        ),
+    }
 
     @classmethod
     def daikin_to_human(cls, dimension, value):
@@ -176,8 +204,8 @@ class Appliance:  # pylint: disable=too-many-public-methods
         for mode in (ATTR_TOTAL, ATTR_COOL, ATTR_HEAT):
             new_state = (
                 datetime.utcnow(),
-                self.today_energy_consumption(mode=mode),
-                self.yesterday_energy_consumption(mode=mode),
+                self.energy_consumption(mode=mode, day=DAY_TODAY),
+                self.energy_consumption(mode=mode, day=DAY_YESTERDAY),
             )
 
             if self._energy_consumption_history[mode]:
@@ -200,7 +228,7 @@ class Appliance:  # pylint: disable=too-many-public-methods
                         for i, (dt, _, _) in enumerate(
                             self._energy_consumption_history[mode]
                         )
-                        if dt < datetime.utcnow() - POWER_CONSUMPTION_MAX_HISTORY
+                        if dt < datetime.utcnow() - ENERGY_CONSUMPTION_MAX_HISTORY
                     ),
                     default=len(self._energy_consumption_history[mode]),
                 )
@@ -233,13 +261,13 @@ class Appliance:  # pylint: disable=too-many-public-methods
             data.append(f'out_temp={int(self.outside_temperature)}°C')
         if self.support_energy_consumption:
             data.append(
-                f'total_today={self.today_energy_consumption(ATTR_TOTAL):.01f}kWh'
+                f'total_today={self.energy_consumption(ATTR_TOTAL, DAY_TODAY):.01f}kWh'
             )
             data.append(
-                f'cool_today={self.today_energy_consumption(ATTR_COOL):.01f}kWh'
+                f'cool_today={self.energy_consumption(ATTR_COOL, DAY_TODAY):.01f}kWh'
             )
             data.append(
-                f'heat_today={self.today_energy_consumption(ATTR_HEAT):.01f}kWh'
+                f'heat_today={self.energy_consumption(ATTR_HEAT, DAY_TODAY):.01f}kWh'
             )
             data.append(f'total_power={self.current_total_power_consumption:.01f}kW')
             data.append(f'cool_power={self.last_hour_cool_energy_consumption:.01f}kW')
@@ -269,13 +297,6 @@ class Appliance:  # pylint: disable=too-many-public-methods
         try:
             return float(self.values.get(dimension))
         except (TypeError, ValueError):
-            return None
-
-    def _energy_consumption(self, dimension):
-        """Parse energy consumption."""
-        try:
-            return [int(x) for x in self.values.get(dimension).split('/')]
-        except (AttributeError, ValueError):
             return None
 
     @property
@@ -340,37 +361,19 @@ class Appliance:  # pylint: disable=too-many-public-methods
         """Return current target temperature."""
         return self._temperature('stemp')
 
-    def today_energy_consumption(self, mode=ATTR_TOTAL):
+    def energy_consumption(self, mode, day):
         """Return today energy consumption in kWh."""
-        try:
-            if mode == ATTR_TOTAL:
-                # Return total energy consumption. Updated in live
-                return self._energy_consumption('datas')[-1] / 1000
-            if mode == ATTR_COOL:
-                # Return cool energy consumption of this AC. Updated hourly
-                return sum(self._energy_consumption('curr_day_cool')) / 10
-            if mode == ATTR_HEAT:
-                # Return heat energy consumption of this AC. Updated hourly
-                return sum(self._energy_consumption('curr_day_heat')) / 10
-        except (TypeError, IndexError):
-            return None
-        raise ValueError(f'Unsupported mode {mode}.')
+        parser = self.ENERGY_CONSUMPTION_PARSERS.get(f'{mode}_{day}')
+        if parser is None:
+            raise ValueError(f'Unsupported mode {mode} for day {day}.')
 
-    def yesterday_energy_consumption(self, mode=ATTR_TOTAL):
-        """Return yesterday energy consumption in kWh."""
         try:
-            if mode == ATTR_TOTAL:
-                # Return total energy consumption.
-                return self._energy_consumption('datas')[-2] / 1000
-            if mode == ATTR_COOL:
-                # Return cool energy consumption of this AC.
-                return sum(self._energy_consumption('prev_1day_cool')) / 10
-            if mode == ATTR_HEAT:
-                # Return heat energy consumption of this AC.
-                return sum(self._energy_consumption('prev_1day_heat')) / 10
-        except (TypeError, IndexError):
+            values = [int(x) for x in self.values.get(parser.dimension).split('/')]
+            value = parser.reducer(values)
+            value /= parser.divider
+            return value
+        except (TypeError, IndexError, AttributeError, ValueError):
             return None
-        raise ValueError(f'Unsupported mode {mode}.')
 
     def delta_energy_consumption(
         self, time_window, mode=ATTR_TOTAL, lag_window=None, early_break=False
