@@ -219,6 +219,8 @@ class Appliance:  # pylint: disable=too-many-public-methods
                 today=self.energy_consumption(mode=mode, time=TIME_TODAY),
                 yesterday=self.energy_consumption(mode=mode, time=TIME_YESTERDAY),
             )
+            if new_state.today is None:
+                continue
 
             if self._energy_consumption_history[mode]:
                 old_state = self._energy_consumption_history[mode][0]
@@ -402,6 +404,11 @@ class Appliance:  # pylint: disable=too-many-public-methods
             if curr.today > prev.today:
                 # Normal behavior, today state is growing
                 energy += curr.today - prev.today
+            elif curr.yesterday is None:
+                _LOGGER.error(
+                    f'Decreasing today state and missing yesterday state caused an impossible energy consumption measure of {mode}'
+                )
+                return None
             elif curr.yesterday >= prev.today:
                 # If today state is not growing (or even declines), we probably have shifted 1 day
                 # Thus we should have yesterday state greater or equal to previous today state
@@ -409,7 +416,7 @@ class Appliance:  # pylint: disable=too-many-public-methods
                 energy += curr.yesterday - prev.today
                 energy += curr.today
             else:
-                _LOGGER.error('Impossible energy consumption measure')
+                _LOGGER.error(f'Impossible energy consumption measure of {mode}')
                 return None
             if early_break:
                 break
