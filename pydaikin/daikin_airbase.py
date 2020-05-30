@@ -39,7 +39,7 @@ class DaikinAirBase(DaikinBRP069):
     def parse_response(response_body):
         """Parse response from Daikin, add support for f_rate-auto."""
         _LOGGER.debug("Parsing %s", response_body)
-        response = super().parse_response(response_body)
+        response = super(DaikinAirBase, DaikinAirBase).parse_response(response_body)
         if response.get('f_auto') == '1':
             response['f_rate'] = f'{response["f_rate"]}a'
         return response
