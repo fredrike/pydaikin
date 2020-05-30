@@ -47,6 +47,7 @@ class DaikinBRP069(Appliance):
         'aircon/get_day_power_ex',
         'aircon/get_week_power',
         'aircon/get_year_power',
+        'common/get_datetime',
     ]
 
     INFO_RESOURCES = [
@@ -67,6 +68,7 @@ class DaikinBRP069(Appliance):
         'cmpfreq',
         'en_hol',
         'err',
+        'cur',
     ]
 
     VALUES_TRANSLATION = {
@@ -80,10 +82,12 @@ class DaikinBRP069(Appliance):
         'f_dir': 'fan direction',
         'err': 'error code',
         'en_hol': 'away_mode',
+        'cur': 'internal clock',
     }
 
     async def init(self):
         """Init status."""
+        await self.auto_set_clock()
         if self.values:
             await self.update_status(self.HTTP_RESOURCES[1:])
         else:
@@ -150,3 +154,10 @@ class DaikinBRP069(Appliance):
 
     async def set_zone(self, zone_id, status):
         """Set zone status."""
+
+    async def auto_set_clock(self):
+        """Tells the AC to auto-set its internal clock."""
+        try:
+            await self._get_resource(f'common/get_datetime?cur=')
+        except Exception as e:
+            _LOGGER.error(f'Raised "{e}" while trying to auto-set internal clock')

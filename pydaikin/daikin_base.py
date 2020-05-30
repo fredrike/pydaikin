@@ -175,7 +175,8 @@ class Appliance:  # pylint: disable=too-many-public-methods
 
     async def init(self):
         """Init status."""
-        await self.update_status()
+        # Re-defined in all sub-classes
+        raise NotImplementedError
 
     async def _get_resource(self, resource, retries=3):
         """Update resource."""

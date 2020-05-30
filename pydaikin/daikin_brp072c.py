@@ -21,7 +21,6 @@ class DaikinBRP072C(DaikinBRP069):
             uuid = uuid3(NAMESPACE_OID, 'pydaikin')
         self._uuid = str(uuid).replace('-', '')
         self._headers = {"X-Daikin-uuid": self._uuid}
-        print("BRP072C")
 
     async def init(self):
         """Init status."""
