@@ -224,16 +224,11 @@ class Appliance:  # pylint: disable=too-many-public-methods
 
             if self._energy_consumption_history[mode]:
                 old_state = self._energy_consumption_history[mode][0]
-            else:
-                old_state = EnergyConsumptionState(None, None, None)
 
-            if old_state.today is not None and new_state.today == old_state.today:
-                if (
-                    old_state.yesterday is not None
-                    and new_state.yesterday == old_state.yesterday
-                ):
-                    # State has not changed, nothing to register
-                    continue
+                if new_state.today == old_state.today:
+                    if new_state.yesterday == old_state.yesterday:
+                        # State has not changed, nothing to register
+                        continue
 
             self._energy_consumption_history[mode].insert(0, new_state)
 
