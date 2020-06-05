@@ -305,8 +305,8 @@ class Appliance:  # pylint: disable=too-many-public-methods
         _LOGGER.log(logging.NOTSET, 'Represent: %s, %s, %s', key, k, val)
         return (k, val)
 
-    def _temperature(self, dimension):
-        """Parse temperature."""
+    def _parse_number(self, dimension):
+        """Parse float number."""
         try:
             return float(self.values.get(dimension))
         except (TypeError, ValueError):
@@ -343,6 +343,11 @@ class Appliance:  # pylint: disable=too-many-public-methods
         return self.outside_temperature is not None
 
     @property
+    def support_humidity(self):
+        """Return True if the device has humidity sensor."""
+        return False
+
+    @property
     def support_energy_consumption(self):
         """Return True if the device supports energy consumption monitoring."""
         return (self.energy_consumption(mode=ATTR_TOTAL, time=TIME_THIS_YEAR) or 0) + (
@@ -352,17 +357,27 @@ class Appliance:  # pylint: disable=too-many-public-methods
     @property
     def outside_temperature(self):
         """Return current outside temperature."""
-        return self._temperature('otemp')
+        return self._parse_number('otemp')
 
     @property
     def inside_temperature(self):
         """Return current inside temperature."""
-        return self._temperature('htemp')
+        return self._parse_number('htemp')
 
     @property
     def target_temperature(self):
         """Return current target temperature."""
-        return self._temperature('stemp')
+        return self._parse_number('stemp')
+
+    @property
+    def humidity(self):
+        """Return current humidity."""
+        return self._parse_number('hhum')
+
+    @property
+    def target_humidity(self):
+        """Return target humidity."""
+        return self._parse_number('shum')
 
     def energy_consumption(self, mode=ATTR_TOTAL, time=TIME_TODAY):
         """Return today energy consumption in kWh."""
