@@ -118,7 +118,7 @@ class DaikinSkyFi(Appliance):
             val = unquote(self[key])
         if key == 'zone':
             # zone is a binary representation of zone status
-            val = str(bin(int(self[key]) + 256))[3:][int(self['nz'])]
+            val = str(bin(int(self[key]) + 256))[3 : int(self['nz']) + 3]
         return (k, val)
 
     async def set(self, settings):
@@ -154,8 +154,14 @@ class DaikinSkyFi(Appliance):
         if 'nz' not in self.values:
             return False
         return [
-            (self.represent(f'zone{i+1}')[1].strip(' +,'), onoff)
-            for i, onoff in enumerate(self.represent('zone')[1])
+            v
+            for i, v in enumerate(
+                [
+                    (self.represent(f'zone{i+1}')[1].strip(' +,'), onoff)
+                    for i, onoff in enumerate(self.represent('zone')[1])
+                ]
+            )
+            if i[0] != f'Zone {i+1}'
         ]
 
     async def set_zone(self, zone_id, status):
