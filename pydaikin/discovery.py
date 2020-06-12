@@ -1,6 +1,9 @@
+import logging
 import socket
 
 import netifaces
+
+_LOGGER = logging.getLogger(__name__)
 
 UDP_SRC_PORT = 30000
 UDP_DST_PORT = 30050
@@ -52,19 +55,22 @@ class Discovery:
         self.sock = sock
         self.dev = {}
 
-    def poll(self, stop_if_found=None):
-        # get all IPv4 definitions in the system
-        net_groups = [
-            netifaces.ifaddresses(i)[netifaces.AF_INET]
-            for i in netifaces.interfaces()
-            if netifaces.AF_INET in netifaces.ifaddresses(i)
-        ]
+    def poll(self, stop_if_found=None, ip=None):
+        if ip:
+            broadcast_ips = [ip]
+        else:
+            # get all IPv4 definitions in the system
+            net_groups = [
+                netifaces.ifaddresses(i)[netifaces.AF_INET]
+                for i in netifaces.interfaces()
+                if netifaces.AF_INET in netifaces.ifaddresses(i)
+            ]
 
-        # flatten the previous list
-        net_ips = [item for sublist in net_groups for item in sublist]
+            # flatten the previous list
+            net_ips = [item for sublist in net_groups for item in sublist]
 
-        # from those, get the broadcast IPs, if available
-        broadcast_ips = [i['broadcast'] for i in net_ips if 'broadcast' in i.keys()]
+            # from those, get the broadcast IPs, if available
+            broadcast_ips = [i['broadcast'] for i in net_ips if 'broadcast' in i.keys()]
 
         # send a daikin broadcast to each one of the ips
         for ip in broadcast_ips:
@@ -73,6 +79,7 @@ class Discovery:
         try:
             while True:  # for anyone who ansers
                 data, addr = self.sock.recvfrom(RCV_BUFSIZ)
+                _LOGGER.debug("Discovered %s, %s", addr, data.decode('UTF-8'))
 
                 try:
                     d = DiscoveredObject(addr[0], addr[1], data.decode('UTF-8'))

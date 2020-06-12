@@ -10,7 +10,7 @@ import pydaikin.discovery as discovery
 
 def list_all_devices():
     for dev in discovery.get_devices():
-        print("%18s: %s" % (dev['ip'], dev['name']))
+        print("%18s: %s %s" % (dev['ip'], dev['name'], dev['mac']))
 
 
 parser = argparse.ArgumentParser(description='Daikin wireless interface.')
