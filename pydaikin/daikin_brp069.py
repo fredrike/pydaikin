@@ -32,6 +32,14 @@ class DaikinBRP069(Appliance):
         },
         'f_dir': {'0': 'off', '1': 'vertical', '2': 'horizontal', '3': '3d',},
         'en_hol': {'0': 'off', '1': 'on',},
+        'adv': {
+            '': 'off',
+            '2': 'powerful',
+            '2/13': 'powerful streamer',
+            '12': 'econo',
+            '12/13': 'econo streamer',
+            '13': 'streamer',
+        },
     }
 
     HTTP_RESOURCES = [
@@ -69,6 +77,7 @@ class DaikinBRP069(Appliance):
         'en_hol',
         'err',
         'cur',
+        'adv',
     ]
 
     VALUES_TRANSLATION = {
@@ -83,6 +92,7 @@ class DaikinBRP069(Appliance):
         'err': 'error code',
         'en_hol': 'away_mode',
         'cur': 'internal clock',
+        'adv': 'advanced mode',
     }
 
     async def init(self):
