@@ -88,7 +88,7 @@ class Appliance:  # pylint: disable=too-many-public-methods
     @classmethod
     def daikin_values(cls, dimension):
         """Return sorted list of translated values."""
-        return sorted(list(cls.TRANSLATIONS[dimension].values()))
+        return sorted(list(cls.TRANSLATIONS.get(dimension, {}).values()))
 
     @staticmethod
     async def factory(device_id, session=None, **kwargs):

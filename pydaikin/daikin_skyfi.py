@@ -24,7 +24,6 @@ class DaikinSkyFi(Appliance):
         'settemp': 'stemp',
         'opmode': 'pow',
         'fanspeed': 'f_rate',
-        'fanflags': 'f_dir',
         'acmode': 'mode',
     }
 
@@ -32,7 +31,7 @@ class DaikinSkyFi(Appliance):
 
     TRANSLATIONS = {
         'mode': {
-            '0': 'Off',
+            '0': 'off',
             '1': 'auto',
             '2': 'hot',
             '3': 'auto-3',
@@ -161,7 +160,7 @@ class DaikinSkyFi(Appliance):
                     for i, onoff in enumerate(self.represent('zone')[1])
                 ]
             )
-            if i[0] != f'Zone {i+1}'
+            if v != f'Zone {i+1}'
         ]
 
     async def set_zone(self, zone_id, status):
