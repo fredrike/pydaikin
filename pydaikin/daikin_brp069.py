@@ -40,6 +40,8 @@ class DaikinBRP069(Appliance):
             '12/13': 'econo streamer',
             '13': 'streamer',
         },
+        'spmode_kind': {'0': 'streamer', '1': 'powerful', '2': 'econo',},
+        'spmode': {'0': 'off', '1': 'on',},
     }
 
     HTTP_RESOURCES = [
@@ -161,6 +163,19 @@ class DaikinBRP069(Appliance):
             self.values['en_hol'] = value
             _LOGGER.debug("Sending query: %s", query_h)
             await self._get_resource(query_h)
+
+    async def set_advanced_mode(self, mode, value):
+        """Enable or disable advanced modes."""
+        mode = self.human_to_daikin('spmode_kind', mode)
+        value = self.human_to_daikin('spmode', value)
+        if value in ('0', '1'):
+            query_h = 'aircon/set_special_mode?spmode_kind=%s&set_spmode=%s' % (
+                mode,
+                value,
+            )
+            _LOGGER.debug("Sending query: %s", query_h)
+            # Update the adv value from the response
+            self.values.update(await self._get_resource(query_h))
 
     async def set_zone(self, zone_id, status):
         """Set zone status."""

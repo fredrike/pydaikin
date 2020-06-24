@@ -485,6 +485,10 @@ class Appliance:  # pylint: disable=too-many-public-methods
         """Set holiday mode."""
         raise NotImplementedError
 
+    async def set_advanced_mode(self, mode, value):
+        """Enable or disable advanced modes."""
+        raise NotImplementedError
+
     @property
     def zones(self):
         """Return list of zones."""
