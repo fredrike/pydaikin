@@ -348,6 +348,11 @@ class Appliance:  # pylint: disable=too-many-public-methods
         return False
 
     @property
+    def support_advanced_modes(self):
+        """Return True if the device supports advanced modes."""
+        return 'adv' in self.values
+
+    @property
     def support_energy_consumption(self):
         """Return True if the device supports energy consumption monitoring."""
         return (self.energy_consumption(mode=ATTR_TOTAL, time=TIME_THIS_YEAR) or 0) + (
@@ -478,6 +483,10 @@ class Appliance:  # pylint: disable=too-many-public-methods
 
     async def set_holiday(self, mode):
         """Set holiday mode."""
+        raise NotImplementedError
+
+    async def set_advanced_mode(self, mode, value):
+        """Enable or disable advanced modes."""
         raise NotImplementedError
 
     @property
