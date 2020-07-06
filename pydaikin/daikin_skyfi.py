@@ -165,6 +165,7 @@ class DaikinSkyFi(Appliance):
 
     async def set_zone(self, zone_id, status):
         """Set zone status."""
+        zone_id += 2
         query = f'setzone.cgi?pass={{}}&z={zone_id}&s={status}'
         _LOGGER.debug("Set zone: %s", query)
         current_state = await self._get_resource(query)
