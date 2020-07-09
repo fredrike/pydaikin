@@ -32,6 +32,7 @@ class DaikinBRP069(Appliance):
         },
         'f_dir': {'0': 'off', '1': 'vertical', '2': 'horizontal', '3': '3d',},
         'en_hol': {'0': 'off', '1': 'on',},
+        'en_streamer': {'0': 'off', '1': 'on',},
         'adv': {
             '': 'off',
             '2': 'powerful',
@@ -173,6 +174,15 @@ class DaikinBRP069(Appliance):
                 mode,
                 value,
             )
+            _LOGGER.debug("Sending query: %s", query_h)
+            # Update the adv value from the response
+            self.values.update(await self._get_resource(query_h))
+
+    async def set_streamer(self, mode):
+        """Enable or disable the streamer."""
+        value = self.human_to_daikin('en_streamer', mode)
+        if value in ('0', '1'):
+            query_h = 'aircon/set_special_mode?en_streamer=%s' % value
             _LOGGER.debug("Sending query: %s", query_h)
             # Update the adv value from the response
             self.values.update(await self._get_resource(query_h))
