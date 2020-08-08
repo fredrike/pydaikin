@@ -489,6 +489,10 @@ class Appliance:  # pylint: disable=too-many-public-methods
         """Enable or disable advanced modes."""
         raise NotImplementedError
 
+    async def set_streamer(self, mode):
+        """Enable or disable the streamer."""
+        raise NotImplementedError
+
     @property
     def zones(self):
         """Return list of zones."""
