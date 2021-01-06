@@ -30,9 +30,20 @@ class DaikinBRP069(Appliance):
             '6': '4',
             '7': '5',
         },
-        'f_dir': {'0': 'off', '1': 'vertical', '2': 'horizontal', '3': '3d',},
-        'en_hol': {'0': 'off', '1': 'on',},
-        'en_streamer': {'0': 'off', '1': 'on',},
+        'f_dir': {
+            '0': 'off',
+            '1': 'vertical',
+            '2': 'horizontal',
+            '3': '3d',
+        },
+        'en_hol': {
+            '0': 'off',
+            '1': 'on',
+        },
+        'en_streamer': {
+            '0': 'off',
+            '1': 'on',
+        },
         'adv': {
             '': 'off',
             '2': 'powerful',
@@ -41,8 +52,15 @@ class DaikinBRP069(Appliance):
             '12/13': 'econo streamer',
             '13': 'streamer',
         },
-        'spmode_kind': {'0': 'streamer', '1': 'powerful', '2': 'econo',},
-        'spmode': {'0': 'off', '1': 'on',},
+        'spmode_kind': {
+            '0': 'streamer',
+            '1': 'powerful',
+            '2': 'econo',
+        },
+        'spmode': {
+            '0': 'off',
+            '1': 'on',
+        },
     }
 
     HTTP_RESOURCES = [
@@ -193,7 +211,7 @@ class DaikinBRP069(Appliance):
     async def auto_set_clock(self):
         """Tells the AC to auto-set its internal clock."""
         try:
-            await self._get_resource(f'common/get_datetime?cur=')
+            await self._get_resource('common/get_datetime?cur=')
         except Exception as e:
             _LOGGER.error(f'Raised "{e}" while trying to auto-set internal clock')
 

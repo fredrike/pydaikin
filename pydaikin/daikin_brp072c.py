@@ -30,7 +30,9 @@ class DaikinBRP072C(DaikinBRP069):
     async def _run_get_resource(self, resource):
         """Make the http request."""
         async with self.session.get(
-            f'https://{self._device_ip}/{resource}', headers=self._headers, ssl=False,
+            f'https://{self._device_ip}/{resource}',
+            headers=self._headers,
+            ssl=False,
         ) as resp:
             if resp.status == 200:
                 return self.parse_response(await resp.text())

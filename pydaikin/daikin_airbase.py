@@ -14,7 +14,13 @@ class DaikinAirBase(DaikinBRP069):
     TRANSLATIONS = dict(
         DaikinBRP069.TRANSLATIONS,
         **{
-            'mode': {'0': 'fan', '1': 'hot', '2': 'cool', '3': 'auto', '7': 'dry',},
+            'mode': {
+                '0': 'fan',
+                '1': 'hot',
+                '2': 'cool',
+                '3': 'auto',
+                '7': 'dry',
+            },
             'f_rate': {
                 '1': 'low',
                 '3': 'mid',
@@ -131,7 +137,8 @@ class DaikinAirBase(DaikinBRP069):
         self.values['zone_onoff'] = quote(';'.join(zone_onoff)).lower()
 
         query = 'aircon/set_zone_setting?zone_name={}&zone_onoff={}'.format(
-            current_state['zone_name'], self.values['zone_onoff'],
+            current_state['zone_name'],
+            self.values['zone_onoff'],
         )
 
         _LOGGER.debug("Set zone:: %s", query)
