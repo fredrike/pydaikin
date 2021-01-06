@@ -1,4 +1,4 @@
 black
-flake8==3.7.9
-isort==v4.3.21
+flake8==3.8.4
+isort==v5.7.0
 pylint
