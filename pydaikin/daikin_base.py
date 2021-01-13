@@ -69,7 +69,10 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             appl = DaikinSkyFi(device_id, session, password=kwargs['password'])
         elif 'key' in kwargs and kwargs['key'] is not None:
             appl = DaikinBRP072C(
-                device_id, session, key=kwargs['key'], uuid=kwargs.get('uuid'),
+                device_id,
+                session,
+                key=kwargs['key'],
+                uuid=kwargs.get('uuid'),
             )
         else:  # special case for BRP069 and AirBase
             appl = DaikinBRP069(device_id, session)
