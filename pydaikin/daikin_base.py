@@ -1,6 +1,6 @@
 """Pydaikin base appliance, represent a Daikin device."""
 
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 from datetime import datetime, timedelta
 import logging
 import socket
@@ -10,30 +10,18 @@ from aiohttp import ClientSession, ServerDisconnectedError
 from aiohttp.web_exceptions import HTTPForbidden
 
 import pydaikin.discovery as discovery
+from pydaikin.power import (
+    ATTR_COOL,
+    ATTR_HEAT,
+    ATTR_TOTAL,
+    TIME_TODAY,
+    DaikinPowerMixin,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-ENERGY_CONSUMPTION_MAX_HISTORY = timedelta(hours=3)
 
-ATTR_TOTAL = 'total'
-ATTR_COOL = 'cool'
-ATTR_HEAT = 'heat'
-
-TIME_TODAY = 'today'
-TIME_YESTERDAY = 'yesterday'
-TIME_THIS_YEAR = 'this_year'
-TIME_LAST_YEAR = 'last_year'
-
-EnergyConsumptionParser = namedtuple(
-    'EnergyConsumptionParser', ['dimension', 'reducer', 'divider']
-)
-
-EnergyConsumptionState = namedtuple(
-    'EnergyConsumptionState', ['datetime', 'today', 'yesterday']
-)
-
-
-class Appliance:  # pylint: disable=too-many-public-methods
+class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
 
     TRANSLATIONS = {}
@@ -43,33 +31,6 @@ class Appliance:  # pylint: disable=too-many-public-methods
     VALUES_SUMMARY = []
 
     INFO_RESOURCES = []
-
-    ENERGY_CONSUMPTION_PARSERS = {
-        f'{ATTR_TOTAL}_{TIME_TODAY}': EnergyConsumptionParser(
-            dimension='datas', reducer=lambda values: values[-1], divider=1000
-        ),
-        f'{ATTR_COOL}_{TIME_TODAY}': EnergyConsumptionParser(
-            dimension='curr_day_cool', reducer=sum, divider=10
-        ),
-        f'{ATTR_HEAT}_{TIME_TODAY}': EnergyConsumptionParser(
-            dimension='curr_day_heat', reducer=sum, divider=10
-        ),
-        f'{ATTR_TOTAL}_{TIME_YESTERDAY}': EnergyConsumptionParser(
-            dimension='datas', reducer=lambda values: values[-2], divider=1000
-        ),
-        f'{ATTR_COOL}_{TIME_YESTERDAY}': EnergyConsumptionParser(
-            dimension='prev_1day_cool', reducer=sum, divider=10
-        ),
-        f'{ATTR_HEAT}_{TIME_YESTERDAY}': EnergyConsumptionParser(
-            dimension='prev_1day_heat', reducer=sum, divider=10
-        ),
-        f'{ATTR_TOTAL}_{TIME_THIS_YEAR}': EnergyConsumptionParser(
-            dimension='this_year', reducer=sum, divider=1
-        ),
-        f'{ATTR_TOTAL}_{TIME_LAST_YEAR}': EnergyConsumptionParser(
-            dimension='previous_year', reducer=sum, divider=1
-        ),
-    }
 
     @classmethod
     def daikin_to_human(cls, dimension, value):
@@ -108,10 +69,7 @@ class Appliance:  # pylint: disable=too-many-public-methods
             appl = DaikinSkyFi(device_id, session, password=kwargs['password'])
         elif 'key' in kwargs and kwargs['key'] is not None:
             appl = DaikinBRP072C(
-                device_id,
-                session,
-                key=kwargs['key'],
-                uuid=kwargs.get('uuid'),
+                device_id, session, key=kwargs['key'], uuid=kwargs.get('uuid'),
             )
         else:  # special case for BRP069 and AirBase
             appl = DaikinBRP069(device_id, session)
@@ -213,48 +171,6 @@ class Appliance:  # pylint: disable=too-many-public-methods
 
         self._register_energy_consumption_history()
 
-    def _register_energy_consumption_history(self):
-        if not self.support_energy_consumption:
-            return
-
-        for mode in (ATTR_TOTAL, ATTR_COOL, ATTR_HEAT):
-            new_state = EnergyConsumptionState(
-                datetime=datetime.utcnow(),
-                today=self.energy_consumption(mode=mode, time=TIME_TODAY),
-                yesterday=self.energy_consumption(mode=mode, time=TIME_YESTERDAY),
-            )
-            if new_state.today is None:
-                continue
-
-            if self._energy_consumption_history[mode]:
-                old_state = self._energy_consumption_history[mode][0]
-
-                if new_state.today == old_state.today:
-                    if new_state.yesterday == old_state.yesterday:
-                        # State has not changed, nothing to register
-                        continue
-
-            self._energy_consumption_history[mode].insert(0, new_state)
-
-            # We can remove very old states (except the latest one)
-            idx = (
-                min(
-                    (
-                        i
-                        for i, (dt, _, _) in enumerate(
-                            self._energy_consumption_history[mode]
-                        )
-                        if dt < datetime.utcnow() - ENERGY_CONSUMPTION_MAX_HISTORY
-                    ),
-                    default=len(self._energy_consumption_history[mode]),
-                )
-                + 1
-            )
-
-            self._energy_consumption_history[mode] = self._energy_consumption_history[
-                mode
-            ][:idx]
-
     def show_values(self, only_summary=False):
         """Print values."""
         if only_summary:
@@ -267,14 +183,42 @@ class Appliance:  # pylint: disable=too-many-public-methods
                 (k, val) = self.represent(key)
                 print("%18s: %s" % (k, val))
 
+    def log_sensors(self, f):
+        data = [
+            ('datetime', datetime.utcnow().strftime('%d/%m/%Y %H:%M:%S')),
+            ('in_temp', self.inside_temperature),
+        ]
+        if self.support_outside_temperature:
+            data.append(('out_temp', self.outside_temperature))
+        if self.support_compressor_frequency:
+            data.append(('cmp_freq', self.compressor_frequency))
+        if self.support_energy_consumption:
+            data.append(
+                ('total_today', self.energy_consumption(ATTR_TOTAL, TIME_TODAY))
+            )
+            data.append(('cool_today', self.energy_consumption(ATTR_COOL, TIME_TODAY)))
+            data.append(('heat_today', self.energy_consumption(ATTR_HEAT, TIME_TODAY)))
+            data.append(('total_power', self.current_total_power_consumption))
+            data.append(('cool_power', self.last_hour_cool_power_consumption))
+            data.append(('heat_power', self.last_hour_heat_power_consumption))
+        if f.tell() == 0:
+            f.write(','.join(k for k, _ in data))
+            f.write('\n')
+            self.__headers_written = True
+        f.write(','.join(str(v) for _, v in data))
+        f.write('\n')
+        f.flush()
+
     def show_sensors(self):
         """Print sensors."""
         data = [
-            datetime.utcnow().strftime('%m/%d/%Y %H:%M:%S'),
+            datetime.utcnow().strftime('%d/%m/%Y %H:%M:%S'),
             f'in_temp={int(self.inside_temperature)}°C',
         ]
         if self.support_outside_temperature:
             data.append(f'out_temp={int(self.outside_temperature)}°C')
+        if self.support_compressor_frequency:
+            data.append(f'cmp_freq={int(self.compressor_frequency)}Hz')
         if self.support_energy_consumption:
             data.append(
                 f'total_today={self.energy_consumption(ATTR_TOTAL, TIME_TODAY):.01f}kWh'
@@ -285,9 +229,9 @@ class Appliance:  # pylint: disable=too-many-public-methods
             data.append(
                 f'heat_today={self.energy_consumption(ATTR_HEAT, TIME_TODAY):.01f}kWh'
             )
-            data.append(f'total_power={self.current_total_power_consumption:.01f}kW')
-            data.append(f'cool_power={self.last_hour_cool_energy_consumption:.01f}kW')
-            data.append(f'heat_power={self.last_hour_heat_energy_consumption:.01f}kW')
+            data.append(f'total_power={self.current_total_power_consumption:.02f}kW')
+            data.append(f'cool_power={self.last_hour_cool_power_consumption:.01f}kW')
+            data.append(f'heat_power={self.last_hour_heat_power_consumption:.01f}kW')
         print('  '.join(data))
 
     def represent(self, key):
@@ -356,11 +300,12 @@ class Appliance:  # pylint: disable=too-many-public-methods
         return 'adv' in self.values
 
     @property
+    def support_compressor_frequency(self):
+        return 'cmpfreq' in self.values
+
+    @property
     def support_energy_consumption(self):
-        """Return True if the device supports energy consumption monitoring."""
-        return (self.energy_consumption(mode=ATTR_TOTAL, time=TIME_THIS_YEAR) or 0) + (
-            self.energy_consumption(mode=ATTR_TOTAL, time=TIME_LAST_YEAR) or 0
-        ) > 0
+        return super().support_energy_consumption
 
     @property
     def outside_temperature(self):
@@ -378,6 +323,10 @@ class Appliance:  # pylint: disable=too-many-public-methods
         return self._parse_number('stemp')
 
     @property
+    def compressor_frequency(self):
+        return self._parse_number('cmpfreq')
+
+    @property
     def humidity(self):
         """Return current humidity."""
         return self._parse_number('hhum')
@@ -387,87 +336,26 @@ class Appliance:  # pylint: disable=too-many-public-methods
         """Return target humidity."""
         return self._parse_number('shum')
 
-    def energy_consumption(self, mode=ATTR_TOTAL, time=TIME_TODAY):
-        """Return today energy consumption in kWh."""
-        parser = self.ENERGY_CONSUMPTION_PARSERS.get(f'{mode}_{time}')
-        if parser is None:
-            raise ValueError(f'Unsupported mode {mode} on {time}.')
-
-        try:
-            values = [int(x) for x in self.values.get(parser.dimension).split('/')]
-            value = parser.reducer(values)
-            value /= parser.divider
-            return value
-        except (TypeError, IndexError, AttributeError, ValueError):
-            return None
-
-    def delta_energy_consumption(
-        self, time_window, mode=ATTR_TOTAL, lag_window=None, early_break=False
-    ):
-        """Return the delta energy consumption of a given mode and over the given time_window."""
-        if not self._energy_consumption_history:
-            # The sensor has not been properly initialized
-            return None
-
-        if lag_window is None:
-            lag_window = timedelta(seconds=0)
-
-        energy = 0
-        history = self._energy_consumption_history[mode]
-        for curr, prev in zip(history, history[1:]):
-            # We iterate over the history backward and pairwise
-            if curr.datetime > datetime.utcnow() - lag_window:
-                continue
-            if curr.datetime <= datetime.utcnow() - (time_window + lag_window):
-                break
-            if curr.today > prev.today:
-                # Normal behavior, today state is growing
-                energy += curr.today - prev.today
-            elif curr.yesterday is None:
-                _LOGGER.error(
-                    f'Decreasing today state and missing yesterday state caused an impossible energy consumption measure of {mode}'
-                )
-                return None
-            elif curr.yesterday >= prev.today:
-                # If today state is not growing (or even declines), we probably have shifted 1 day
-                # Thus we should have yesterday state greater or equal to previous today state
-                # (in most cases it will be equal)
-                energy += curr.yesterday - prev.today
-                energy += curr.today
-            else:
-                _LOGGER.error(f'Impossible energy consumption measure of {mode}')
-                return None
-            if early_break:
-                break
-
-        return energy
-
     @property
     def current_total_power_consumption(self):
         """Return the current total power consumption in kW."""
-        time_window = timedelta(minutes=30)
-        return self.delta_energy_consumption(time_window, mode='total') * (
-            timedelta(hours=1) / time_window
-        )
+        # We tolerate a 50% delay in consumption measure
+        return self.current_power_consumption(mode=ATTR_TOTAL, margin_factor=0.5)
 
     @property
-    def last_hour_cool_energy_consumption(self):
-        """Return the last hour cool power consumption of a given mode in kWh."""
+    def last_hour_cool_power_consumption(self):
+        """Return the last hour cool power consumption of a given mode in kW."""
         # We tolerate a 5 minutes delay in consumption measure
-        time_window = timedelta(minutes=60)
-        lag_window = timedelta(minutes=5)
-        return self.delta_energy_consumption(
-            time_window, mode=ATTR_COOL, lag_window=lag_window, early_break=True
+        return self.current_power_consumption(
+            mode=ATTR_COOL, margin_window=timedelta(minutes=5)
         )
 
     @property
-    def last_hour_heat_energy_consumption(self):
-        """Return the last hour heat power consumption of a given mode in kWh."""
+    def last_hour_heat_power_consumption(self):
+        """Return the last hour heat power consumption of a given mode in kW."""
         # We tolerate a 5 minutes margin in consumption measure
-        time_window = timedelta(minutes=60)
-        lag_window = timedelta(minutes=5)
-        return self.delta_energy_consumption(
-            time_window, mode=ATTR_HEAT, lag_window=lag_window, early_break=True
+        return self.current_power_consumption(
+            mode=ATTR_HEAT, margin_window=timedelta(minutes=5)
         )
 
     @property

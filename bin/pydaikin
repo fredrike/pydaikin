@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+from contextlib import nullcontext
 import time
 
 from pydaikin.daikin_brp069 import DaikinBRP069 as appliance
@@ -67,8 +68,14 @@ settings.add_argument(
     '-s', '--sensor', action='store_true', help='tail sensors\'s value'
 )
 
+settings.add_argument('--file', type=str, help='file path for sensors logging')
+
 settings.add_argument(
-    '-v', '--verbose', action='store_true', help='enable logging debug'
+    '-v',
+    '--verbose',
+    help='Verbose level (none: critical, v: error, vv: warning, vvv: info, vvvv: debug)',
+    action='count',
+    default=0,
 )
 
 args = parser.parse_args()
@@ -76,7 +83,15 @@ args = parser.parse_args()
 if args.verbose:
     import logging
 
-    logging.basicConfig(level=logging.NOTSET)
+    logging.basicConfig(
+        level=[
+            logging.CRITICAL,
+            logging.ERROR,
+            logging.WARNING,
+            logging.INFO,
+            logging.DEBUG,
+        ][args.verbose]
+    )
 
 if args.list:
     list_all_devices()
@@ -119,11 +134,16 @@ else:
         loop.run_until_complete(daikin.set(settings))
 
     if args.sensor:
-        print('\nPress CTRL+C to stop tailing sensor data...\n')
-        try:
-            while True:
-                loop.run_until_complete(daikin.update_status())
-                daikin.show_sensors()
-                time.sleep(30)
-        except KeyboardInterrupt:
-            pass
+        print('\nPress CTRL+C to stop logging sensor data...\n')
+
+        with (open(args.file, 'a') if args.file else nullcontext()) as f:
+            try:
+                while True:
+                    loop.run_until_complete(daikin.update_status())
+                    daikin.show_sensors()
+                    if args.file:
+                        daikin.log_sensors(f)
+                        f.flush()
+                    time.sleep(30)
+            except KeyboardInterrupt:
+                pass

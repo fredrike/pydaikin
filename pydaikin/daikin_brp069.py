@@ -30,20 +30,9 @@ class DaikinBRP069(Appliance):
             '6': '4',
             '7': '5',
         },
-        'f_dir': {
-            '0': 'off',
-            '1': 'vertical',
-            '2': 'horizontal',
-            '3': '3d',
-        },
-        'en_hol': {
-            '0': 'off',
-            '1': 'on',
-        },
-        'en_streamer': {
-            '0': 'off',
-            '1': 'on',
-        },
+        'f_dir': {'0': 'off', '1': 'vertical', '2': 'horizontal', '3': '3d',},
+        'en_hol': {'0': 'off', '1': 'on',},
+        'en_streamer': {'0': 'off', '1': 'on',},
         'adv': {
             '': 'off',
             '2': 'powerful',
@@ -52,15 +41,8 @@ class DaikinBRP069(Appliance):
             '12/13': 'econo streamer',
             '13': 'streamer',
         },
-        'spmode_kind': {
-            '0': 'streamer',
-            '1': 'powerful',
-            '2': 'econo',
-        },
-        'spmode': {
-            '0': 'off',
-            '1': 'on',
-        },
+        'spmode_kind': {'0': 'streamer', '1': 'powerful', '2': 'econo',},
+        'spmode': {'0': 'off', '1': 'on',},
     }
 
     HTTP_RESOURCES = [
@@ -107,7 +89,7 @@ class DaikinBRP069(Appliance):
         'stemp': 'target temp',
         'ver': 'firmware adapter',
         'pow': 'power',
-        'cmpfreq': 'compressor demand',
+        'cmpfreq': 'compressor frequency',
         'f_rate': 'fan rate',
         'f_dir': 'fan direction',
         'err': 'error code',
