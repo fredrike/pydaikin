@@ -175,7 +175,7 @@ class DaikinPowerMixin:
             energy_to_log += diff_energy
 
             # We remove the energy we've logged since last state update
-            # This is to fix an incorrect
+            # This is to fix an incorrect estimation of the previous exp_diff_time
             if exp_diff_time and est_power > 0:
                 # We know that the power will be cut off once the exp_diff_time is surpassed
                 # Note this can result in negative value of energy_to_log when the exp_diff_time has been over-estimated
