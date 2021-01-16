@@ -188,7 +188,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
     def log_sensors(self, f):
         data = [
-            ('datetime', datetime.utcnow().strftime('%d/%m/%Y %H:%M:%S')),
+            ('datetime', datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')),
             ('in_temp', self.inside_temperature),
         ]
         if self.support_outside_temperature:
@@ -215,7 +215,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     def show_sensors(self):
         """Print sensors."""
         data = [
-            datetime.utcnow().strftime('%d/%m/%Y %H:%M:%S'),
+            datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
             f'in_temp={int(self.inside_temperature)}°C',
         ]
         if self.support_outside_temperature:
@@ -304,6 +304,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
     @property
     def support_compressor_frequency(self):
+        """Return True if the device supports compressor frequency."""
         return 'cmpfreq' in self.values
 
     @property
@@ -327,6 +328,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
     @property
     def compressor_frequency(self):
+        """Return current compressor frequency."""
         return self._parse_number('cmpfreq')
 
     @property
