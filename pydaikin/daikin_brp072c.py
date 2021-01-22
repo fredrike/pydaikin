@@ -34,8 +34,4 @@ class DaikinBRP072C(DaikinBRP069):
             headers=self._headers,
             ssl=False,
         ) as resp:
-            if resp.status == 200:
-                return self.parse_response(await resp.text())
-            elif resp.status == 403:
-                raise HTTPForbidden
-        return {}
+            return self._handle_response(resp)

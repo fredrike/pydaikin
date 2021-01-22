@@ -115,8 +115,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
                 # try DNS
                 try:
                     device_ip = socket.gethostbyname(device_id)
-                except socket.gaierror:
-                    raise ValueError("no device found for %s" % device_id)
+                except socket.gaierror as exc:
+                    raise ValueError("no device found for %s" % device_id) from exc
             else:
                 device_ip = device_name['ip']
         return device_id
@@ -158,11 +158,15 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     async def _run_get_resource(self, resource):
         """Make the http request."""
         async with self.session.get(f'http://{self._device_ip}/{resource}') as resp:
-            if resp.status == 200:
-                return self.parse_response(await resp.text())
-            elif resp.status == 403:
-                raise HTTPForbidden
-            return {}
+            return await self._handle_response(resp)
+
+    async def _handle_response(self, resp):
+        """Handle the http response."""
+        if resp.status == 200:
+            return self.parse_response(await resp.text())
+        if resp.status == 403:
+            raise HTTPForbidden
+        return {}
 
     async def update_status(self, resources=None):
         """Update status from resources."""
@@ -184,9 +188,10 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         for key in keys:
             if key in self.values:
                 (k, val) = self.represent(key)
-                print("%18s: %s" % (k, val))
+                print("%20s: %s" % (k, val))
 
-    def log_sensors(self, f):
+    def log_sensors(self, file):
+        """Log sensors to a file."""
         data = [
             ('datetime', datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')),
             ('in_temp', self.inside_temperature),
@@ -204,13 +209,12 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             data.append(('total_power', self.current_total_power_consumption))
             data.append(('cool_power', self.last_hour_cool_power_consumption))
             data.append(('heat_power', self.last_hour_heat_power_consumption))
-        if f.tell() == 0:
-            f.write(','.join(k for k, _ in data))
-            f.write('\n')
-            self.__headers_written = True
-        f.write(','.join(str(v) for _, v in data))
-        f.write('\n')
-        f.flush()
+        if file.tell() == 0:
+            file.write(','.join(k for k, _ in data))
+            file.write('\n')
+        file.write(','.join(str(v) for _, v in data))
+        file.write('\n')
+        file.flush()
 
     def show_sensors(self):
         """Print sensors."""
@@ -309,6 +313,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
     @property
     def support_energy_consumption(self):
+        """Return True if the device supports energy consumption monitoring."""
         return super().support_energy_consumption
 
     @property
@@ -345,14 +350,18 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     def current_total_power_consumption(self):
         """Return the current total power consumption in kW."""
         # We tolerate a 50% delay in consumption measure
-        return self.current_power_consumption(mode=ATTR_TOTAL, margin_factor=0.5)
+        return self.current_power_consumption(
+            mode=ATTR_TOTAL, exp_diff_time_margin_factor=0.5
+        )
 
     @property
     def last_hour_cool_power_consumption(self):
         """Return the last hour cool power consumption of a given mode in kW."""
         # We tolerate a 5 minutes delay in consumption measure
         return self.current_power_consumption(
-            mode=ATTR_COOL, margin_window=timedelta(minutes=5)
+            mode=ATTR_COOL,
+            exp_diff_time_value=timedelta(minutes=60),
+            exp_diff_time_margin_factor=timedelta(minutes=5),
         )
 
     @property
@@ -360,7 +369,9 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         """Return the last hour heat power consumption of a given mode in kW."""
         # We tolerate a 5 minutes margin in consumption measure
         return self.current_power_consumption(
-            mode=ATTR_HEAT, margin_window=timedelta(minutes=5)
+            mode=ATTR_HEAT,
+            exp_diff_time_value=timedelta(minutes=60),
+            exp_diff_time_margin_factor=timedelta(minutes=5),
         )
 
     @property
