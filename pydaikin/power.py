@@ -1,6 +1,8 @@
+"""Pydaikin power mixin."""
+
+import logging
 from collections import namedtuple
 from datetime import datetime, timedelta
-import logging
 
 ENERGY_CONSUMPTION_MAX_HISTORY = timedelta(hours=6)
 
@@ -25,6 +27,8 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class DaikinPowerMixin:
+    """Mixin to provide power monitoring capability"""
+
     _energy_consumption_history = None
     values = None
 
@@ -81,7 +85,8 @@ class DaikinPowerMixin:
 
                 if new_state.today == old_state.today:
                     if new_state.yesterday == old_state.yesterday:
-                        # State has not changed, nothing to register, we just update the cmp_freq average
+                        # State has not changed, nothing to register,
+                        # we just update the cmp_freq average
                         continue
 
             self._energy_consumption_history[mode].insert(0, new_state)
@@ -126,36 +131,52 @@ class DaikinPowerMixin:
         if curr.today > prev.today:
             # Normal behavior, today state is growing
             return curr.today - prev.today
-        elif curr.yesterday is None:
+
+        if curr.yesterday is None:
             _LOGGER.error(
-                f'Decreasing today state and missing yesterday state caused an impossible energy consumption measure of {mode}'
+                'Decreasing today state and missing yesterday state caused an '
+                'impossible energy consumption measure of %s',
+                mode,
             )
             return None
-        elif curr.yesterday >= prev.today:
-            # If today state is not growing (or even declines), we probably have shifted 1 day
-            # Thus we should have yesterday state greater or equal to previous today state
-            # (in most cases it will be equal)
+
+        if curr.yesterday >= prev.today:
+            # If today state is not growing (or even declines), we probably have
+            # shifted 1 day. Thus we should have yesterday state greater or equal
+            # to previous today state (in most cases it will be equal)
             return curr.yesterday - prev.today + curr.today
-        else:
-            _LOGGER.error(f'Impossible energy consumption measure of {mode}')
-            return None
+
+        _LOGGER.error('Impossible energy consumption measure of %s', mode)
+        return None
 
     def current_power_consumption(
-        self, mode=ATTR_TOTAL, margin_window=None, margin_factor=None, min_power=0.1
+        self,
+        mode=ATTR_TOTAL,
+        exp_diff_time_value=None,
+        exp_diff_time_margin_factor=None,
+        min_power=0.1,
     ):
         """
-        Return the current power consumption of a given mode by estimating the slope of the energy consumption.
-        When 100Wh have been consumed, it is assumed that the next 100Wh will be consumed in the same duration with a
-        given margin in case the power consumption has been lowered (to smooth the consumption).
+        Return the current power consumption of a given mode by estimating the slope
+        of the energy consumption. When 100Wh have been consumed, it is assumed that
+        the next 100Wh will be consumed in the same duration with a given margin in
+        case the power consumption has been lowered (to smooth the consumption).
         """
+        if exp_diff_time_value is None and exp_diff_time_margin_factor is None:
+            exp_diff_time_margin_factor = timedelta(minutes=5)
+
+        if exp_diff_time_value is not None and not isinstance(
+            exp_diff_time_value, timedelta
+        ):
+            raise TypeError(exp_diff_time_value)
+        if exp_diff_time_margin_factor is not None and not isinstance(
+            exp_diff_time_margin_factor, (timedelta, float)
+        ):
+            raise TypeError(exp_diff_time_margin_factor)
+
         if not self._energy_consumption_history:
             # The sensor has not been properly initialized
             return 0
-
-        if margin_window is None:
-            margin_window = timedelta(seconds=0)
-        if margin_factor is None:
-            margin_factor = 0
 
         history = list(reversed(self._energy_consumption_history[mode]))
 
@@ -163,35 +184,47 @@ class DaikinPowerMixin:
         exp_diff_time = None
         est_power = 0
 
-        for i, (prev, curr) in enumerate(zip(history, history[1:])):
-            if prev.first_state:
-                # We skip the first state as we cannot trust its datetime
-                continue
-
+        for prev, curr in zip(history, history[1:]):
             diff_time = curr.datetime - prev.datetime
             diff_energy = self._compute_diff_energy(mode, curr, prev)
-
-            # We add the energy we should log right now
-            energy_to_log += diff_energy
 
             # We remove the energy we've logged since last state update
             # This is to fix an incorrect estimation of the previous exp_diff_time
             if exp_diff_time and est_power > 0:
-                # We know that the power will be cut off once the exp_diff_time is surpassed
-                # Note this can result in negative value of energy_to_log when the exp_diff_time has been over-estimated
+                # We know that the power will be cut off once the exp_diff_time is
+                # surpassed. Note this can result in negative value of energy_to_log
+                # when the exp_diff_timehas been over-estimated.
                 energy_to_log -= max(est_power, min_power) * (
                     min(exp_diff_time, diff_time).total_seconds() / 3600
                 )
 
-            # We expect the consumption to be stable so the next diff_time should be barely the same as the previous one
-            # If we over-estimate this duration, it will result in an irregular power consumption, often going back to 0
-            # If we under-estimate this duration, it will ultimately result in a too smoothed power consumption
-            # Feel free to fine-tune this variable to fit your needs...
-            exp_diff_time = (diff_time + margin_window) * (1 + margin_factor)
+            # We expect the consumption to be stable so the next diff_time should be
+            # barely the same as the previous one. If we over-estimate this duration,
+            # it will result in an irregular power consumption, often going back to 0.
+            # If we under-estimate this duration, it will ultimately result in a too
+            # smoothed power consumption.  Feel free to fine-tune this variable to fit
+            # your needs...
+            if exp_diff_time_value is None:
+                if prev.first_state:
+                    # We skip the first state as we cannot trust its datetime for
+                    # exp_diff_time estimation
+                    continue
+                exp_diff_time = diff_time
+            else:
+                exp_diff_time = exp_diff_time_value
 
-            # Once we have estimated the next diff_time we can compute the estimated current power
+            # Once we have estimated the next diff_time we can compute the estimated
+            # current power
+            energy_to_log += diff_energy
             est_power = energy_to_log / (exp_diff_time.total_seconds() / 3600)
             est_power = max(est_power, 0)
+
+            # We add some margins to the exp_diff_time AFTER the est_power computation
+            # We prefer having an accurate est_power than an accurate est_energy
+            if isinstance(exp_diff_time_margin_factor, timedelta):
+                exp_diff_time += exp_diff_time_margin_factor
+            if isinstance(exp_diff_time_margin_factor, float):
+                exp_diff_time *= 1 + exp_diff_time_margin_factor
 
             if min_power is not None and est_power > 0:
                 est_power = max(est_power, min_power)
