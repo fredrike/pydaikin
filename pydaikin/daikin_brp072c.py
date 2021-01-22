@@ -13,7 +13,7 @@ class DaikinBRP072C(DaikinBRP069):
 
     def __init__(self, device_id, session=None, key=None, uuid=None):
         """Init the pydaikin appliance, representing one Daikin AirBase
-           (BRP15B61) device."""
+        (BRP15B61) device."""
         super().__init__(device_id, session)
         self._key = key
         if uuid is None:
