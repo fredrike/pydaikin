@@ -143,7 +143,6 @@ else:
                     daikin.show_sensors()
                     if args.file:
                         daikin.log_sensors(f)
-                        f.flush()
                     time.sleep(30)
             except KeyboardInterrupt:
                 pass

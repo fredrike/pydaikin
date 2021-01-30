@@ -149,7 +149,7 @@ class DaikinPowerMixin:
         _LOGGER.error('Impossible energy consumption measure of %s', mode)
         return None
 
-    def current_power_consumption(
+    def current_power_consumption(  # pylint: disable=too-many-branches
         self,
         mode=ATTR_TOTAL,
         exp_diff_time_value=None,
