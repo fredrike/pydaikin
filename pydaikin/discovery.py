@@ -1,9 +1,13 @@
-"""Discovery module to autodiscover Daikin devices on local network."""
+"""Pydaikin discovery, used for auto discovery of devices."""
 
 import logging
 import socket
 
-import netifaces
+from netifaces import (  # pylint: disable=no-name-in-module
+    AF_INET,
+    ifaddresses,
+    interfaces,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -17,7 +21,7 @@ DISCOVERY_MSG = "DAIKIN_UDP/common/basic_info"
 
 
 class DiscoveredObject:
-    """Class to represent discovered object."""
+    """Represents a discovered device."""
 
     def __init__(self, ip, port, basic_info_string):
         self.values = {}
@@ -29,7 +33,9 @@ class DiscoveredObject:
     @staticmethod
     def parse_basic_info(basic_info):
         """Parse basic info."""
-        from .daikin_base import Appliance  # pylint: disable=import-outside-toplevel
+        from pydaikin.daikin_base import (  # pylint: disable=import-outside-toplevel
+            Appliance,
+        )
 
         data = Appliance.parse_response(basic_info)
 
@@ -39,20 +45,22 @@ class DiscoveredObject:
         return data
 
     def __getitem__(self, name):
+        """Override getitem."""
         if name in self.values:
             return self.values[name]
         raise AttributeError("No such attribute: " + name)
 
     def keys(self):
-        """Returns keys."""
+        """Return keys."""
         return self.values.keys()
 
     def __str__(self):
+        """Override str."""
         return str(self.values)
 
 
 class Discovery:  # pylint: disable=too-few-public-methods
-    """Discovery class."""
+    """Main discovery class."""
 
     def __init__(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -64,16 +72,16 @@ class Discovery:  # pylint: disable=too-few-public-methods
         self.sock = sock
         self.dev = {}
 
-    def poll(self, stop_if_found=None, ip=None):  # pylint: disable=invalid-name
-        """Poll for available devices."""
-        if ip:
-            broadcast_ips = [ip]
+    def poll(self, stop_if_found=None, ip_address=None):
+        """Poll discivered devices."""
+        if ip_address:
+            broadcast_ips = [ip_address]
         else:
             # get all IPv4 definitions in the system
             net_groups = [
-                netifaces.ifaddresses(i)[netifaces.AF_INET]
-                for i in netifaces.interfaces()
-                if netifaces.AF_INET in netifaces.ifaddresses(i)
+                ifaddresses(i)[AF_INET]
+                for i in interfaces()
+                if AF_INET in ifaddresses(i)
             ]
 
             # flatten the previous list
@@ -83,8 +91,8 @@ class Discovery:  # pylint: disable=too-few-public-methods
             broadcast_ips = [i['broadcast'] for i in net_ips if 'broadcast' in i.keys()]
 
         # send a daikin broadcast to each one of the ips
-        for ip_address in broadcast_ips:
-            self.sock.sendto(bytes(DISCOVERY_MSG, 'UTF-8'), (ip_address, UDP_DST_PORT))
+        for address in broadcast_ips:
+            self.sock.sendto(bytes(DISCOVERY_MSG, 'UTF-8'), (address, UDP_DST_PORT))
 
         try:
             while True:  # for anyone who ansers
@@ -113,23 +121,15 @@ class Discovery:  # pylint: disable=too-few-public-methods
 
 
 def get_devices():
-    """Returns discovered devices."""
-    discovery = Discovery()
-
-    return discovery.poll()
+    """Get information of discovered devices."""
+    return Discovery().poll()
 
 
 def get_name(name):
-    """Returns the name of discovered devices."""
-    disovery = Discovery()
-
-    devices = disovery.poll(name)
-
-    ret = None
+    """Get names of discovered devices."""
+    devices = Discovery().poll(name)
 
     for device in devices:
-
         if device['name'].lower() == name.lower():
-            ret = device
-
-    return ret
+            return device
+    return None
