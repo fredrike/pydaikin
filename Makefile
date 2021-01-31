@@ -16,6 +16,7 @@ black:
 
 lint: requirements.txt setup.py
 	flake8
+	pylint pydaikin
 
 check: format lint
 
