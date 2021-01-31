@@ -17,6 +17,7 @@ definitions:
           - pip install -r requirements.txt
           - pip install -r requirements-test.txt
           - black --check .
+          - isort setup.py bin/pydaikin pydaikin/*.py
           - flake8 .
           - isort bin/pydaikin pydaikin/*.py
           - pylint --extension-pkg-whitelist=netifaces bin/pydaikin pydaikin/*.py
