@@ -22,21 +22,21 @@ class DiscoveredObject:
         self.values['port'] = port
         self.values.update(self.parse_basic_info(basic_info_string))
 
-    def parse_basic_info(self, basic_info):
+    @staticmethod
+    def parse_basic_info(basic_info):
         from pydaikin.daikin_base import Appliance
 
-        d = Appliance.parse_response(basic_info)
+        data = Appliance.parse_response(basic_info)
 
-        if 'mac' not in d:
+        if 'mac' not in data:
             raise ValueError("no mac found for device")
 
-        return d
+        return data
 
     def __getitem__(self, name):
         if name in self.values:
             return self.values[name]
-        else:
-            raise AttributeError("No such attribute: " + name)
+        raise AttributeError("No such attribute: " + name)
 
     def keys(self):
         return self.values.keys()
@@ -45,7 +45,7 @@ class DiscoveredObject:
         return str(self.values)
 
 
-class Discovery:
+class Discovery:  # pylint: disable=too-few-public-methods
     def __init__(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -83,14 +83,14 @@ class Discovery:
                 _LOGGER.debug("Discovered %s, %s", addr, data.decode('UTF-8'))
 
                 try:
-                    d = DiscoveredObject(addr[0], addr[1], data.decode('UTF-8'))
+                    data = DiscoveredObject(addr[0], addr[1], data.decode('UTF-8'))
 
-                    new_mac = d['mac']
-                    self.dev[new_mac] = d
+                    new_mac = data['mac']
+                    self.dev[new_mac] = data
 
                     if (
                         stop_if_found is not None
-                        and d['name'].lower() == stop_if_found.lower()
+                        and data['name'].lower() == stop_if_found.lower()
                     ):
                         return self.dev.values()
 
@@ -104,21 +104,21 @@ class Discovery:
 
 
 def get_devices():
-    d = Discovery()
+    discovery = Discovery()
 
-    return d.poll()
+    return discovery.poll()
 
 
 def get_name(name):
-    d = Discovery()
+    disovery = Discovery()
 
-    devs = d.poll(name)
+    devices = disovery.poll(name)
 
     ret = None
 
-    for dev in devs:
+    for device in devices:
 
-        if dev['name'].lower() == name.lower():
-            ret = dev
+        if device['name'].lower() == name.lower():
+            ret = device
 
     return ret

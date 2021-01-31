@@ -51,7 +51,8 @@ class DaikinAirBase(DaikinBRP069):
         return response
 
     def __init__(self, device_id, session=None):
-        """Init the pydaikin appliance, representing one Daikin AirBase (BRP15B61) device."""
+        """Init the pydaikin appliance, representing one Daikin AirBase
+        (BRP15B61) device."""
         super().__init__(device_id, session)
         self.values.update({'htemp': '-', 'otemp': '-', 'shum': '--'})
 

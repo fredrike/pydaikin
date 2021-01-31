@@ -107,7 +107,7 @@ class DaikinBRP069(Appliance):
         'stemp': 'target temp',
         'ver': 'firmware adapter',
         'pow': 'power',
-        'cmpfreq': 'compressor demand',
+        'cmpfreq': 'compressor frequency',
         'f_rate': 'fan rate',
         'f_dir': 'fan direction',
         'err': 'error code',
@@ -212,8 +212,8 @@ class DaikinBRP069(Appliance):
         """Tells the AC to auto-set its internal clock."""
         try:
             await self._get_resource('common/get_datetime?cur=')
-        except Exception as e:
-            _LOGGER.error(f'Raised "{e}" while trying to auto-set internal clock')
+        except Exception as exc:
+            _LOGGER.error('Raised "%s" while trying to auto-set internal clock', exc)
 
     @property
     def support_humidity(self):
