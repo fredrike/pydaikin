@@ -16,10 +16,9 @@ definitions:
         script:
           - pip install -r requirements.txt
           - pip install -r requirements-test.txt
-          - black --check .
+          - black --check . pydaikin
+          - flake8 . pydaikin
           - isort setup.py bin/pydaikin pydaikin/*.py
-          - flake8 .
-          - isort bin/pydaikin pydaikin/*.py
           - pylint --extension-pkg-whitelist=netifaces bin/pydaikin pydaikin/*.py
 
 pipelines:
@@ -30,3 +29,5 @@ pipelines:
     "**":
       - step: *precommit-test
       - step: *qa-test
+          # We are not checking pylint strictly
+          - pylint --fail-under=9.9 bin/pydaikin pydaikin
