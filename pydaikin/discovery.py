@@ -33,9 +33,7 @@ class DiscoveredObject:
     @staticmethod
     def parse_basic_info(basic_info):
         """Parse basic info."""
-        from pydaikin.daikin_base import (  # pylint: disable=import-outside-toplevel
-            Appliance,
-        )
+        from .daikin_base import Appliance  # pylint: disable=import-outside-toplevel
 
         data = Appliance.parse_response(basic_info)
 
