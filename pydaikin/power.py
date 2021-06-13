@@ -1,8 +1,8 @@
 """Pydaikin power mixin."""
 
-import logging
 from collections import namedtuple
 from datetime import datetime, timedelta
+import logging
 
 ENERGY_CONSUMPTION_MAX_HISTORY = timedelta(hours=6)
 
