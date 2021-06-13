@@ -98,12 +98,12 @@ class DaikinAirBase(DaikinBRP069):
         """Set settings on Daikin device."""
         await self._update_settings(settings)
 
-        self.values['f_auto'] = '1' if 'a' in self.values["f_rate"] else '0'
+        self.values.setdefault('f_airside', 0)
         query_c = (
             'aircon/set_control_info'
             '?pow={pow}&mode={mode}&stemp={stemp}&shum={shum}'
             '&f_rate={f_rate[0]}&f_auto={f_auto}&f_dir={f_dir}'
-            '&lpw=&f_airside=0'
+            '&lpw=&f_airside={f_airside}'
         ).format(**self.values)
 
         _LOGGER.debug("Sending query_c: %s", query_c)
