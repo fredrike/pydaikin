@@ -212,7 +212,7 @@ class DaikinBRP069(Appliance):
         """Tells the AC to auto-set its internal clock."""
         try:
             await self._get_resource('common/get_datetime?cur=')
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-except
             _LOGGER.error('Raised "%s" while trying to auto-set internal clock', exc)
 
     @property

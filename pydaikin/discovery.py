@@ -1,3 +1,5 @@
+"""Discovery module to autodiscover Daikin devices on local network."""
+
 import logging
 import socket
 
@@ -15,6 +17,8 @@ DISCOVERY_MSG = "DAIKIN_UDP/common/basic_info"
 
 
 class DiscoveredObject:
+    """Class to represent discovered object."""
+
     def __init__(self, ip, port, basic_info_string):
         self.values = {}
 
@@ -24,7 +28,8 @@ class DiscoveredObject:
 
     @staticmethod
     def parse_basic_info(basic_info):
-        from pydaikin.daikin_base import Appliance
+        """Parse basic info."""
+        from .daikin_base import Appliance  # pylint: disable=import-outside-toplevel
 
         data = Appliance.parse_response(basic_info)
 
@@ -39,6 +44,7 @@ class DiscoveredObject:
         raise AttributeError("No such attribute: " + name)
 
     def keys(self):
+        """Returns keys."""
         return self.values.keys()
 
     def __str__(self):
@@ -46,6 +52,8 @@ class DiscoveredObject:
 
 
 class Discovery:  # pylint: disable=too-few-public-methods
+    """Discovery class."""
+
     def __init__(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -56,7 +64,8 @@ class Discovery:  # pylint: disable=too-few-public-methods
         self.sock = sock
         self.dev = {}
 
-    def poll(self, stop_if_found=None, ip=None):
+    def poll(self, stop_if_found=None, ip=None):  # pylint: disable=invalid-name
+        """Poll for available devices."""
         if ip:
             broadcast_ips = [ip]
         else:
@@ -74,8 +83,8 @@ class Discovery:  # pylint: disable=too-few-public-methods
             broadcast_ips = [i['broadcast'] for i in net_ips if 'broadcast' in i.keys()]
 
         # send a daikin broadcast to each one of the ips
-        for ip in broadcast_ips:
-            self.sock.sendto(bytes(DISCOVERY_MSG, 'UTF-8'), (ip, UDP_DST_PORT))
+        for ip_address in broadcast_ips:
+            self.sock.sendto(bytes(DISCOVERY_MSG, 'UTF-8'), (ip_address, UDP_DST_PORT))
 
         try:
             while True:  # for anyone who ansers
@@ -104,12 +113,14 @@ class Discovery:  # pylint: disable=too-few-public-methods
 
 
 def get_devices():
+    """Returns discovered devices."""
     discovery = Discovery()
 
     return discovery.poll()
 
 
 def get_name(name):
+    """Returns the name of discovered devices."""
     disovery = Discovery()
 
     devices = disovery.poll(name)

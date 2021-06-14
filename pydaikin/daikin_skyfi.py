@@ -65,8 +65,14 @@ class DaikinSkyFi(Appliance):
         """Init status."""
         await self.update_status(self.HTTP_RESOURCES)
 
-    def set_holiday(self, mode):
+    async def set_holiday(self, mode):
         """Set holiday mode."""
+
+    async def set_advanced_mode(self, mode, value):
+        """Set advanced mode."""
+
+    async def set_streamer(self, mode):
+        """Set streamer mode."""
 
     @property
     def support_away_mode(self):

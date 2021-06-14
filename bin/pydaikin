@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
+"""Script to run pydaikin."""
 
 import argparse
 import asyncio
 from contextlib import nullcontext
 import time
 
-from pydaikin.daikin_brp069 import DaikinBRP069 as appliance
-import pydaikin.discovery as discovery
+from pydaikin.daikin_brp069 import (  # noqa: E0611; pylint: disable=no-name-in-module
+    DaikinBRP069 as appliance,
+)
+import pydaikin.discovery as discovery  # pylint: disable=cyclic-import
 
 
 def list_all_devices():
+    """Print all discovered devices."""
     for dev in discovery.get_devices():
         print("%18s: %s %s" % (dev['ip'], dev['name'], dev['mac']))
 
@@ -118,9 +122,9 @@ else:
         settings.update({"en_hol": args.away})
 
     if args.all:
-        only_summary = False
+        ONLY_SUMMARY = False
     else:
-        only_summary = True
+        ONLY_SUMMARY = True
 
     loop = asyncio.get_event_loop()
     daikin = loop.run_until_complete(
@@ -128,7 +132,7 @@ else:
     )
 
     if settings == {}:
-        daikin.show_values(only_summary)
+        daikin.show_values(ONLY_SUMMARY)
 
     else:
         loop.run_until_complete(daikin.set(settings))

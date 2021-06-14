@@ -9,8 +9,8 @@ from urllib.parse import unquote
 from aiohttp import ClientSession, ServerDisconnectedError
 from aiohttp.web_exceptions import HTTPForbidden
 
-import pydaikin.discovery as discovery
-from pydaikin.power import (
+from .discovery import get_name  # pylint: disable=cyclic-import
+from .power import (  # pylint: disable=cyclic-import
     ATTR_COOL,
     ATTR_HEAT,
     ATTR_TOTAL,
@@ -54,16 +54,18 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     @staticmethod
     async def factory(device_id, session=None, **kwargs):
         """Factory to init the corresponding Daikin class."""
-        from .daikin_airbase import (  # pylint: disable=import-outside-toplevel
+        from .daikin_airbase import (  # pylint: disable=import-outside-toplevel,cyclic-import
             DaikinAirBase,
         )
-        from .daikin_brp069 import (  # pylint: disable=import-outside-toplevel
+        from .daikin_brp069 import (  # pylint: disable=import-outside-toplevel,cyclic-import
             DaikinBRP069,
         )
-        from .daikin_brp072c import (  # pylint: disable=import-outside-toplevel
+        from .daikin_brp072c import (  # pylint: disable=import-outside-toplevel,cyclic-import
             DaikinBRP072C,
         )
-        from .daikin_skyfi import DaikinSkyFi  # pylint: disable=import-outside-toplevel
+        from .daikin_skyfi import (  # pylint: disable=import-outside-toplevel,cyclic-import
+            DaikinSkyFi,
+        )
 
         if 'password' in kwargs and kwargs['password'] is not None:
             appl = DaikinSkyFi(device_id, session, password=kwargs['password'])
@@ -110,7 +112,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
         if device_ip is None:
             # id is a common name, try discovery
-            device_name = discovery.get_name(device_id)
+            device_name = get_name(device_id)
             if device_name is None:
                 # try DNS
                 try:
