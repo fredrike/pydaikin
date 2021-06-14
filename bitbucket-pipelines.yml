@@ -1,4 +1,4 @@
-image: python:3.7
+image: python:3.9
 
 pipelines:
   default:
@@ -13,3 +13,17 @@ pipelines:
           - isort bin/pydaikin pydaikin/*.py
           # We are not checking pylint strictly
           - pylint --fail-under=9 bin/pydaikin pydaikin/*.py
+  pull-requests:
+    '**':
+     - step:
+        caches:
+          - pip
+        script:
+          - pip install -r requirements.txt
+          - pip install -r requirements-test.txt
+          - black --check .
+          - flake8 .
+          - isort bin/pydaikin pydaikin/*.py
+          # We are not checking pylint strictly
+          - pylint --fail-under=9 bin/pydaikin pydaikin/*.py
+          
