@@ -1,20 +1,33 @@
 repos:
   - repo: https://github.com/psf/black
-    rev: stable
+    rev: 21.6b0
     hooks:
       - id: black
         args:
           - --safe
           - --quiet
-        language_version: python3.7
+          - --extend-exclude=venv
+        language_version: python3.8
   - repo: https://gitlab.com/pycqa/flake8
-    rev: 3.8.4
+    rev: 3.9.2
     hooks:
       - id: flake8
-        #additional_dependencies:
-          #- flake8-docstrings==1.5.0
-          # - pydocstyle==5.0.2
+        additional_dependencies:
+        #- flake8-docstrings==1.5.0
+        - pydocstyle==5.0.2
   - repo: https://github.com/pre-commit/mirrors-isort
-    rev: v5.7.0 
+    rev: v5.8.0 
     hooks:
       - id: isort
+  - repo: https://github.com/pycqa/pylint
+    rev: v2.8.3
+    hooks:
+      - id: pylint
+        additional_dependencies:
+        - aiohttp==3.7.3
+        - netifaces==0.10.9
+        - urllib3==1.26.3
+        exclude: 'tests/'
+        args:
+        - --ignore=setup.py
+        - --extension-pkg-whitelist=netifaces
