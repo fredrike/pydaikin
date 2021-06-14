@@ -1,29 +1,31 @@
-image: python:3.9
+image: python:3.8
+
+definitions:
+  steps:
+    - step: &precommit-test
+        name: Pre-Commit Test
+        caches:
+          - pip
+        script:
+          - pip install pre-commit
+          - pre-commit run --all-files --verbose
+    - step: &qa-test
+        name: QA Test
+        caches:
+          - pip
+        script:
+          - pip install -r requirements.txt
+          - pip install -r requirements-test.txt
+          - black --check .
+          - flake8 .
+          - isort bin/pydaikin pydaikin/*.py
+          - pylint --extension-pkg-whitelist=netifaces bin/pydaikin pydaikin/*.py
 
 pipelines:
   default:
-    - step:
-        caches:
-          - pip
-        script:
-          - pip install -r requirements.txt
-          - pip install -r requirements-test.txt
-          - black --check .
-          - flake8 .
-          - isort bin/pydaikin pydaikin/*.py
-          # We are not checking pylint strictly
-          - pylint --fail-under=9 bin/pydaikin pydaikin/*.py
+    - step: *precommit-test
+    - step: *qa-test
   pull-requests:
-    '**':
-     - step:
-        caches:
-          - pip
-        script:
-          - pip install -r requirements.txt
-          - pip install -r requirements-test.txt
-          - black --check .
-          - flake8 .
-          - isort bin/pydaikin pydaikin/*.py
-          # We are not checking pylint strictly
-          - pylint --fail-under=9 bin/pydaikin pydaikin/*.py
-          
+    "**":
+      - step: *precommit-test
+      - step: *qa-test
