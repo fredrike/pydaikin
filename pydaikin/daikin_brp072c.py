@@ -33,4 +33,4 @@ class DaikinBRP072C(DaikinBRP069):
             headers=self._headers,
             ssl=False,
         ) as resp:
-            return self._handle_response(resp)
+            return await self._handle_response(resp)
