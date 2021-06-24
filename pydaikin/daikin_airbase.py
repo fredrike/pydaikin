@@ -36,6 +36,7 @@ class DaikinAirBase(DaikinBRP069):
         'common/basic_info',
         'aircon/get_control_info',
         'aircon/get_model_info',
+        'aircon/get_sensor_info',
         'aircon/get_zone_setting',
     ]
 
@@ -79,8 +80,8 @@ class DaikinAirBase(DaikinBRP069):
 
     @property
     def support_outside_temperature(self):
-        """Return True if the device is not an AirBase unit."""
-        return False
+        """AirBase unit returns otemp if master controller starts before it."""
+        return True
 
     @property
     def fan_rate(self):
