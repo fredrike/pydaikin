@@ -209,8 +209,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             data.append(('cool_today', self.energy_consumption(ATTR_COOL, TIME_TODAY)))
             data.append(('heat_today', self.energy_consumption(ATTR_HEAT, TIME_TODAY)))
             data.append(('total_power', self.current_total_power_consumption))
-            data.append(('cool_power', self.last_hour_cool_power_consumption))
-            data.append(('heat_power', self.last_hour_heat_power_consumption))
+            data.append(('cool_energy', self.last_hour_cool_energy_consumption))
+            data.append(('heat_energy', self.last_hour_heat_energy_consumption))
         if file.tell() == 0:
             file.write(','.join(k for k, _ in data))
             file.write('\n')
@@ -239,8 +239,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
                 f'heat_today={self.energy_consumption(ATTR_HEAT, TIME_TODAY):.01f}kWh'
             )
             data.append(f'total_power={self.current_total_power_consumption:.02f}kW')
-            data.append(f'cool_power={self.last_hour_cool_power_consumption:.01f}kW')
-            data.append(f'heat_power={self.last_hour_heat_power_consumption:.01f}kW')
+            data.append(f'cool_energy={self.last_hour_cool_energy_consumption:.01f}kW')
+            data.append(f'heat_energy={self.last_hour_heat_energy_consumption:.01f}kW')
         print('  '.join(data))
 
     def represent(self, key):
@@ -357,7 +357,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         )
 
     @property
-    def last_hour_cool_power_consumption(self):
+    def last_hour_cool_energy_consumption(self):
         """Return the last hour cool power consumption of a given mode in kW."""
         # We tolerate a 5 minutes delay in consumption measure
         return self.current_power_consumption(
@@ -367,7 +367,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         )
 
     @property
-    def last_hour_heat_power_consumption(self):
+    def last_hour_heat_energy_consumption(self):
         """Return the last hour heat power consumption of a given mode in kW."""
         # We tolerate a 5 minutes margin in consumption measure
         return self.current_power_consumption(
