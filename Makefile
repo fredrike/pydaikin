@@ -1,3 +1,7 @@
+ifndef version
+	version = patch
+endif
+
 .PHONY: default format white black lint test check clean pypireg pypi release
 
 default: check
@@ -32,4 +36,4 @@ pypi:
 	twine upload dist/*.tar.gz
 
 release:
-	git diff-index --quiet HEAD -- && make check && bumpversion patch && git push --tags && git push && make pypi
+	git diff-index --quiet HEAD -- && make check && bumpversion $(version) && git push --tags && git push && make pypi
