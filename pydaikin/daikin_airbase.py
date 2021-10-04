@@ -95,6 +95,36 @@ class DaikinAirBase(DaikinBRP069):
             return fan_rates[:3]
         return fan_rates
 
+    async def _update_settings(self, settings):
+        """Update settings to set on Daikin device."""
+
+        # Call the base BRP069 method to update the settings; it will
+        # return the current values it retrieves from the controller
+        # so we can further process them
+        current_val = await super()._update_settings(settings)
+
+        # f_auto requires some special handling, as it is managed as an
+        # attribute of f_rate and we don't directly set it - so when f_rate
+        # is being changed, ensure we update f_auto accordingly if it is
+        # defined in the current device's returned settings
+        if 'f_auto' in current_val:
+            # The system supports f_auto; if we are setting the fan speed
+            # then ensure we update the f_auto setting as well
+            if 'f_rate' in settings:
+                self.values['f_auto'] = '1' if 'a' in self.values['f_rate'] else '0'
+            else:
+                key = 'auto' + self.values['mode']
+                if key in current_val:
+                    self.values['f_auto'] = current_val[key]
+
+                    # The f_rate value would have been retrieved from the unit's current
+                    # operating mode fan rate setting, and needs the 'a' suffix reinstated
+                    # if we are running in an automatic fan speed mode
+                    if self.values['f_auto'] == '1':
+                        self.values['f_rate'] = f'{self.values["f_rate"]}a'
+
+        return current_val
+
     async def set(self, settings):
         """Set settings on Daikin device."""
         await self._update_settings(settings)

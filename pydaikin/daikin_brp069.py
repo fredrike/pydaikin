@@ -154,6 +154,8 @@ class DaikinBRP069(Appliance):
                 if key in current_val:
                     self.values[k] = current_val[key]
 
+        return current_val
+
     async def set(self, settings):
         """Set settings on Daikin device."""
         await self._update_settings(settings)
