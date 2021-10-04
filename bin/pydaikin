@@ -6,10 +6,10 @@ import asyncio
 from contextlib import nullcontext
 import time
 
+from pydaikin import discovery  # pylint: disable=cyclic-import
 from pydaikin.daikin_brp069 import (  # noqa: E0611; pylint: disable=no-name-in-module
     DaikinBRP069 as appliance,
 )
-import pydaikin.discovery as discovery  # pylint: disable=cyclic-import
 
 
 def list_all_devices():
