@@ -253,7 +253,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         k = self.VALUES_TRANSLATION.get(key, key)
 
         # adapt the value
-        val = self.values[key]
+        val = self.values.get(key)
 
         if key == 'mode' and self.values['pow'] == '0':
             val = 'off'
