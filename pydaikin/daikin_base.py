@@ -10,6 +10,7 @@ from aiohttp import ClientSession, ServerDisconnectedError
 from aiohttp.web_exceptions import HTTPForbidden
 
 from .discovery import get_name  # pylint: disable=cyclic-import
+from .exceptions import DaikinException
 from .power import (  # pylint: disable=cyclic-import
     ATTR_COOL,
     ATTR_HEAT,
@@ -82,6 +83,10 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             if appl.values == {}:
                 appl = DaikinAirBase(device_id, session)
         await appl.init()
+        if not appl.values.get("mode"):
+            raise DaikinException(
+                f"Error creating device, {device_id} is not supported."
+            )
         return appl
 
     @staticmethod
