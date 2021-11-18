@@ -382,6 +382,14 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         )
 
     @property
+    def today_total_energy_consumption(self):
+        """Return today's total energy consumption in kWh."""
+        return self.energy_consumption(
+            mode=ATTR_TOTAL, 
+            time=TIME_TODAY,
+        )
+
+    @property
     def fan_rate(self):
         """Return list of supported fan rates."""
         return list(map(str.title, self.TRANSLATIONS.get('f_rate', {}).values()))
