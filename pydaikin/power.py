@@ -215,7 +215,8 @@ class DaikinPowerMixin:
 
             # Once we have estimated the next diff_time we can compute the estimated
             # current power
-            energy_to_log += diff_energy
+            if diff_energy is not None:
+                energy_to_log += diff_energy
             est_power = energy_to_log / (exp_diff_time.total_seconds() / 3600)
             est_power = max(est_power, 0)
 
