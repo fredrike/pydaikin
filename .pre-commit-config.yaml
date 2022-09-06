@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/psf/black
-    rev: 21.6b0
+    rev: 22.3.0
     hooks:
       - id: black
         args:
@@ -28,6 +28,7 @@ repos:
         - netifaces==0.10.9
         - urllib3==1.26.3
         exclude: 'tests/'
+        entry: env PYTHONPATH=. pylint
         args:
         - --ignore=setup.py
         - --extension-pkg-whitelist=netifaces

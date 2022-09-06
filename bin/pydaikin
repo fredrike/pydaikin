@@ -6,6 +6,8 @@ import asyncio
 from contextlib import nullcontext
 import time
 
+from aiohttp import ClientError
+
 from pydaikin import discovery  # pylint: disable=cyclic-import
 from pydaikin.daikin_brp069 import (  # noqa: E0611; pylint: disable=no-name-in-module
     DaikinBRP069 as appliance,
@@ -15,7 +17,17 @@ from pydaikin.daikin_brp069 import (  # noqa: E0611; pylint: disable=no-name-in-
 def list_all_devices():
     """Print all discovered devices."""
     for dev in discovery.get_devices():
-        print("%18s: %s %s" % (dev['ip'], dev['name'], dev['mac']))
+        try:
+            appl = loop.run_until_complete(appliance.factory(dev['ip']))
+            support_energy_consumption = (
+                "Supported" if appl.support_energy_consumption else "Unsupported"
+            )
+        except ClientError:
+            support_energy_consumption = "Unknown"
+        print(
+            "%18s (%s): %s - %s energy consumption"
+            % (dev['ip'], dev['mac'], dev['name'], support_energy_consumption)
+        )
 
 
 parser = argparse.ArgumentParser(description='Daikin wireless interface.')
@@ -83,6 +95,7 @@ settings.add_argument(
 )
 
 args = parser.parse_args()
+loop = asyncio.get_event_loop()
 
 if args.verbose:
     import logging
@@ -126,7 +139,6 @@ else:
     else:
         ONLY_SUMMARY = True
 
-    loop = asyncio.get_event_loop()
     daikin = loop.run_until_complete(
         appliance.factory(args.device, key=args.key, password=args.password)
     )
