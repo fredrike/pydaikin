@@ -12,6 +12,7 @@ ATTR_HEAT = 'heat'
 
 TIME_TODAY = 'today'
 TIME_YESTERDAY = 'yesterday'
+TIME_LAST_7_DAYS = '7days'
 TIME_THIS_YEAR = 'this_year'
 TIME_LAST_YEAR = 'last_year'
 
@@ -51,6 +52,9 @@ class DaikinPowerMixin:
         f'{ATTR_HEAT}_{TIME_YESTERDAY}': EnergyConsumptionParser(
             dimension='prev_1day_heat', reducer=sum, divider=10
         ),
+        f'{ATTR_TOTAL}_{TIME_LAST_7_DAYS}': EnergyConsumptionParser(
+            dimension='datas', reducer=sum, divider=1000
+        ),
         f'{ATTR_TOTAL}_{TIME_THIS_YEAR}': EnergyConsumptionParser(
             dimension='this_year', reducer=sum, divider=1
         ),
@@ -61,9 +65,17 @@ class DaikinPowerMixin:
 
     @property
     def support_energy_consumption(self):
-        """Return True if the device supports energy consumption monitoring."""
-        return (self.energy_consumption(mode=ATTR_TOTAL, time=TIME_THIS_YEAR) or 0) + (
-            self.energy_consumption(mode=ATTR_TOTAL, time=TIME_LAST_YEAR) or 0
+        """Return True if the device supports energy consumption monitoring.
+
+        The current criterion is based on "last 2 years consumption > 0" (updated on a monthly
+        basis only) and "last 7 days > 0" (updated in live). One pitfall is that with a new AC
+        the energy consumption can be reported as non-supported during the first month if there
+        is no consumption in the last 7 days.
+        (see https://github.com/home-assistant/core/issues/77877)"""
+        return (
+            (self.energy_consumption(mode=ATTR_TOTAL, time=TIME_THIS_YEAR) or 0)
+            + (self.energy_consumption(mode=ATTR_TOTAL, time=TIME_LAST_YEAR) or 0)
+            + (self.energy_consumption(mode=ATTR_TOTAL, time=TIME_LAST_7_DAYS) or 0)
         ) > 0
 
     def _register_energy_consumption_history(self):
