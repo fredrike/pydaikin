@@ -16,12 +16,11 @@ from pydaikin.daikin_brp069 import (  # noqa: E0611; pylint: disable=no-name-in-
 
 def list_all_devices():
     """Print all discovered devices."""
-    loop = asyncio.get_event_loop()
     for dev in discovery.get_devices():
         try:
-            daikin = loop.run_until_complete(appliance.factory(dev['ip']))
+            appl = loop.run_until_complete(appliance.factory(dev['ip']))
             support_energy_consumption = (
-                "Supported" if daikin.support_energy_consumption else "Unsupported"
+                "Supported" if appl.support_energy_consumption else "Unsupported"
             )
         except ClientError:
             support_energy_consumption = "Unknown"
@@ -96,6 +95,7 @@ settings.add_argument(
 )
 
 args = parser.parse_args()
+loop = asyncio.get_event_loop()
 
 if args.verbose:
     import logging
@@ -139,7 +139,6 @@ else:
     else:
         ONLY_SUMMARY = True
 
-    loop = asyncio.get_event_loop()
     daikin = loop.run_until_complete(
         appliance.factory(args.device, key=args.key, password=args.password)
     )
