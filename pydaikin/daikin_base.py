@@ -1,8 +1,8 @@
 """Pydaikin base appliance, represent a Daikin device."""
-
 from collections import defaultdict
 from datetime import datetime, timedelta
 import logging
+import re
 import socket
 from urllib.parse import unquote
 
@@ -91,8 +91,11 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
     @staticmethod
     def parse_response(response_body):
-        """Parse respose from Daikin."""
-        response = dict([e.split('=') for e in response_body.split(',')])
+        """Parse response from Daikin."""
+        response = dict(
+            (match.group(1), match.group(2))
+            for match in re.finditer(r'(\w+)=([^=]*)(?:,|$)', response_body)
+        )
         if 'ret' not in response:
             raise ValueError("missing 'ret' field in response")
         if response['ret'] != 'OK':
