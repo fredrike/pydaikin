@@ -358,7 +358,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
     @property
     def current_total_power_consumption(self):
-        """Return the current total (heating+cooling) power consumption in kW."""
+        """Return the current total (heating+cooling, all devices) power consumption in kW."""
         # We tolerate a 50% delay in consumption measure
         return self.current_power_consumption(
             mode=ATTR_TOTAL, exp_diff_time_margin_factor=0.5
@@ -402,11 +402,16 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
     @property
     def today_total_energy_consumption(self):
-        """Return today's total energy consumption in kWh."""
+        """Return today's total (all devices) energy consumption in kWh."""
         return self.energy_consumption(
             mode=ATTR_TOTAL,
             time=TIME_TODAY,
         )
+
+    @property
+    def today_energy_consumption(self):
+        """Return today's energy consumption in kWh."""
+        return self.today_cool_energy_consumption + self.today_heat_energy_consumption
 
     @property
     def fan_rate(self):
