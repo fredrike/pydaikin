@@ -29,5 +29,5 @@ pipelines:
     "**":
       - step: *precommit-test
       - step: *qa-test
-          # We are not checking pylint strictly
-          - pylint --fail-under=9.9 bin/pydaikin pydaikin
+        # We are not checking pylint strictly
+      - pylint --fail-under=9.9 bin/pydaikin pydaikin
