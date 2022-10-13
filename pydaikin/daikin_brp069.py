@@ -160,18 +160,17 @@ class DaikinBRP069(Appliance):
         """Set settings on Daikin device."""
         await self._update_settings(settings)
 
-        query_c = 'aircon/set_control_info?pow=%s&mode=%s&stemp=%s&shum=%s' % (
-            self.values['pow'],
-            self.values['mode'],
-            self.values['stemp'],
-            self.values['shum'],
+        query_c = (
+            f"aircon/set_control_info?pow={self.values['pow']}"
+            f"&mode={self.values['mode']}&stemp={self.values['stemp']}"
+            f"&shum={self.values['shum']}"
         )
 
         # Apparently some remote controllers doesn't support f_rate and f_dir
         if self.support_fan_rate:
-            query_c += '&f_rate=%s' % self.values['f_rate']
+            query_c += f"&f_rate={self.values['f_rate']}"
         if self.support_swing_mode:
-            query_c += '&f_dir=%s' % self.values['f_dir']
+            query_c += f"&f_dir={self.values['f_dir']}"
 
         _LOGGER.debug("Sending query_c: %s", query_c)
         await self._get_resource(query_c)
@@ -180,7 +179,7 @@ class DaikinBRP069(Appliance):
         """Set holiday mode."""
         value = self.human_to_daikin('en_hol', mode)
         if value in ('0', '1'):
-            query_h = 'common/set_holiday?en_hol=%s' % value
+            query_h = f'common/set_holiday?en_hol={value}'
             self.values['en_hol'] = value
             _LOGGER.debug("Sending query: %s", query_h)
             await self._get_resource(query_h)
@@ -190,10 +189,7 @@ class DaikinBRP069(Appliance):
         mode = self.human_to_daikin('spmode_kind', mode)
         value = self.human_to_daikin('spmode', value)
         if value in ('0', '1'):
-            query_h = 'aircon/set_special_mode?spmode_kind=%s&set_spmode=%s' % (
-                mode,
-                value,
-            )
+            query_h = f'aircon/set_special_mode?spmode_kind={mode}&set_spmode={value}'
             _LOGGER.debug("Sending query: %s", query_h)
             # Update the adv value from the response
             self.values.update(await self._get_resource(query_h))
@@ -202,7 +198,7 @@ class DaikinBRP069(Appliance):
         """Enable or disable the streamer."""
         value = self.human_to_daikin('en_streamer', mode)
         if value in ('0', '1'):
-            query_h = 'aircon/set_special_mode?en_streamer=%s' % value
+            query_h = f'aircon/set_special_mode?en_streamer={value}'
             _LOGGER.debug("Sending query: %s", query_h)
             # Update the adv value from the response
             self.values.update(await self._get_resource(query_h))

@@ -21,7 +21,7 @@ async def factory(device_id, session=None, **kwargs):
     else:  # special case for BRP069 and AirBase
         appl = DaikinBRP069(device_id, session)
         await appl.update_status(appl.HTTP_RESOURCES[:1])
-        if appl.values == {}:
+        if not appl.values:
             appl = DaikinAirBase(device_id, session)
     await appl.init()
     return appl

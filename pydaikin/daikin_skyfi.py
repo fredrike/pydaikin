@@ -147,8 +147,10 @@ class DaikinSkyFi(Appliance):
         else:
             if 'mode' in settings:
                 self.values['opmode'] = '1'
-            query_c = 'set.cgi?pass={{}}&p={opmode}&t={settemp}&f={fanspeed}&m={acmode}'.format(
-                **self.values
+            query_c = (
+                f'set.cgi?pass={{}}&p={self.values["opmode"]}'
+                f'&t={self.values["settemp"]}&f={self.values["fanspeed"]}'
+                f'&m={self.values["acmode"]}'
             )
 
         await self.update_status([query_c])

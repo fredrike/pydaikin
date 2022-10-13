@@ -10,7 +10,6 @@ from aiohttp import ClientSession, ServerDisconnectedError
 from aiohttp.web_exceptions import HTTPForbidden
 
 from .discovery import get_name  # pylint: disable=cyclic-import
-from .exceptions import DaikinException
 from .power import (  # pylint: disable=cyclic-import
     ATTR_COOL,
     ATTR_HEAT,
@@ -89,7 +88,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
                 try:
                     device_ip = socket.gethostbyname(device_id)
                 except socket.gaierror as exc:
-                    raise ValueError("no device found for %s" % device_id) from exc
+                    raise ValueError(f"no device found for {device_id}") from exc
             else:
                 device_ip = device_name['ip']
         return device_id
@@ -161,7 +160,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         for key in keys:
             if key in self.values:
                 (k, val) = self.represent(key)
-                print("%20s: %s" % (k, val))
+                print(f"{k:20}: {val}")
 
     def log_sensors(self, file):
         """Log sensors to a file."""

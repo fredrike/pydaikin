@@ -23,7 +23,7 @@ DISCOVERY_MSG = "DAIKIN_UDP/common/basic_info"
 class DiscoveredObject:
     """Represents a discovered device."""
 
-    def __init__(self, ip, port, basic_info_string):
+    def __init__(self, ip, port, basic_info_string):  # pylint: disable=invalid-name
         self.values = {}
 
         self.values['ip'] = ip

@@ -19,15 +19,15 @@ def list_all_devices():
     """Print all discovered devices."""
     for dev in discovery.get_devices():
         try:
-            appl = loop.run_until_complete(appliance.factory(dev['ip']))
+            appl = loop.run_until_complete(factory(dev['ip']))
             support_energy_consumption = (
                 "Supported" if appl.support_energy_consumption else "Unsupported"
             )
         except ClientError:
             support_energy_consumption = "Unknown"
         print(
-            "%18s (%s): %s - %s energy consumption"
-            % (dev['ip'], dev['mac'], dev['name'], support_energy_consumption)
+            f"{dev['ip']:18} ({dev['mac']}): {dev['name']} - "
+            f"{support_energy_consumption} energy consumption"
         )
 
 
@@ -144,7 +144,7 @@ else:
         factory(args.device, key=args.key, password=args.password)
     )
 
-    if settings == {}:
+    if not settings:
         daikin.show_values(ONLY_SUMMARY)
 
     else:
@@ -153,7 +153,9 @@ else:
     if args.sensor:
         print('\nPress CTRL+C to stop logging sensor data...\n')
 
-        with (open(args.file, 'a') if args.file else nullcontext()) as f:
+        with (
+            open(args.file, 'a', encoding='utf8') if args.file else nullcontext()
+        ) as f:
             try:
                 while True:
                     loop.run_until_complete(daikin.update_status())

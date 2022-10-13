@@ -65,7 +65,7 @@ class DaikinAirBase(DaikinBRP069):
 
     async def _run_get_resource(self, resource):
         """Make the http request."""
-        resource = 'skyfi/%s' % resource
+        resource = f'skyfi/{resource}'
         return await super()._run_get_resource(resource)
 
     @property
@@ -132,10 +132,11 @@ class DaikinAirBase(DaikinBRP069):
         self.values.setdefault('f_airside', 0)
         query_c = (
             'aircon/set_control_info'
-            '?pow={pow}&mode={mode}&stemp={stemp}&shum={shum}'
-            '&f_rate={f_rate[0]}&f_auto={f_auto}&f_dir={f_dir}'
-            '&lpw=&f_airside={f_airside}'
-        ).format(**self.values)
+            f'?pow={self.values["pow"]}&mode={self.values["mode"]}'
+            f'&stemp={self.values["stemp"]}&shum={self.values["shum"]}'
+            f'&f_rate={self.values["f_rate"][0]}&f_auto={self.values["f_auto"]}'
+            f'&f_dir={self.values["f_dir"]}&lpw=&f_airside={self.values["f_airside"]}'
+        )
 
         _LOGGER.debug("Sending query_c: %s", query_c)
         await self._get_resource(query_c)
@@ -168,9 +169,9 @@ class DaikinAirBase(DaikinBRP069):
         zone_onoff[zone_id] = status
         self.values['zone_onoff'] = quote(';'.join(zone_onoff)).lower()
 
-        query = 'aircon/set_zone_setting?zone_name={}&zone_onoff={}'.format(
-            current_state['zone_name'],
-            self.values['zone_onoff'],
+        query = (
+            f"aircon/set_zone_setting?zone_name={current_state['zone_name']}"
+            f"&zone_onoff={self.values['zone_onoff']}"
         )
 
         _LOGGER.debug("Set zone:: %s", query)
