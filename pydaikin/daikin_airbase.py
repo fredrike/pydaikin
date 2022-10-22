@@ -22,6 +22,7 @@ class DaikinAirBase(DaikinBRP069):
                 '7': 'dry',
             },
             'f_rate': {
+                '0': 'auto',
                 '1': 'low',
                 '3': 'mid',
                 '5': 'high',
