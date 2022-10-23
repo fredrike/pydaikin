@@ -2,9 +2,8 @@
 """Script to run pydaikin."""
 
 import argparse
-import asyncio
+from asyncio import run, sleep
 from contextlib import nullcontext
-import time
 
 from aiohttp import ClientError
 
@@ -14,11 +13,11 @@ from pydaikin.daikin_brp069 import (  # noqa: E0611; pylint: disable=no-name-in-
 )
 
 
-def list_all_devices():
+async def list_all_devices():
     """Print all discovered devices."""
     for dev in discovery.get_devices():
         try:
-            appl = loop.run_until_complete(appliance.factory(dev['ip']))
+            appl = await appliance.factory(dev['ip'])
             support_energy_consumption = (
                 "Supported" if appl.support_energy_consumption else "Unsupported"
             )
@@ -94,71 +93,70 @@ settings.add_argument(
     default=0,
 )
 
-args = parser.parse_args()
-loop = asyncio.get_event_loop()
 
-if args.verbose:
-    import logging
+async def main():  # pylint: disable=too-many-branches
+    """Main function."""
 
-    logging.basicConfig(
-        level=[
-            logging.CRITICAL,
-            logging.ERROR,
-            logging.WARNING,
-            logging.INFO,
-            logging.DEBUG,
-        ][args.verbose]
-    )
+    args = parser.parse_args()
 
-if args.list:
-    list_all_devices()
+    if args.verbose:
+        import logging  # pylint: disable=import-outside-toplevel
 
-else:
-    settings = {}
+        logging.basicConfig(
+            level=[
+                logging.CRITICAL,
+                logging.ERROR,
+                logging.WARNING,
+                logging.INFO,
+                logging.DEBUG,
+            ][args.verbose]
+        )
 
+    _settings = {}
     if args.mode:
-        settings.update({"mode": args.mode})
+        _settings.update({"mode": args.mode})
 
     if args.temp:
-        settings.update({"stemp": str(args.temp)})
+        _settings.update({"stemp": str(args.temp)})
 
     if args.humidity:
-        settings.update({"shum": str(args.humidity)})
+        _settings.update({"shum": str(args.humidity)})
 
     if args.fan:
-        settings.update({"f_rate": args.fan})
+        _settings.update({"f_rate": args.fan})
 
     if args.direction:
-        settings.update({"f_dir": args.direction})
+        _settings.update({"f_dir": args.direction})
 
     if args.away:
-        settings.update({"en_hol": args.away})
+        _settings.update({"en_hol": args.away})
 
-    if args.all:
-        ONLY_SUMMARY = False
+    if args.list:
+        await list_all_devices()
     else:
-        ONLY_SUMMARY = True
+        daikin = await appliance.factory(
+            args.device, key=args.key, password=args.password
+        )
 
-    daikin = loop.run_until_complete(
-        appliance.factory(args.device, key=args.key, password=args.password)
-    )
+        print(type(settings))
+        if _settings == {}:
+            daikin.show_values(not args.all)
+        else:
+            await daikin.set(_settings)
 
-    if settings == {}:
-        daikin.show_values(ONLY_SUMMARY)
+        if args.sensor:
+            print('\nPress CTRL+C to stop logging sensor data...\n')
 
-    else:
-        loop.run_until_complete(daikin.set(settings))
+            with (open(args.file, 'a') if args.file else nullcontext()) as file:
+                try:
+                    while True:
+                        await daikin.update_status()
+                        daikin.show_sensors()
+                        if args.file:
+                            daikin.log_sensors(file)
+                        await sleep(30)
+                except KeyboardInterrupt:
+                    pass
 
-    if args.sensor:
-        print('\nPress CTRL+C to stop logging sensor data...\n')
 
-        with (open(args.file, 'a') if args.file else nullcontext()) as f:
-            try:
-                while True:
-                    loop.run_until_complete(daikin.update_status())
-                    daikin.show_sensors()
-                    if args.file:
-                        daikin.log_sensors(f)
-                    time.sleep(30)
-            except KeyboardInterrupt:
-                pass
+run(main())
