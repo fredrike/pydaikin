@@ -1,6 +1,7 @@
 """Pydaikin appliance, represent a Daikin device."""
 
 import logging
+import ssl
 from uuid import NAMESPACE_OID, uuid3
 
 from .daikin_brp069 import DaikinBRP069
@@ -20,6 +21,10 @@ class DaikinBRP072C(DaikinBRP069):
             uuid = uuid3(NAMESPACE_OID, 'pydaikin')
         self._uuid = str(uuid).replace('-', '')
         self._headers = {"X-Daikin-uuid": self._uuid}
+        self._ssl_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+        self._ssl_context.options |= 0x4  # SSL_OP_LEGACY_SERVER_CONNECT, https://github.com/python/cpython/issues/89051
+        self._ssl_context.check_hostname = False
+        self._ssl_context.verify_mode = ssl.CERT_NONE
 
     async def init(self):
         """Init status."""
@@ -31,6 +36,6 @@ class DaikinBRP072C(DaikinBRP069):
         async with self.session.get(
             f'https://{self._device_ip}/{resource}',
             headers=self._headers,
-            ssl=False,
+            ssl=self._ssl_context,
         ) as resp:
             return await self._handle_response(resp)
