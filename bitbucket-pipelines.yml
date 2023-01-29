@@ -26,6 +26,6 @@ pipelines:
     - step: *precommit-test
     - step: *qa-test
   pull-requests:
-    "**":
+    '**':
       - step: *precommit-test
       - step: *qa-test
