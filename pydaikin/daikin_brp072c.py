@@ -22,7 +22,8 @@ class DaikinBRP072C(DaikinBRP069):
         self._uuid = str(uuid).replace('-', '')
         self._headers = {"X-Daikin-uuid": self._uuid}
         self._ssl_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-        self._ssl_context.options |= 0x4  # SSL_OP_LEGACY_SERVER_CONNECT, https://github.com/python/cpython/issues/89051
+        # SSL_OP_LEGACY_SERVER_CONNECT, https://github.com/python/cpython/issues/89051
+        self._ssl_context.options |= 0x4
         self._ssl_context.check_hostname = False
         self._ssl_context.verify_mode = ssl.CERT_NONE
 
