@@ -90,10 +90,10 @@ class DaikinAirBase(DaikinBRP069):
         fan_rates = list(map(str.title, self.TRANSLATIONS.get('f_rate', {}).values()))
         if self.values.get('frate_steps') == '2':
             if self.values.get('en_frate_auto') == '0':
-                return fan_rates[:3:2]
+                return fan_rates[1:4:2]
             return fan_rates[:3:2] + fan_rates[3::2]
         if self.values.get('en_frate_auto') == '0':
-            return fan_rates[:3]
+            return fan_rates[1:4]
         return fan_rates
 
     async def _update_settings(self, settings):
