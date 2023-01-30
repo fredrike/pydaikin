@@ -133,11 +133,14 @@ class DaikinBRP069(Appliance):
     async def _update_settings(self, settings):
         """Update settings to set on Daikin device."""
         # start with current values
-        current_val = await self._get_resource('aircon/get_control_info')
+        resource = 'aircon/get_control_info'
+        current_val = await self._get_resource(resource)
 
         # Merge current_val with mapped settings
-        self.values.update(current_val)
-        self.values.update({k: self.human_to_daikin(k, v) for k, v in settings.items()})
+        self.values.update_by_resource(resource, current_val)
+        self.values.update_by_resource(
+            resource, {k: self.human_to_daikin(k, v) for k, v in settings.items()}
+        )
 
         # we are using an extra mode "off" to power off the unit
         if settings.get('mode', '') == 'off':

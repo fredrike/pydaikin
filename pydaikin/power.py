@@ -1,5 +1,4 @@
 """Pydaikin power mixin."""
-
 from collections import namedtuple
 from datetime import datetime, timedelta
 import logging
@@ -73,9 +72,24 @@ class DaikinPowerMixin:
         is no consumption in the last 7 days.
         (see https://github.com/home-assistant/core/issues/77877)"""
         return (
-            (self.energy_consumption(mode=ATTR_TOTAL, time=TIME_THIS_YEAR) or 0)
-            + (self.energy_consumption(mode=ATTR_TOTAL, time=TIME_LAST_YEAR) or 0)
-            + (self.energy_consumption(mode=ATTR_TOTAL, time=TIME_LAST_7_DAYS) or 0)
+            (
+                self.energy_consumption(
+                    mode=ATTR_TOTAL, time=TIME_THIS_YEAR, invalidate=False
+                )
+                or 0
+            )
+            + (
+                self.energy_consumption(
+                    mode=ATTR_TOTAL, time=TIME_LAST_YEAR, invalidate=False
+                )
+                or 0
+            )
+            + (
+                self.energy_consumption(
+                    mode=ATTR_TOTAL, time=TIME_LAST_7_DAYS, invalidate=False
+                )
+                or 0
+            )
         ) > 0
 
     def _register_energy_consumption_history(self):
@@ -86,8 +100,12 @@ class DaikinPowerMixin:
             new_state = EnergyConsumptionState(
                 datetime=datetime.utcnow(),
                 first_state=not (self._energy_consumption_history[mode]),
-                today=self.energy_consumption(mode=mode, time=TIME_TODAY),
-                yesterday=self.energy_consumption(mode=mode, time=TIME_YESTERDAY),
+                today=self.energy_consumption(
+                    mode=mode, time=TIME_TODAY, invalidate=False
+                ),
+                yesterday=self.energy_consumption(
+                    mode=mode, time=TIME_YESTERDAY, invalidate=False
+                ),
             )
             if new_state.today is None:
                 continue
@@ -123,14 +141,21 @@ class DaikinPowerMixin:
                 mode
             ][:idx]
 
-    def energy_consumption(self, mode=ATTR_TOTAL, time=TIME_TODAY):
+    def energy_consumption(
+        self, mode=ATTR_TOTAL, time=TIME_TODAY, invalidate: bool = True
+    ):
         """Return today/yesterday energy consumption in kWh of a given mode."""
         parser = self.ENERGY_CONSUMPTION_PARSERS.get(f'{mode}_{time}')
         if parser is None:
             raise ValueError(f'Unsupported mode {mode} on {time}.')
 
         try:
-            values = [int(x) for x in self.values.get(parser.dimension).split('/')]
+            values = [
+                int(x)
+                for x in self.values.get(parser.dimension, invalidate=invalidate).split(
+                    '/'
+                )
+            ]
             value = parser.reducer(values)
             value /= parser.divider
             return value

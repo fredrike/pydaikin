@@ -18,6 +18,7 @@ from .power import (  # pylint: disable=cyclic-import
     TIME_TODAY,
     DaikinPowerMixin,
 )
+from .values import ApplianceValues
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,7 +99,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         )
         if 'ret' not in response:
             raise ValueError("missing 'ret' field in response")
-        if response['ret'] != 'OK':
+        if response.pop('ret') != 'OK':
             return {}
         if 'name' in response:
             response['name'] = unquote(response['name'])
@@ -133,7 +134,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
     def __init__(self, device_id, session=None):
         """Init the pydaikin appliance, representing one Daikin device."""
-        self.values = {}
+        self.values = ApplianceValues()
         self.session = session
         self._energy_consumption_history = defaultdict(list)
         if session:
@@ -182,9 +183,14 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         """Update status from resources."""
         if resources is None:
             resources = self.INFO_RESOURCES
+        resources = [
+            resource
+            for resource in resources
+            if self.values.should_resource_be_updated(resource)
+        ]
         _LOGGER.debug("Updating %s", resources)
         for resource in resources:
-            self.values.update(await self._get_resource(resource))
+            self.values.update_by_resource(resource, await self._get_resource(resource))
 
         self._register_energy_consumption_history()
 
