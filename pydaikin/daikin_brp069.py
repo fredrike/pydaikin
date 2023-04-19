@@ -139,13 +139,14 @@ class DaikinBRP069(Appliance):
         self.values.update(current_val)
         self.values.update({k: self.human_to_daikin(k, v) for k, v in settings.items()})
 
-        # we are using an extra mode "off" to power off the unit
-        if settings.get('mode', '') == 'off':
-            self.values['pow'] = '0'
-            # some units are picky with the off mode
-            self.values['mode'] = current_val['mode']
-        else:
-            self.values['pow'] = '1'
+        if 'mode' in settings:
+            # we are using an extra mode "off" to power off the unit
+            if settings.get('mode', '') == 'off':
+                self.values['pow'] = '0'
+                # some units are picky with the off mode
+                self.values['mode'] = current_val['mode']
+            else:
+                self.values['pow'] = '1'
 
         # Use settings for respecitve mode (dh and dt)
         for k, val in {'stemp': 'dt', 'shum': 'dh', 'f_rate': 'dfr'}.items():
