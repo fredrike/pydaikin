@@ -144,7 +144,7 @@ class DaikinBRP069(Appliance):
             self.values['pow'] = '0'
             # some units are picky with the off mode
             self.values['mode'] = current_val['mode']
-        elsif 'mode' in settings:
+        elif 'mode' in settings:
             self.values['pow'] = '1'
 
         # Use settings for respecitve mode (dh and dt)
