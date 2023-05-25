@@ -85,6 +85,11 @@ class DaikinAirBase(DaikinBRP069):
         return True
 
     @property
+    def support_zone_temperature(self):
+        """Return True if the device support setting zone_temperature."""
+        return "lztemp_h" in self.values
+
+    @property
     def fan_rate(self):
         """Return list of supported fan rates."""
         fan_rates = list(map(str.title, self.TRANSLATIONS.get('f_rate', {}).values()))
@@ -145,7 +150,7 @@ class DaikinAirBase(DaikinBRP069):
         """Return translated value from key."""
         k, val = super().represent(key)
 
-        if key in ['zone_name', 'zone_onoff']:
+        if key in ["zone_name", "zone_onoff", "lztemp_h"]:
             val = unquote(self.values[key]).split(';')
 
         return (k, val)
@@ -153,26 +158,36 @@ class DaikinAirBase(DaikinBRP069):
     @property
     def zones(self):
         """Return list of zones."""
-        if not self.values.get('zone_name'):
+        if not self.values.get("zone_name"):
             return None
-        zone_onoff = self.represent('zone_onoff')[1]
+        zone_onoff = self.represent("zone_onoff")[1]
+        if self.support_zone_temperature:
+            zone_temp = self.represent("lztemp_h")[1]
+            return [
+                (name.strip(" +,"), zone_onoff[i], float(zone_temp[i]))
+                for i, name in enumerate(self.represent("zone_name")[1])
+            ]
         return [
-            (name.strip(' +,'), zone_onoff[i])
-            for i, name in enumerate(self.represent('zone_name')[1])
+            (name.strip(" +,"), zone_onoff[i], 0)
+            for i, name in enumerate(self.represent("zone_name")[1])
         ]
 
-    async def set_zone(self, zone_id, status):
+    async def set_zone(self, zone_id, key, value):
         """Set zone status."""
-        current_state = await self._get_resource('aircon/get_zone_setting')
+        current_state = await self._get_resource("aircon/get_zone_setting")
         self.values.update(current_state)
-        zone_onoff = self.represent('zone_onoff')[1]
-        zone_onoff[zone_id] = status
-        self.values['zone_onoff'] = quote(';'.join(zone_onoff)).lower()
+        current_group = self.represent(key)[1]
+        current_group[zone_id] = value
+        self.values[key] = quote(";".join(current_group)).lower()
 
-        query = 'aircon/set_zone_setting?zone_name={}&zone_onoff={}'.format(
-            current_state['zone_name'],
-            self.values['zone_onoff'],
+        query = "aircon/set_zone_setting?zone_name={}&zone_onoff={}".format(
+            current_state["zone_name"],
+            self.values["zone_onoff"],
         )
+
+        if self.support_zone_temperature:
+            query += "&lztemp_h=%s" % self.values["lztemp_h"]
 
         _LOGGER.debug("Set zone:: %s", query)
         await self._get_resource(query)
+
