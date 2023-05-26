@@ -444,6 +444,6 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         """Return list of zones."""
         return
 
-    async def set_zone(self, zone_id, status):
+    async def set_zone(self, zone_id, key, value):
         """Set zone status."""
         raise NotImplementedError
