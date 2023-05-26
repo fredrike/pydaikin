@@ -120,9 +120,9 @@ class DaikinBRP069(Appliance):
         """Init status."""
         await self.auto_set_clock()
         if self.values:
-            await self.update_status(self.HTTP_RESOURCES[1:])
-        else:
             await self.update_status(self.HTTP_RESOURCES)
+        else:
+            await self.update_status(self.HTTP_RESOURCES[1:])
 
         if self.support_energy_consumption:
             self.INFO_RESOURCES += [  # pylint: disable=invalid-name
@@ -207,7 +207,7 @@ class DaikinBRP069(Appliance):
             # Update the adv value from the response
             self.values.update(await self._get_resource(query_h))
 
-    async def set_zone(self, zone_id, status):
+    async def set_zone(self, zone_id, key, value):
         """Set zone status."""
 
     async def auto_set_clock(self):
