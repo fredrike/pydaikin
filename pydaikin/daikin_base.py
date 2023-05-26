@@ -417,7 +417,9 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     @property
     def today_energy_consumption(self):
         """Return today's energy consumption in kWh."""
-        return self.today_cool_energy_consumption + self.today_heat_energy_consumption
+        return (self.today_cool_energy_consumption or 0) + (
+            self.today_heat_energy_consumption or 0
+        )
 
     @property
     def fan_rate(self):
@@ -450,6 +452,6 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         """Return list of zones."""
         return
 
-    async def set_zone(self, zone_id, status):
+    async def set_zone(self, zone_id, key, value):
         """Set zone status."""
         raise NotImplementedError
