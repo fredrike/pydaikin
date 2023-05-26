@@ -169,8 +169,10 @@ class DaikinSkyFi(Appliance):
             if v != f'Zone {i+1}'
         ]
 
-    async def set_zone(self, zone_id, status):
+    async def set_zone(self, zone_id, key, value):
         """Set zone status."""
+        if key != 'zone_onoff':
+            return
         zone_id += 1
         query = f'setzone.cgi?pass={{}}&z={zone_id}&s={status}'
         _LOGGER.debug("Set zone: %s", query)
