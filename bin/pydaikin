@@ -138,7 +138,6 @@ async def main():  # pylint: disable=too-many-branches
             args.device, key=args.key, password=args.password
         )
 
-        print(type(settings))
         if _settings == {}:
             daikin.show_values(not args.all)
         else:
