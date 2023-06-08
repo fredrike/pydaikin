@@ -120,9 +120,9 @@ class DaikinBRP069(Appliance):
         """Init status."""
         await self.auto_set_clock()
         if self.values:
-            await self.update_status(self.HTTP_RESOURCES)
-        else:
             await self.update_status(self.HTTP_RESOURCES[1:])
+        else:
+            await self.update_status(self.HTTP_RESOURCES)
 
         if self.support_energy_consumption:
             self.INFO_RESOURCES += [  # pylint: disable=invalid-name
