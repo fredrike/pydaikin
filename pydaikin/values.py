@@ -1,9 +1,9 @@
 """Smart container for appliance's data"""
-import collections
+from collections.abc import MutableMapping
 from datetime import datetime, timedelta
 
 
-class ApplianceValues(collections.MutableMapping):
+class ApplianceValues(MutableMapping):
     """Appliance's values dict container keeping track of which values have been actually useful."""
 
     # If a none of one resource's key are used, the resource will be updated every 15 minutes
