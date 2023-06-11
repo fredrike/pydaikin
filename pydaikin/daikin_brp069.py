@@ -147,7 +147,10 @@ class DaikinBRP069(Appliance):
             self.values['pow'] = '0'
             # some units are picky with the off mode
             self.values['mode'] = current_val['mode']
-        elif 'mode' in settings:
+            
+        # if changing the mode to something other than off assume the unit should be 
+        # powered on OR if the request is empty power on
+        elif 'mode' in settings or not settings:
             self.values['pow'] = '1'
 
         # Use settings for respecitve mode (dh and dt)
