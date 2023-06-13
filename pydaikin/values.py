@@ -1,9 +1,9 @@
 """Smart container for appliance's data"""
-import collections
+from collections.abc import MutableMapping
 from datetime import datetime, timedelta
 
 
-class ApplianceValues(collections.MutableMapping):
+class ApplianceValues(MutableMapping):
     """Appliance's values dict container keeping track of which values have been actually useful."""
 
     # If a none of one resource's key are used, the resource will be updated every 15 minutes
@@ -37,8 +37,9 @@ class ApplianceValues(collections.MutableMapping):
         return len(self._data)
 
     # --- Custom methods to use smart updates ---
-
-    def get(self, key: str, default=None, *, invalidate: bool = True):
+    def get(
+        self, key: str, default=None, *, invalidate: bool = True
+    ):  # pylint: disable=arguments-differ
         """Get a value and invalidate it so that the associated resource will soon be updated."""
         if key not in self._data:
             return default
