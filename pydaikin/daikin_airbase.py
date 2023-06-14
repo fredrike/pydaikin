@@ -52,6 +52,11 @@ class DaikinAirBase(DaikinBRP069):
             response["f_rate"] = f'{response["f_rate"]}a'
         return response
 
+    def __init__(self, device_id, session=None):
+        """Init the pydaikin appliance, representing one Daikin AirBase
+        (BRP15B61) device."""
+        super().__init__(device_id, session)
+
     async def init(self):
         """Init status and set defaults."""
         await super().init()
