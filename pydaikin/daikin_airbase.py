@@ -43,6 +43,12 @@ class DaikinAirBase(DaikinBRP069):
 
     INFO_RESOURCES = DaikinBRP069.INFO_RESOURCES + ["aircon/get_zone_setting"]
 
+    DEFAULTS = {
+        "htemp": "-",
+        "otemp": "-",
+        "shum": "--"
+    }
+
     @staticmethod
     def parse_response(response_body):
         """Parse response from Daikin, add support for f_rate-auto."""
@@ -52,7 +58,7 @@ class DaikinAirBase(DaikinBRP069):
             response["f_rate"] = f'{response["f_rate"]}a'
         return response
 
-    def __init__(self, device_id, session=None):
+    def __init__(self, device_id, session=None): # pylint: disable=useless-parent-delegation
         """Init the pydaikin appliance, representing one Daikin AirBase
         (BRP15B61) device."""
         super().__init__(device_id, session)
@@ -62,7 +68,8 @@ class DaikinAirBase(DaikinBRP069):
         await super().init()
         if not self.values:
             raise Exception("Empty values.")
-        self.values.update({"htemp": "-", "otemp": "-", "shum": "--"})
+        for key, value in self.DEFAULTS.items():
+            self.values.setdefault(key, value)
 
     async def _run_get_resource(self, resource):
         """Make the http request."""
