@@ -66,7 +66,7 @@ class DaikinAirBase(DaikinBRP069):
         await super().init()
         if not self.values:
             raise Exception("Empty values.")
-        self.values = {**self.DEFAULTS, **self.values}
+        self.values.update({**self.DEFAULTS, **self.values})
 
     async def _run_get_resource(self, resource):
         """Make the http request."""
