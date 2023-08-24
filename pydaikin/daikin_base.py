@@ -78,7 +78,12 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
                 device_ip = device_name['ip']
         return device_id
 
-    def __init__(self, device_id, session: Optional[ClientSession] = None):
+    async def __new__(cls, *a, **kw):  # pylint: disable=invalid-overridden-method
+        instance = super().__new__(cls)
+        await instance.__init__(*a, **kw)
+        return instance
+
+    async def __init__(self, device_id, session: Optional[ClientSession] = None):
         """Init the pydaikin appliance, representing one Daikin device."""
         self.values = ApplianceValues()
         self.http_resources = {}
@@ -93,6 +98,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             self.device_ip = self.discover_ip(device_id)
 
         self.base_url = f"http://{self.device_ip}"
+        await self.update_status(self.info_resources.keys())
 
     async def connect(self):
         """Init status."""
