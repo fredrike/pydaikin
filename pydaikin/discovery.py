@@ -121,9 +121,9 @@ def get_devices():
 
 def get_name(name):
     """Returns the name of discovered devices."""
-    disovery = Discovery()
+    discovery = Discovery()
 
-    devices = disovery.poll(name)
+    devices = discovery.poll(name)
 
     ret = None
 
