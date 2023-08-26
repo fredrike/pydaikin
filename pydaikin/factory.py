@@ -25,7 +25,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
     async def __init__(
         self,
         device_id: str,
-        session: Optional[ClientSession],
+        session: Optional[ClientSession] = None,
         password: str = None,
         key: str = None,
         **kwargs,
