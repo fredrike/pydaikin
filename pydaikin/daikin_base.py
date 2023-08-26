@@ -2,21 +2,15 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
 import logging
-import re
 import socket
 from urllib.parse import unquote
 
 from aiohttp import ClientSession, ServerDisconnectedError
 from aiohttp.web_exceptions import HTTPForbidden
 
-from .discovery import get_name  # pylint: disable=cyclic-import
-from .power import (  # pylint: disable=cyclic-import
-    ATTR_COOL,
-    ATTR_HEAT,
-    ATTR_TOTAL,
-    TIME_TODAY,
-    DaikinPowerMixin,
-)
+from .discovery import get_name
+from .power import ATTR_COOL, ATTR_HEAT, ATTR_TOTAL, TIME_TODAY, DaikinPowerMixin
+from .response import parse_response
 from .values import ApplianceValues
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,18 +48,9 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
     @staticmethod
     def parse_response(response_body):
-        """Parse response from Daikin."""
-        response = dict(
-            (match.group(1), match.group(2))
-            for match in re.finditer(r'(\w+)=([^=]*)(?:,|$)', response_body)
-        )
-        if 'ret' not in response:
-            raise ValueError("missing 'ret' field in response")
-        if response.pop('ret') != 'OK':
-            return {}
-        if 'name' in response:
-            response['name'] = unquote(response['name'])
-        return response
+        """Parse response from Daikin.
+        Subclassed by submodules with own implementation"""
+        return parse_response(response_body)
 
     @staticmethod
     def translate_mac(value):
