@@ -1,6 +1,6 @@
 import pytest
 
-from pydaikin.daikin_base import Appliance
+from pydaikin.response import parse_response
 
 
 @pytest.mark.parametrize(
@@ -13,7 +13,6 @@ from pydaikin.daikin_base import Appliance
         (
             'ret=OK,type=aircon,reg=eu,dst=1,ver=1_14_68,rev=C3FF8A6,pow=1',
             dict(
-                ret='OK',
                 type='aircon',
                 reg='eu',
                 dst='1',
@@ -25,7 +24,6 @@ from pydaikin.daikin_base import Appliance
         (
             'ret=OK,ssid1=Loading 2,4G...,radio1=-33,ssid=DaikinAP47108,grp_name=,en_grp=0',
             dict(
-                ret='OK',
                 ssid1='Loading 2,4G...',
                 radio1='-33',
                 ssid='DaikinAP47108',
@@ -36,7 +34,6 @@ from pydaikin.daikin_base import Appliance
         (
             'ret=OK,ssid1=Loadi=ng 2,4G...,radio1=-33,ssid=DaikinAP47108,grp_name=,en_grp=0',
             dict(
-                ret='OK',
                 Loadi='ng 2,4G...',
                 radio1='-33',
                 ssid='DaikinAP47108',
@@ -47,4 +44,4 @@ from pydaikin.daikin_base import Appliance
     ],
 )
 def test_parse_response(body: str, values: dict):
-    assert Appliance.parse_response(body) == values
+    assert parse_response(body) == values
