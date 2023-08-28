@@ -41,25 +41,8 @@ class Discovery:  # pylint: disable=too-few-public-methods
         self, stop_if_found=None, ip_addr=None
     ) -> List[DiscoveredObject]:  # pylint: disable=invalid-name
         """Poll for available devices."""
-        if ip_addr:
-            broadcast_ips = [ip_addr]
-        else:
-            # get all IPv4 definitions in the system
-            net_groups = [
-                netifaces.ifaddresses(i)[netifaces.AF_INET]
-                for i in netifaces.interfaces()
-                if netifaces.AF_INET in netifaces.ifaddresses(i)
-            ]
 
-            # flatten the previous list
-            net_ips = [item for sublist in net_groups for item in sublist]
-
-            # from those, get the broadcast IPs, if available
-            broadcast_ips = [i['broadcast'] for i in net_ips if 'broadcast' in i.keys()]
-
-        # send a daikin broadcast to each one of the ips
-        for ip_address in broadcast_ips:
-            self.sock.sendto(bytes(DISCOVERY_MSG, 'UTF-8'), (ip_address, UDP_DST_PORT))
+        self.find_with_broadcast_probe(ip_addr)
 
         found_devices = []
 
@@ -90,6 +73,28 @@ class Discovery:  # pylint: disable=too-few-public-methods
             pass
 
         return found_devices
+
+    def find_with_broadcast_probe(self, ip_addr):
+        "Send an UDP broadcast probe on all local interfaces for Daikin controllers"
+        if ip_addr:
+            broadcast_ips = [ip_addr]
+        else:
+            # get all IPv4 definitions in the system
+            net_groups = [
+                netifaces.ifaddresses(i)[netifaces.AF_INET]
+                for i in netifaces.interfaces()
+                if netifaces.AF_INET in netifaces.ifaddresses(i)
+            ]
+
+            # flatten the previous list
+            net_ips = [item for sublist in net_groups for item in sublist]
+
+            # from those, get the broadcast IPs, if available
+            broadcast_ips = [i['broadcast'] for i in net_ips if 'broadcast' in i.keys()]
+
+        # send a daikin broadcast to each one of the ips
+        for ip_address in broadcast_ips:
+            self.sock.sendto(bytes(DISCOVERY_MSG, 'UTF-8'), (ip_address, UDP_DST_PORT))
 
 
 def get_devices():
