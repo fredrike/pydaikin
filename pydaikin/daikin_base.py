@@ -2,22 +2,15 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
 import logging
-import re
 import socket
 from urllib.parse import unquote
 
 from aiohttp import ClientSession, ServerDisconnectedError
 from aiohttp.web_exceptions import HTTPForbidden
 
-from .discovery import get_name  # pylint: disable=cyclic-import
-from .exceptions import DaikinException
-from .power import (  # pylint: disable=cyclic-import
-    ATTR_COOL,
-    ATTR_HEAT,
-    ATTR_TOTAL,
-    TIME_TODAY,
-    DaikinPowerMixin,
-)
+from .discovery import get_name
+from .power import ATTR_COOL, ATTR_HEAT, ATTR_TOTAL, TIME_TODAY, DaikinPowerMixin
+from .response import parse_response
 from .values import ApplianceValues
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,56 +47,10 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         return sorted(list(cls.TRANSLATIONS.get(dimension, {}).values()))
 
     @staticmethod
-    async def factory(device_id, session=None, **kwargs):
-        """Factory to init the corresponding Daikin class."""
-        from .daikin_airbase import (  # pylint: disable=import-outside-toplevel,cyclic-import
-            DaikinAirBase,
-        )
-        from .daikin_brp069 import (  # pylint: disable=import-outside-toplevel,cyclic-import
-            DaikinBRP069,
-        )
-        from .daikin_brp072c import (  # pylint: disable=import-outside-toplevel,cyclic-import
-            DaikinBRP072C,
-        )
-        from .daikin_skyfi import (  # pylint: disable=import-outside-toplevel,cyclic-import
-            DaikinSkyFi,
-        )
-
-        if 'password' in kwargs and kwargs['password'] is not None:
-            appl = DaikinSkyFi(device_id, session, password=kwargs['password'])
-        elif 'key' in kwargs and kwargs['key'] is not None:
-            appl = DaikinBRP072C(
-                device_id,
-                session,
-                key=kwargs['key'],
-                uuid=kwargs.get('uuid'),
-            )
-        else:  # special case for BRP069 and AirBase
-            appl = DaikinBRP069(device_id, session)
-            await appl.update_status(appl.HTTP_RESOURCES[:1])
-            if appl.values == {}:
-                appl = DaikinAirBase(device_id, session)
-        await appl.init()
-        if not appl.values.get("mode"):
-            raise DaikinException(
-                f"Error creating device, {device_id} is not supported."
-            )
-        return appl
-
-    @staticmethod
     def parse_response(response_body):
-        """Parse response from Daikin."""
-        response = dict(
-            (match.group(1), match.group(2))
-            for match in re.finditer(r'(\w+)=([^=]*)(?:,|$)', response_body)
-        )
-        if 'ret' not in response:
-            raise ValueError("missing 'ret' field in response")
-        if response.pop('ret') != 'OK':
-            return {}
-        if 'name' in response:
-            response['name'] = unquote(response['name'])
-        return response
+        """Parse response from Daikin.
+        Subclassed by submodules with own implementation"""
+        return parse_response(response_body)
 
     @staticmethod
     def translate_mac(value):

@@ -5,6 +5,8 @@ import socket
 
 import netifaces
 
+from .response import parse_response
+
 _LOGGER = logging.getLogger(__name__)
 
 UDP_SRC_PORT = 30000
@@ -92,7 +94,17 @@ class Discovery:  # pylint: disable=too-few-public-methods
                 _LOGGER.debug("Discovered %s, %s", addr, data.decode('UTF-8'))
 
                 try:
-                    data = DiscoveredObject(addr[0], addr[1], data.decode('UTF-8'))
+                    data = parse_response(data.decode('UTF-8'))
+
+                    if 'mac' not in data:
+                        raise ValueError("no mac found for device")
+
+                    data.update(
+                        {
+                            "ip": addr[0],
+                            "port": addr[1],
+                        }
+                    )
 
                     new_mac = data['mac']
                     self.dev[new_mac] = data
@@ -121,9 +133,9 @@ def get_devices():
 
 def get_name(name):
     """Returns the name of discovered devices."""
-    disovery = Discovery()
+    discovery = Discovery()
 
-    devices = disovery.poll(name)
+    devices = discovery.poll(name)
 
     ret = None
 

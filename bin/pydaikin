@@ -11,13 +11,14 @@ from pydaikin import discovery  # pylint: disable=cyclic-import
 from pydaikin.daikin_brp069 import (  # noqa: E0611; pylint: disable=no-name-in-module
     DaikinBRP069 as appliance,
 )
+from pydaikin.factory import DaikinFactory
 
 
 async def list_all_devices():
     """Print all discovered devices."""
     for dev in discovery.get_devices():
         try:
-            appl = await appliance.factory(dev['ip'])
+            appl = await DaikinFactory(dev['ip'])
             support_energy_consumption = (
                 "Supported" if appl.support_energy_consumption else "Unsupported"
             )
@@ -134,9 +135,7 @@ async def main():  # pylint: disable=too-many-branches
     if args.list:
         await list_all_devices()
     else:
-        daikin = await appliance.factory(
-            args.device, key=args.key, password=args.password
-        )
+        daikin = await DaikinFactory(args.device, key=args.key, password=args.password)
 
         if _settings == {}:
             daikin.show_values(not args.all)
