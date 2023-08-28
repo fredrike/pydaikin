@@ -1,0 +1,1 @@
+ret=OK,model=A941,type=N,pv=3.40,cpv=3,cpv_minor=40,mid=NA,humd=0,s_humd=128,acled=1,land=0,elec=1,temp=1,temp_rng=0,m_dtct=1,ac_dst=--,disp_dry=0,dmnd=0,en_scdltmr=1,en_frate=1,en_fdir2=1,en_rtemp_a=0,en_spmode=0,en_ipw_sep=0,en_mompow=1,en_patrol=0,en_filter_sign=0,shtyp=0,en_cjlink=1,hmlmt_l=10.0,s_fdir_ud=01,s_fdir_ud_step=0,s_fdir_lr=01,s_fdir_lr_step=0
