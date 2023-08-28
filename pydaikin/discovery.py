@@ -18,41 +18,6 @@ GRACE_SECONDS = 1
 DISCOVERY_MSG = "DAIKIN_UDP/common/basic_info"
 
 
-class DiscoveredObject:
-    """Class to represent discovered object."""
-
-    def __init__(self, ip, port, basic_info_string):
-        self.values = {}
-
-        self.values['ip'] = ip
-        self.values['port'] = port
-        self.values.update(self.parse_basic_info(basic_info_string))
-
-    @staticmethod
-    def parse_basic_info(basic_info):
-        """Parse basic info."""
-        from .daikin_base import Appliance  # pylint: disable=import-outside-toplevel
-
-        data = Appliance.parse_response(basic_info)
-
-        if 'mac' not in data:
-            raise ValueError("no mac found for device")
-
-        return data
-
-    def __getitem__(self, name):
-        if name in self.values:
-            return self.values[name]
-        raise AttributeError("No such attribute: " + name)
-
-    def keys(self):
-        """Returns keys."""
-        return self.values.keys()
-
-    def __str__(self):
-        return str(self.values)
-
-
 class Discovery:  # pylint: disable=too-few-public-methods
     """Discovery class."""
 
