@@ -1,0 +1,1 @@
+ret=OK,sta=2,cur=2023/8/27 21:54:1,reg=eu,dst=1,zone=313

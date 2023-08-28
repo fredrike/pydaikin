@@ -1,0 +1,1 @@
+ret=OK,method=home only,notice_ip_int=3600,notice_sync_int=60
