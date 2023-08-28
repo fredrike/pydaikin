@@ -30,12 +30,6 @@ class DaikinAirBase(DaikinBRP069):
                 "3a": "mid/auto",
                 "5a": "high/auto",
             },
-            'f_dir': {
-                '0': 'off',
-                '1': 'vertical',
-                '2': 'horizontal',
-                '3': '3d',
-            },
         },
     )
 
