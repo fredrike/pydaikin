@@ -2,10 +2,11 @@
 
 import logging
 import socket
+from typing import List
 
 import netifaces
 
-from .response import parse_response
+from .models.base import CommonBasicInfo
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -16,6 +17,12 @@ RCV_BUFSIZ = 1024
 GRACE_SECONDS = 1
 
 DISCOVERY_MSG = "DAIKIN_UDP/common/basic_info"
+
+
+class DiscoveredObject(CommonBasicInfo):
+    "Proto-Appliance with just basic data"
+    ip_addr: str
+    port: str
 
 
 class Discovery:  # pylint: disable=too-few-public-methods
@@ -29,12 +36,13 @@ class Discovery:  # pylint: disable=too-few-public-methods
         sock.settimeout(GRACE_SECONDS)
 
         self.sock = sock
-        self.dev = {}
 
-    def poll(self, stop_if_found=None, ip=None):  # pylint: disable=invalid-name
+    def poll(
+        self, stop_if_found=None, ip_addr=None
+    ) -> List[DiscoveredObject]:  # pylint: disable=invalid-name
         """Poll for available devices."""
-        if ip:
-            broadcast_ips = [ip]
+        if ip_addr:
+            broadcast_ips = [ip_addr]
         else:
             # get all IPv4 definitions in the system
             net_groups = [
@@ -53,32 +61,27 @@ class Discovery:  # pylint: disable=too-few-public-methods
         for ip_address in broadcast_ips:
             self.sock.sendto(bytes(DISCOVERY_MSG, 'UTF-8'), (ip_address, UDP_DST_PORT))
 
+        found_devices = []
+
         try:
             while True:  # for anyone who ansers
                 data, addr = self.sock.recvfrom(RCV_BUFSIZ)
                 _LOGGER.debug("Discovered %s, %s", addr, data.decode('UTF-8'))
 
                 try:
-                    data = parse_response(data.decode('UTF-8'))
-
-                    if 'mac' not in data:
-                        raise ValueError("no mac found for device")
-
-                    data.update(
-                        {
-                            "ip": addr[0],
-                            "port": addr[1],
-                        }
+                    data = DiscoveredObject(
+                        _response=data.decode('UTF-8'), ip_addr=addr[0], port=addr[1]
                     )
-
-                    new_mac = data['mac']
-                    self.dev[new_mac] = data
 
                     if (
                         stop_if_found is not None
-                        and data['name'].lower() == stop_if_found.lower()
+                        and data.name.lower() == stop_if_found.lower()
                     ):
-                        return self.dev.values()
+                        return [
+                            data,
+                        ]
+
+                    found_devices.append(data)
 
                 except ValueError:  # invalid message received
                     continue
@@ -86,7 +89,7 @@ class Discovery:  # pylint: disable=too-few-public-methods
         except socket.timeout:  # nobody else is answering
             pass
 
-        return self.dev.values()
+        return found_devices
 
 
 def get_devices():
