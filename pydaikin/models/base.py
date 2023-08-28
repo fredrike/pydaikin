@@ -65,11 +65,15 @@ class DaikinResponse(BaseModel):
 
 class CommonBasicInfo(DaikinResponse):
     "Model for common/basic_info"
+    dst: bool
+    en_hol: bool = Field(description="awayMode")
     mac: str
     name: str
-    ver: str = Field(description="firmware adapter")
     pow: bool = Field(description="power")
-    en_hol: bool = Field(description="awayMode")
+    reg: str
+    rev: str
+    type: str
+    ver: str = Field(description="firmware adapter")
 
     @field_validator("name", mode="before")
     @classmethod
