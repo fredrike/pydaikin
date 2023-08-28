@@ -1,4 +1,4 @@
-image: python:3.8
+image: python:3.11
 
 definitions:
   steps:
@@ -18,8 +18,8 @@ definitions:
           - pip install -r requirements-test.txt
           - black --check .
           - flake8 .
-          - isort bin/pydaikin pydaikin/*.py
-          - pylint --extension-pkg-whitelist=netifaces bin/pydaikin pydaikin/*.py
+          - isort bin/*.py pydaikin/*.py
+          - pylint --extension-pkg-whitelist=netifaces bin/*.py pydaikin/*.py
 
 pipelines:
   default:
