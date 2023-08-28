@@ -53,6 +53,17 @@ class DaikinAirBase(DaikinBRP069):
         response = super(DaikinAirBase, DaikinAirBase).parse_response(response_body)
         if response.get("f_auto") == "1":
             response["f_rate"] = f'{response["f_rate"]}a'
+
+        # Translate swing mode from 2 parameters to 1
+        if response.get("f_dir_ud") == "0" and response.get("f_dir_lr") == "0":
+            response["f_dir"] = '0'
+        if response.get("f_dir_ud") == "S" and response.get("f_dir_lr") == "0":
+            response["f_dir"] = '1'
+        if response.get("f_dir_ud") == "0" and response.get("f_dir_lr") == "S":
+            response["f_dir"] = '2'
+        if response.get("f_dir_ud") == "S" and response.get("f_dir_lr") == "S":
+            response["f_dir"] = '3'
+
         return response
 
     def __init__(
@@ -82,7 +93,7 @@ class DaikinAirBase(DaikinBRP069):
     @property
     def support_swing_mode(self):
         """Return True if the device support setting swing_mode."""
-        return False
+        return 'f_dir_ud' in self.values and 'f_dir_lr' in self.values
 
     @property
     def support_outside_temperature(self):
