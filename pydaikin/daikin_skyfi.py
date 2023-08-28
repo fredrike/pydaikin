@@ -127,17 +127,23 @@ class DaikinSkyFi(Appliance):
         _LOGGER.debug("Updated values: %s", self.values)
 
         # we are using an extra mode "off" to power off the unit
+        path = "set.cgi"
+        params = {
+            'pass': self._password,
+            "opmode": self.values['opmode'],
+            "settemp": self.values['settemp'],
+            "fanspeed": self.values['fanspeed'],
+            "acmode": self.values['acmode'],
+        }
+
         if settings.get('mode', '') == 'off':
-            self.values['opmode'] = '0'
-            query_c = 'set.cgi?pass={}&p=0'
+            params['opmode'] = '0'
         else:
             if 'mode' in settings:
-                self.values['opmode'] = '1'
-            query_c = 'set.cgi?pass={{}}&p={opmode}&t={settemp}&f={fanspeed}&m={acmode}'.format(
-                **self.values
-            )
+                params['opmode'] = '1'
 
-        await self.update_status([query_c])
+        current_state = await self._get_resource(path, params)
+        self.values.update(current_state)
 
     @property
     def zones(self):

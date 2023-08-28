@@ -46,7 +46,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
             await self._generated_object.update_status(
                 self._generated_object.HTTP_RESOURCES[:1]
             )
-            if self._generated_object.values == {}:
+            if not self._generated_object.values:
                 self._generated_object = DaikinAirBase(device_id, session)
 
         await self._generated_object.init()
