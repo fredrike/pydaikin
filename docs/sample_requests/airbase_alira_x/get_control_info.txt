@@ -1,0 +1,10 @@
+# off
+ret=OK,pow=0,mode=4,stemp=22.0,shum=0,adv=13,dt1=25.0,dt2=M,dt3=25.0,dt4=22.0,dh1=0,dh2=0,dh3=0,dh4=0,dhh=0,alert=16,f_rate=A,dfr1=A,dfr2=A,dfr3=A,dfr4=A,dfr6=A,dfrh=0,f_dir_ud=0,f_dir_lr=S,ndfd1=00,ndfd2=00,ndfd3=00,ndfd4=0S,ndfd6=00,ndfdh=00
+# heat on with all swing off
+ret=OK,pow=1,mode=4,stemp=20.0,shum=0,adv=13,dt1=25.0,dt2=M,dt3=25.0,dt4=20.0,dh1=0,dh2=0,dh3=0,dh4=0,dhh=0,alert=16,f_rate=B,dfr1=A,dfr2=A,dfr3=A,dfr4=B,dfr6=A,dfrh=0,f_dir_ud=0,f_dir_lr=0,ndfd1=00,ndfd2=00,ndfd3=00,ndfd4=00,ndfd6=00,ndfdh=00
+# heat on with lr_fan swing
+ret=OK,pow=1,mode=4,stemp=20.0,shum=0,adv=13,dt1=25.0,dt2=M,dt3=25.0,dt4=20.0,dh1=0,dh2=0,dh3=0,dh4=0,dhh=0,alert=16,f_rate=B,dfr1=A,dfr2=A,dfr3=A,dfr4=B,dfr6=A,dfrh=0,f_dir_ud=0,f_dir_lr=S,ndfd1=00,ndfd2=00,ndfd3=00,ndfd4=0S,ndfd6=00,ndfdh=00
+# heat on with ud_fan swing
+ret=OK,pow=1,mode=4,stemp=20.0,shum=0,adv=13,dt1=25.0,dt2=M,dt3=25.0,dt4=20.0,dh1=0,dh2=0,dh3=0,dh4=0,dhh=0,alert=16,f_rate=B,dfr1=A,dfr2=A,dfr3=A,dfr4=B,dfr6=A,dfrh=0,f_dir_ud=S,f_dir_lr=0,ndfd1=00,ndfd2=00,ndfd3=00,ndfd4=S0,ndfd6=00,ndfdh=00
+# heat on with 3D_fan swing
+ret=OK,pow=1,mode=4,stemp=20.0,shum=0,adv=13,dt1=25.0,dt2=M,dt3=25.0,dt4=20.0,dh1=0,dh2=0,dh3=0,dh4=0,dhh=0,alert=16,f_rate=B,dfr1=A,dfr2=A,dfr3=A,dfr4=B,dfr6=A,dfrh=0,f_dir_ud=S,f_dir_lr=S,ndfd1=00,ndfd2=00,ndfd3=00,ndfd4=SS,ndfd6=00,ndfdh=00
