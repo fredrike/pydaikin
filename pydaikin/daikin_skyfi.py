@@ -1,10 +1,7 @@
 """Pydaikin appliance, represent a Daikin device."""
 
-from asyncio import sleep
 import logging
 from urllib.parse import unquote
-
-from aiohttp.client_exceptions import ClientOSError, ClientResponseError
 
 from .daikin_base import Appliance
 
@@ -53,7 +50,8 @@ class DaikinSkyFi(Appliance):
     def __init__(self, device_id, session=None, password=None):
         """Init the pydaikin appliance, representing one Daikin SkyFi device."""
         super().__init__(device_id, session)
-        self.base_url = f'http://{self.device_ip}:2000'
+        self.device_ip = f'{self.device_ip}:2000'
+        self.base_url = f"http://{self.device_ip}"
         self._password = password
 
     def __getitem__(self, name):
@@ -103,18 +101,6 @@ class DaikinSkyFi(Appliance):
             }
         )
         return response
-
-    async def _run_get_resource(self, resource):
-        """Make the http request."""
-        resource = resource.format(self._password)
-        for i in range(4):
-            try:
-                return await super()._run_get_resource(resource)
-            except (ClientOSError, ClientResponseError) as err:
-                _LOGGER.debug("%s #%s", repr(err), i)
-                await sleep(1)
-                if i >= 3:
-                    raise
 
     def represent(self, key):
         """Return translated value from key."""
@@ -174,7 +160,12 @@ class DaikinSkyFi(Appliance):
         if key != 'zone_onoff':
             return
         zone_id += 1
-        query = f'setzone.cgi?pass={{}}&z={zone_id}&s={value}'
-        _LOGGER.debug("Set zone: %s", query)
-        current_state = await self._get_resource(query)
+
+        path = "setzone.cgi"
+        params = {"pass": "HIDDEN", "z": zone_id, "s": value}
+        _LOGGER.debug("Sending request to %s with params: %s", path, params)
+
+        params["pass"] = self._password
+
+        current_state = await self._get_resource(path, params)
         self.values.update(current_state)

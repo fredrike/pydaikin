@@ -6,8 +6,9 @@ import socket
 from typing import Optional
 from urllib.parse import unquote
 
-from aiohttp import ClientSession, ServerDisconnectedError
+from aiohttp import ClientSession
 from aiohttp.web_exceptions import HTTPForbidden
+from retry import retry
 
 from .discovery import get_name
 from .power import ATTR_COOL, ATTR_HEAT, ATTR_TOTAL, TIME_TODAY, DaikinPowerMixin
@@ -21,6 +22,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
 
     base_url: str
+    session: Optional[ClientSession]
+
     TRANSLATIONS = {}
 
     VALUES_TRANSLATION = {}
@@ -81,7 +84,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
                 device_ip = device_name['ip']
         return device_id
 
-    def __init__(self, device_id, session=None):
+    def __init__(self, device_id, session: Optional[ClientSession] = None):
         """Init the pydaikin appliance, representing one Daikin device."""
         self.values = ApplianceValues()
         self.session = session
@@ -104,31 +107,25 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         # Re-defined in all sub-classes
         raise NotImplementedError
 
-    async def _get_resource(self, resource, retries=3):
-        """Update resource."""
-        try:
-            if self.session and not self.session.closed:
-                return await self._run_get_resource(resource)
-            async with ClientSession() as self.session:
-                return await self._run_get_resource(resource)
-        except ServerDisconnectedError as error:
-            _LOGGER.debug("ServerDisconnectedError %d", retries)
-            if retries == 0:
-                raise error
-            return await self._get_resource(resource, retries=retries - 1)
-
-    async def _run_get_resource(self, resource):
+    @retry(tries=3, delay=1)
+    async def _get_resource(self, path: str, params: Optional[dict] = None):
         """Make the http request."""
-        async with self.session.get(f'{self.base_url}/{resource}') as resp:
-            return await self._handle_response(resp)
+        if params is None:
+            params = {}
 
-    async def _handle_response(self, resp):
-        """Handle the http response."""
-        if resp.status == 200:
-            return self.parse_response(await resp.text())
-        if resp.status == 403:
-            raise HTTPForbidden
-        return {}
+        if self.session is None:
+            session = ClientSession()
+        else:
+            session = self.session
+
+        async with session as client_session:
+            async with client_session.get(
+                f'{self.base_url}/{path}', params=params
+            ) as resp:
+                if resp.status == 403:
+                    raise HTTPForbidden
+                assert resp.status == 200, f"Response code is {resp.status}"
+                return self.parse_response(await resp.text())
 
     async def update_status(self, resources=None):
         """Update status from resources."""

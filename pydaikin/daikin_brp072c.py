@@ -30,14 +30,5 @@ class DaikinBRP072C(DaikinBRP069):
 
     async def init(self):
         """Init status."""
-        await self._get_resource(f'common/register_terminal?key={self._key}')
+        await self._get_resource('common/register_terminal', {"key": self._key})
         await super().init()
-
-    async def _run_get_resource(self, resource):
-        """Make the http request."""
-        async with self.session.get(
-            f'https://{self.device_ip}/{resource}',
-            headers=self._headers,
-            ssl=self._ssl_context,
-        ) as resp:
-            return await self._handle_response(resp)
