@@ -26,6 +26,7 @@ class DaikinBRP072C(DaikinBRP069):
         self._ssl_context.options |= 0x4
         self._ssl_context.check_hostname = False
         self._ssl_context.verify_mode = ssl.CERT_NONE
+        self.base_url = f"https://{self.device_ip}"
 
     async def init(self):
         """Init status."""
@@ -35,7 +36,7 @@ class DaikinBRP072C(DaikinBRP069):
     async def _run_get_resource(self, resource):
         """Make the http request."""
         async with self.session.get(
-            f'https://{self._device_ip}/{resource}',
+            f'https://{self.device_ip}/{resource}',
             headers=self._headers,
             ssl=self._ssl_context,
         ) as resp:

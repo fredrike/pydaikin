@@ -53,7 +53,7 @@ class DaikinSkyFi(Appliance):
     def __init__(self, device_id, session=None, password=None):
         """Init the pydaikin appliance, representing one Daikin SkyFi device."""
         super().__init__(device_id, session)
-        self._device_ip = f'{self._device_ip}:2000'
+        self.base_url = f'http://{self.device_ip}:2000'
         self._password = password
 
     def __getitem__(self, name):
