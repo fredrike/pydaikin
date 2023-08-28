@@ -10,7 +10,7 @@ from pydaikin.daikin_airbase import DaikinAirBase
             'ret=KO,type=aircon,reg=eu,dst=1',
             dict(),
         ),
-        # Response for all fan swing modes http://192.168.3.84/aircon/get_control_info 
+        # Response for all fan swing modes http://192.168.3.84/aircon/get_control_info
         (
             'ret=OK,pow=1,mode=4,stemp=20.0,f_rate=B,f_dir_ud=0,f_dir_lr=0',
             dict(
