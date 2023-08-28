@@ -7,18 +7,18 @@ from contextlib import nullcontext
 
 from aiohttp import ClientError
 
-from pydaikin import discovery  # pylint: disable=cyclic-import
 from pydaikin.daikin_brp069 import (  # noqa: E0611; pylint: disable=no-name-in-module
     DaikinBRP069 as appliance,
 )
+from pydaikin.discovery import Discovery  # pylint: disable=cyclic-import
 from pydaikin.factory import DaikinFactory
 
 
 async def list_all_devices():
     """Print all discovered devices."""
-    for dev in discovery.get_devices():
+    for dev in Discovery().poll():
         try:
-            appl = await DaikinFactory(dev['ip'])
+            appl = await DaikinFactory(dev.ip_addr)
             support_energy_consumption = (
                 "Supported" if appl.support_energy_consumption else "Unsupported"
             )

@@ -97,13 +97,6 @@ class Discovery:  # pylint: disable=too-few-public-methods
             self.sock.sendto(bytes(DISCOVERY_MSG, 'UTF-8'), (ip_address, UDP_DST_PORT))
 
 
-def get_devices():
-    """Returns discovered devices."""
-    discovery = Discovery()
-
-    return discovery.poll()
-
-
 def get_name(name):
     """Returns the name of discovered devices."""
     discovery = Discovery()
