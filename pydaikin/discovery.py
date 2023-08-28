@@ -5,7 +5,7 @@ import socket
 
 import netifaces
 
-from .daikin_base import Appliance
+from .response import parse_response
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class Discovery:  # pylint: disable=too-few-public-methods
                 _LOGGER.debug("Discovered %s, %s", addr, data.decode('UTF-8'))
 
                 try:
-                    data = Appliance.parse_response(data.decode('UTF-8'))
+                    data = parse_response(data.decode('UTF-8'))
 
                     if 'mac' not in data:
                         raise ValueError("no mac found for device")
@@ -98,9 +98,9 @@ def get_devices():
 
 def get_name(name):
     """Returns the name of discovered devices."""
-    disovery = Discovery()
+    discovery = Discovery()
 
-    devices = disovery.poll(name)
+    devices = discovery.poll(name)
 
     ret = None
 

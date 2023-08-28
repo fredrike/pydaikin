@@ -1,0 +1,1 @@
+ret=OK,price_int=27,price_dec=0
