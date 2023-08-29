@@ -2,6 +2,13 @@ image: python:3.11
 
 definitions:
   steps:
+    - step: &install-dependencies
+        name: Install dependencies
+        caches:
+          - pip
+        script:
+          - pip install -r requirements.txt
+          - pip install -r requirements-test.txt
     - step: &precommit-test
         name: Pre-Commit Test
         caches:
@@ -14,8 +21,6 @@ definitions:
         caches:
           - pip
         script:
-          - pip install -r requirements.txt
-          - pip install -r requirements-test.txt
           - black --check .
           - flake8 .
           - isort bin/*.py pydaikin/*.py
@@ -29,11 +34,13 @@ definitions:
 
 pipelines:
   default:
+    - step: *install-dependencies
     - step: *unit-tests
     - step: *precommit-test
     - step: *qa-test
   pull-requests:
     '**':
+      - step: *install-dependencies
       - step: *unit-tests
       - step: *precommit-test
       - step: *qa-test
