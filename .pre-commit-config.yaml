@@ -1,3 +1,5 @@
+default_language_version:
+    python: python3.8
 repos:
   - repo: https://github.com/psf/black
     rev: 22.3.0
@@ -28,7 +30,5 @@ repos:
         - netifaces==0.10.9
         - urllib3==1.26.3
         exclude: 'tests/'
-        entry: env PYTHONPATH=. pylint
         args:
         - --ignore=setup.py
-        - --extension-pkg-whitelist=netifaces
