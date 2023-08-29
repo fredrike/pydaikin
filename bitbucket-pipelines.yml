@@ -29,11 +29,11 @@ definitions:
 
 pipelines:
   default:
+    - step: *unit-tests
     - step: *precommit-test
     - step: *qa-test
-    - step: *unit-tests
   pull-requests:
     '**':
+      - step: *unit-tests
       - step: *precommit-test
       - step: *qa-test
-      - step: *unit-tests
