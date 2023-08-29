@@ -13,7 +13,6 @@ from retry import retry
 from .discovery import get_name
 from .models import base
 from .power import ATTR_COOL, ATTR_HEAT, ATTR_TOTAL, TIME_TODAY, DaikinPowerMixin
-from .response import parse_response
 from .values import ApplianceValues
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,12 +49,6 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     def daikin_values(cls, dimension):
         """Return sorted list of translated values."""
         return sorted(list(cls.TRANSLATIONS.get(dimension, {}).values()))
-
-    @staticmethod
-    def parse_response(response_body):
-        """Parse response from Daikin.
-        Subclassed by submodules with own implementation"""
-        return parse_response(response_body)
 
     @staticmethod
     def translate_mac(value):
@@ -111,7 +104,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         raise NotImplementedError
 
     @retry(tries=3, delay=1)
-    async def _get_resource(self, path: str, params: Optional[dict] = None):
+    async def _get_resource(self, model: base.DaikinResponse, params: Optional[dict] = None):
         """Make the http request."""
         if params is None:
             params = {}
@@ -123,12 +116,16 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
         async with session as client_session:
             async with client_session.get(
-                f'{self.base_url}/{path}', params=params
+                f'{self.base_url}/{model.get_url()}', params=params
             ) as resp:
                 if resp.status == 403:
                     raise HTTPForbidden
                 assert resp.status == 200, f"Response code is {resp.status}"
-                return self.parse_response(await resp.text())
+
+                response_text = await resp.text()
+                outmodel = model(_response=response_text)
+
+                return outmodel
 
     async def update_status(self, resources=None):
         """Update status from resources."""
