@@ -33,3 +33,14 @@ class TestReponseParser(unittest.TestCase):
                 self.assertEqual(
                     DaikinResponse.responseparser({"_response": body}), values
                 )
+
+    def test_model(self):
+        for msg, body, values in self.fixtures:
+            with self.subTest(msg, body=body, values=values):
+                DaikinResponse(_response=body)
+
+    def test_model_ret_not_ok(self):
+        csv = "ret=PARAM NG,msg=404 Not Found"
+
+        with self.assertRaises(ValueError):
+            DaikinResponse(_response=csv)
