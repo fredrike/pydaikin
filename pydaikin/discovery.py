@@ -69,7 +69,7 @@ class Discovery:  # pylint: disable=too-few-public-methods
                 except ValueError:  # invalid message received
                     continue
 
-        except socket.timeout:  # nobody else is answering
+        except TimeoutError:  # nobody else is answering
             pass
 
         return found_devices
