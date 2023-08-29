@@ -53,16 +53,6 @@ class DaikinAirBase(DaikinBRP069):
         if response.get("f_auto") == "1":
             response["f_rate"] = f'{response["f_rate"]}a'
 
-        # Translate swing mode from 2 parameters to 1
-        if response.get("f_dir_ud") == "0" and response.get("f_dir_lr") == "0":
-            response["f_dir"] = '0'
-        if response.get("f_dir_ud") == "S" and response.get("f_dir_lr") == "0":
-            response["f_dir"] = '1'
-        if response.get("f_dir_ud") == "0" and response.get("f_dir_lr") == "S":
-            response["f_dir"] = '2'
-        if response.get("f_dir_ud") == "S" and response.get("f_dir_lr") == "S":
-            response["f_dir"] = '3'
-
         return response
 
     def __init__(
@@ -92,7 +82,7 @@ class DaikinAirBase(DaikinBRP069):
     @property
     def support_swing_mode(self):
         """Return True if the device support setting swing_mode."""
-        return 'f_dir_ud' in self.values and 'f_dir_lr' in self.values
+        return False
 
     @property
     def support_outside_temperature(self):
@@ -157,12 +147,6 @@ class DaikinAirBase(DaikinBRP069):
             "&f_rate={f_rate[0]}&f_auto={f_auto}&f_dir={f_dir}"
             "&lpw=&f_airside={f_airside}"
         ).format(**self.values)
-
-        # Australian version uses 2 separate parameters instead of the combined f_dir
-        if self.support_swing_mode:
-            f_dir_ud = 'S' if self.values['f_dir'] in ('1', '3') else '0'
-            f_dir_lr = 'S' if self.values['f_dir'] in ('2', '3') else '0'
-            query_c += '&f_dir_ud=%s&f_dir_lr=%s' % (f_dir_ud, f_dir_lr)
 
         _LOGGER.debug("Sending query_c: %s", query_c)
         await self._get_resource(query_c)

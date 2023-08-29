@@ -1,6 +1,6 @@
 import pytest
 
-from pydaikin.daikin_airbase import DaikinAirBase
+from pydaikin.daikin_brp069 import DaikinBRP069
 
 
 @pytest.mark.parametrize(
@@ -59,7 +59,18 @@ from pydaikin.daikin_airbase import DaikinAirBase
                 f_dir='3',
             ),
         ),
+        # Test for BRP069
+        (
+            'ret=OK,pow=1,mode=4,stemp=20.0,f_rate=B,f_dir=2',
+            dict(
+                pow='1',
+                mode='4',
+                stemp='20.0',
+                f_rate='B',
+                f_dir='2',
+            ),
+        ),
     ],
 )
 def test_parse_response(body: str, values: dict):
-    assert DaikinAirBase.parse_response(body) == values
+    assert DaikinBRP069.parse_response(body) == values
