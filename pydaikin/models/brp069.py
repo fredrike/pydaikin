@@ -105,6 +105,11 @@ class AirconGetSensorInfo(DaikinResponse):
     htemp: float = Field(description="inside temp")
     otemp: float = Field(description="outside temp")
 
+    @classmethod
+    def get_url(cls):
+        "Get url of this resource"
+        return "aircon/get_sensor_info"
+
 
 class AirconGetControlInfo(DaikinResponse):
     "Model for aircon/get_control_info"
@@ -113,6 +118,11 @@ class AirconGetControlInfo(DaikinResponse):
     f_rate: FanRateEnum = Field(description="fan rate")
     mode: AirconModeEnum
     stemp: float = Field(description="target temp")
+
+    @classmethod
+    def get_url(cls):
+        "Get url of this resource"
+        return "aircon/get_control_info"
 
 
 class AirconGetDayPowerEx(DaikinResponse):
@@ -134,10 +144,20 @@ class AirconGetDayPowerEx(DaikinResponse):
         validation_alias="prev_1day_heat"
     )
 
+    @classmethod
+    def get_url(cls):
+        "Get url of this resource"
+        return "aircon/get_day_power_ex"
+
 
 class AirconGetModelInfo(DaikinResponse):
     "Model for aircon/get_model_info"
     model: str
+
+    @classmethod
+    def get_url(cls):
+        "Get url of this resource"
+        return "aircon/get_model_info"
 
 
 class AirconGetPrice(DaikinResponse):
@@ -145,10 +165,20 @@ class AirconGetPrice(DaikinResponse):
     price_dec: int
     price_int: int
 
+    @classmethod
+    def get_url(cls):
+        "Get url of this resource"
+        return "aircon/get_price"
+
 
 class AirconGetTarget(DaikinResponse):
     "Model for aircon/get_target"
     target: int
+
+    @classmethod
+    def get_url(cls):
+        "Get url of this resource"
+        return "aircon/get_target"
 
 
 class AirconGetWeekPower(DaikinResponse):
@@ -167,6 +197,11 @@ class AirconGetWeekPower(DaikinResponse):
         "Return second element of list"
         return self.datas_list_kwh[1]  # pylint: disable=unsubscriptable-object
 
+    @classmethod
+    def get_url(cls):
+        "Get url of this resource"
+        return "aircon/get_week_power"
+
 
 class AirconGetYearPower(DaikinResponse):
     "Model for aircon/get_year_power"
@@ -177,19 +212,44 @@ class AirconGetYearPower(DaikinResponse):
     this_year_kwh: PowerUsageSum1000Wh = Field(validation_alias="this_year")
     this_year_list_kwh: PowerUsageList1000Wh = Field(validation_alias="this_year")
 
+    @classmethod
+    def get_url(cls):
+        "Get url of this resource"
+        return "aircon/get_year_power"
+
 
 class CommonGetdatetime(DaikinResponse):
     "Model for aircon/get_datetime"
     cur: Date = Field(description="internal clock")
 
+    @classmethod
+    def get_url(cls):
+        "Get url of this resource"
+        return "aircon/get_datetime"
+
 
 class CommonGetHoliday(DaikinResponse):
     "Model for aircon/get_holiday"
+
+    @classmethod
+    def get_url(cls):
+        "Get url of this resource"
+        return "aircon/get_holiday"
 
 
 class CommonGetNotify(DaikinResponse):
     "Model for aircon/get_notify"
 
+    @classmethod
+    def get_url(cls):
+        "Get url of this resource"
+        return "aircon/get_notify"
+
 
 class CommonGetRemoteMethod(DaikinResponse):
     "Model for aircon/get_remote_method"
+
+    @classmethod
+    def get_url(cls):
+        "Get url of this resource"
+        return "aircon/get_remote_method"
