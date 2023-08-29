@@ -7,12 +7,12 @@ from pydantic import Field, computed_field
 from .base import DaikinResponse
 from .types import (
     Date,
-    PowerUsageList_1Wh,
-    PowerUsageList_100Wh,
-    PowerUsageList_1000Wh,
-    PowerUsageSum_1Wh,
-    PowerUsageSum_100Wh,
-    PowerUsageSum_1000Wh,
+    PowerUsageList1Wh,
+    PowerUsageList100Wh,
+    PowerUsageList1000Wh,
+    PowerUsageSum1Wh,
+    PowerUsageSum100Wh,
+    PowerUsageSum1000Wh,
 )
 
 
@@ -117,20 +117,20 @@ class AirconGetControlInfo(DaikinResponse):
 
 class AirconGetDayPowerEx(DaikinResponse):
     "Model for aircon/get_day_power_ex"
-    curr_day_cool_kwh: PowerUsageSum_100Wh = Field(validation_alias="curr_day_cool")
-    curr_day_cool_list_kwh: PowerUsageList_100Wh = Field(
+    curr_day_cool_kwh: PowerUsageSum100Wh = Field(validation_alias="curr_day_cool")
+    curr_day_cool_list_kwh: PowerUsageList100Wh = Field(
         validation_alias="curr_day_cool"
     )
-    curr_day_heat_kwh: PowerUsageSum_100Wh = Field(validation_alias="curr_day_heat")
-    curr_day_heat_list_kwh: PowerUsageList_100Wh = Field(
+    curr_day_heat_kwh: PowerUsageSum100Wh = Field(validation_alias="curr_day_heat")
+    curr_day_heat_list_kwh: PowerUsageList100Wh = Field(
         validation_alias="curr_day_heat"
     )
-    prev_1day_cool_kwh: PowerUsageSum_100Wh = Field(validation_alias="prev_1day_cool")
-    prev_1day_cool_list_kwh: PowerUsageList_100Wh = Field(
+    prev_1day_cool_kwh: PowerUsageSum100Wh = Field(validation_alias="prev_1day_cool")
+    prev_1day_cool_list_kwh: PowerUsageList100Wh = Field(
         validation_alias="prev_1day_cool"
     )
-    prev_1day_heat_kwh: PowerUsageSum_100Wh = Field(validation_alias="prev_1day_heat")
-    prev_1day_heat_list_kwh: PowerUsageList_100Wh = Field(
+    prev_1day_heat_kwh: PowerUsageSum100Wh = Field(validation_alias="prev_1day_heat")
+    prev_1day_heat_list_kwh: PowerUsageList100Wh = Field(
         validation_alias="prev_1day_heat"
     )
 
@@ -153,8 +153,8 @@ class AirconGetTarget(DaikinResponse):
 
 class AirconGetWeekPower(DaikinResponse):
     "Model for aircon/get_week_power"
-    datas_kwh: PowerUsageSum_1Wh = Field(validation_alias="datas")
-    datas_list_kwh: PowerUsageList_1Wh = Field(validation_alias="datas")
+    datas_kwh: PowerUsageSum1Wh = Field(validation_alias="datas")
+    datas_list_kwh: PowerUsageList1Wh = Field(validation_alias="datas")
     today_runtime: int
 
     @computed_field
@@ -170,12 +170,12 @@ class AirconGetWeekPower(DaikinResponse):
 
 class AirconGetYearPower(DaikinResponse):
     "Model for aircon/get_year_power"
-    previous_year_kwh: PowerUsageSum_1000Wh = Field(validation_alias="previous_year")
-    previous_year_list_kwh: PowerUsageList_1000Wh = Field(
+    previous_year_kwh: PowerUsageSum1000Wh = Field(validation_alias="previous_year")
+    previous_year_list_kwh: PowerUsageList1000Wh = Field(
         validation_alias="previous_year"
     )
-    this_year_kwh: PowerUsageSum_1000Wh = Field(validation_alias="this_year")
-    this_year_list_kwh: PowerUsageList_1000Wh = Field(validation_alias="this_year")
+    this_year_kwh: PowerUsageSum1000Wh = Field(validation_alias="this_year")
+    this_year_list_kwh: PowerUsageList1000Wh = Field(validation_alias="this_year")
 
 
 class CommonGetdatetime(DaikinResponse):
