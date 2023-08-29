@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 
+from aiohttp.web_exceptions import HTTPForbidden
 from asyncmock import AsyncMock
 
 from pydaikin.daikin_base import Appliance
@@ -8,6 +9,7 @@ from pydaikin.models.base import CommonBasicInfo, DaikinResponse
 
 
 class TestAppliance(unittest.IsolatedAsyncioTestCase):
+
     @patch("pydaikin.daikin_base.ClientSession.get")
     async def test_get_resource(self, mock_get):
         mockresponse = AsyncMock()
@@ -20,3 +22,27 @@ class TestAppliance(unittest.IsolatedAsyncioTestCase):
         response = await appliance._get_resource(CommonBasicInfo)
 
         self.assertIsInstance(response, DaikinResponse)
+
+    @patch("pydaikin.daikin_base.ClientSession.get")
+    async def test_fail_on_403(self, mock_get):
+        mockresponse = AsyncMock()
+        mockresponse.text.return_value = ""
+        mockresponse.status = 403
+        mock_get.return_value.__aenter__.return_value = mockresponse
+
+        appliance = Appliance("192.168.1.181")
+
+        with self.assertRaises(HTTPForbidden):
+            await appliance._get_resource(CommonBasicInfo)
+
+    @patch("pydaikin.daikin_base.ClientSession.get")
+    async def test_fail_on_invalid_input(self, mock_get):
+        mockresponse = AsyncMock()
+        mockresponse.text.return_value = "asganaway"
+        mockresponse.status = 200
+        mock_get.return_value.__aenter__.return_value = mockresponse
+
+        appliance = Appliance("192.168.1.181")
+
+        with self.assertRaises(ValueError):
+            await appliance._get_resource(CommonBasicInfo)
