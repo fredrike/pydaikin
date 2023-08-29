@@ -3,7 +3,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 import logging
 import socket
-from typing import Optional
+from typing import Dict, Optional
 from urllib.parse import unquote
 
 from aiohttp import ClientSession
@@ -11,6 +11,7 @@ from aiohttp.web_exceptions import HTTPForbidden
 from retry import retry
 
 from .discovery import get_name
+from .models import base
 from .power import ATTR_COOL, ATTR_HEAT, ATTR_TOTAL, TIME_TODAY, DaikinPowerMixin
 from .response import parse_response
 from .values import ApplianceValues
@@ -22,6 +23,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
 
     base_url: str
+    info_resources: Dict[str, base.DaikinResponse]
     session: Optional[ClientSession]
 
     TRANSLATIONS = {}
@@ -29,8 +31,6 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     VALUES_TRANSLATION = {}
 
     VALUES_SUMMARY = []
-
-    INFO_RESOURCES = []
 
     @classmethod
     def daikin_to_human(cls, dimension, value):
@@ -87,6 +87,9 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     def __init__(self, device_id, session: Optional[ClientSession] = None):
         """Init the pydaikin appliance, representing one Daikin device."""
         self.values = ApplianceValues()
+        self.info_resources = {
+            "common/basic_info": base.CommonBasicInfo
+        }
         self.session = session
         self._energy_consumption_history = defaultdict(list)
         if session:
@@ -130,7 +133,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     async def update_status(self, resources=None):
         """Update status from resources."""
         if resources is None:
-            resources = self.INFO_RESOURCES
+            resources = self.info_resources
         resources = [
             resource
             for resource in resources
