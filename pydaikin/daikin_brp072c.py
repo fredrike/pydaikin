@@ -28,7 +28,7 @@ class DaikinBRP072C(DaikinBRP069):
         self._ssl_context.verify_mode = ssl.CERT_NONE
         self.base_url = f"https://{self.device_ip}"
 
-    async def init(self):
+    async def connect(self):
         """Init status."""
         await self._get_resource('common/register_terminal', {"key": self._key})
-        await super().init()
+        await super().connect()

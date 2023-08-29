@@ -62,9 +62,9 @@ class DaikinAirBase(DaikinBRP069):
         (BRP15B61) device."""
         super().__init__(device_id, session)
 
-    async def init(self):
+    async def connect(self):
         """Init status and set defaults."""
-        await super().init()
+        await super().connect()
         if not self.values:
             raise ValueError("Empty values.")
         self.values.update({**self.DEFAULTS, **self.values})

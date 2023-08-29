@@ -116,7 +116,7 @@ class DaikinBRP069(Appliance):
         'adv': 'advanced mode',
     }
 
-    async def init(self):
+    async def connect(self):
         """Init status."""
         await self.auto_set_clock()
         if self.values:

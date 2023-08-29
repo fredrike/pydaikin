@@ -92,7 +92,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
         self.base_url = f"http://{self.device_ip}"
 
-    async def init(self):
+    async def connect(self):
         """Init status."""
         # Re-defined in all sub-classes
         raise NotImplementedError

@@ -59,7 +59,7 @@ class DaikinSkyFi(Appliance):
         name = self.SKYFI_TO_DAIKIN.get(name, name)
         return super().__getitem__(name)
 
-    async def init(self):
+    async def connect(self):
         """Init status."""
         await self.update_status(self.HTTP_RESOURCES)
 
