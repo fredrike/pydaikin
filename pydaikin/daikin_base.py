@@ -129,18 +129,21 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
                 return await resp.text()
 
-    async def update_status(self, resources=None):
+    async def update_status(self):
         """Update status from resources."""
-        if resources is None:
-            resources = self.info_resources
+
         resources = [
             resource
-            for resource in resources
-            if self.values.should_resource_be_updated(resource)
+            for _, resource in self.info_resources.items()
+            if resource.is_stale  # pylint: disable=using-constant-test
         ]
+
         _LOGGER.debug("Updating %s", resources)
         for resource in resources:
-            self.values.update_by_resource(resource, await self._get_resource(resource))
+            try:
+                self.values[resource.get_url()] = await self._get_resource(resource)
+            except ValueError:
+                continue
 
         self._register_energy_consumption_history()
 
