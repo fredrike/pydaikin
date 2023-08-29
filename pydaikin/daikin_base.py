@@ -22,6 +22,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
 
     base_url: str
+    http_resources: Dict[str, base.DaikinResponse]
     info_resources: Dict[str, base.DaikinResponse]
     session: Optional[ClientSession]
 
@@ -80,6 +81,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     def __init__(self, device_id, session: Optional[ClientSession] = None):
         """Init the pydaikin appliance, representing one Daikin device."""
         self.values = ApplianceValues()
+        self.http_resources = {}
         self.info_resources = {
             "common/basic_info": base.CommonBasicInfo
         }
