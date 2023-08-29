@@ -99,8 +99,17 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         # Re-defined in all sub-classes
         raise NotImplementedError
 
+    async def _get_resource(self, model: object, params: Optional[dict] = None):
+        "Get a DaikinResponse model"
+        path = model.get_url()
+        response_text = await self.get(path, params)
+
+        outmodel = model(_response=response_text)
+
+        return outmodel
+
     @retry(tries=3, delay=1)
-    async def _get_resource(self, model: base.DaikinResponse, params: Optional[dict] = None):
+    async def get(self, path: str, params: dict = None):
         """Make the http request."""
         if params is None:
             params = {}
@@ -112,16 +121,13 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
         async with session as client_session:
             async with client_session.get(
-                f'{self.base_url}/{model.get_url()}', params=params
+                f'{self.base_url}/{path}', params=params
             ) as resp:
                 if resp.status == 403:
                     raise HTTPForbidden
                 assert resp.status == 200, f"Response code is {resp.status}"
 
-                response_text = await resp.text()
-                outmodel = model(_response=response_text)
-
-                return outmodel
+                return await resp.text()
 
     async def update_status(self, resources=None):
         """Update status from resources."""
