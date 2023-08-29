@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from pydaikin.discovery import Discovery
+from pydaikin.discovery import DiscoveredObject, Discovery, get_name
 
 
 class MockSocket(MagicMock):
@@ -16,18 +16,25 @@ class MockSocket(MagicMock):
 
 
 class TestDiscovery(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.mocksock = MockSocket()
+        self.mocksock.setsockopt.return_value = None
+        self.mocksock.bind.return_value = None
+        self.mocksock.settimeout.return_value = None
+        self.mocksock.sendto.return_value = None
 
     @patch("pydaikin.discovery.socket")
     def test_discovery(self, mock_socket):
-        mocksock = MockSocket()
-        mocksock.setsockopt.return_value = None
-        mocksock.bind.return_value = None
-        mocksock.settimeout.return_value = None
-        mocksock.sendto.return_value = None
-
-        mock_socket.socket.return_value = mocksock
+        mock_socket.socket.return_value = self.mocksock
 
         d = Discovery()
         found_devices = d.poll()
 
         self.assertEqual(len(found_devices), 2)
+
+    @patch("pydaikin.discovery.socket")
+    def test_find_device(self, mock_socket):
+        mock_socket.socket.return_value = self.mocksock
+
+        found_devices = get_name("Notte")
+        self.assertIsInstance(found_devices, DiscoveredObject)
