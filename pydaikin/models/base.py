@@ -33,8 +33,8 @@ class DaikinResponse(BaseModel):
         return value
 
     @model_validator(mode="before")
-    @classmethod
-    def responseparser(cls, value: dict):
+    @staticmethod
+    def responseparser(value: dict):
         "Split incoming request string into fields"
         if "_response" not in value:
             return value
