@@ -1,4 +1,4 @@
-netifaces
 aiohttp
-urllib3
+netifaces
 retry
+urllib3
