@@ -92,12 +92,6 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
         self.base_url = f"http://{self.device_ip}"
 
-    def __getitem__(self, name):
-        """Return values from self.value."""
-        if name in self.values:
-            return self.values[name]
-        raise AttributeError("No such attribute: " + name)
-
     async def init(self):
         """Init status."""
         # Re-defined in all sub-classes
