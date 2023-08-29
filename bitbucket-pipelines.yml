@@ -20,12 +20,20 @@ definitions:
           - flake8 .
           - isort bin/*.py pydaikin/*.py
           - pylint --extension-pkg-whitelist=netifaces bin/*.py pydaikin/*.py
+    - step: &unit-tests
+        name: Unit Tests
+        caches:
+          - pip
+        script:
+          - python -m unittest
 
 pipelines:
   default:
     - step: *precommit-test
     - step: *qa-test
+    - step: *unit-tests
   pull-requests:
     '**':
       - step: *precommit-test
       - step: *qa-test
+      - step: *unit-tests
