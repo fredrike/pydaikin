@@ -1,12 +1,12 @@
-import pytest
+import unittest
 
 from pydaikin.models.base import DaikinResponse
 
 
-@pytest.mark.parametrize(
-    'body,values',
-    [
+class TestReponseParser(unittest.TestCase):
+    fixtures = [
         (
+            "Base CSV",
             'ret=OK,type=aircon,reg=eu,dst=1',
             dict(
                 ret="OK",
@@ -16,14 +16,20 @@ from pydaikin.models.base import DaikinResponse
             ),
         ),
         (
+            "Good CSV",
             'ret=OK,type=aircon,ssid=NormalWifiName,reg=eu,dst=1',
             dict(ret="OK", type="aircon", reg="eu", dst="1", ssid="NormalWifiName"),
         ),
         (
+            "Bad CSV",
             'ret=OK,type=aircon,ssid=Wifi,WithComma,reg=eu,dst=1',
             dict(ret="OK", type="aircon", reg="eu", dst="1", ssid="Wifi,WithComma"),
         ),
-    ],
-)
-def test_parse_response(body: str, values: dict):
-    assert DaikinResponse.responseparser({"_response": body}) == values
+    ]
+
+    def test_parse_response(self):
+        for msg, body, values in self.fixtures:
+            with self.subTest(msg, body=body, values=values):
+                self.assertEqual(
+                    DaikinResponse.responseparser({"_response": body}), values
+                )
