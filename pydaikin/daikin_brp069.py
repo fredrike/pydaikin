@@ -2,7 +2,10 @@
 
 import logging
 
+from aiohttp import ClientSession
+
 from .daikin_base import Appliance
+from .models import base, brp069
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,27 +66,6 @@ class DaikinBRP069(Appliance):
         },
     }
 
-    HTTP_RESOURCES = [
-        'common/basic_info',
-        'common/get_remote_method',
-        'aircon/get_sensor_info',
-        'aircon/get_model_info',
-        'aircon/get_control_info',
-        'aircon/get_target',
-        'aircon/get_price',
-        'common/get_holiday',
-        'common/get_notify',
-        'aircon/get_day_power_ex',
-        'aircon/get_week_power',
-        'aircon/get_year_power',
-        'common/get_datetime',
-    ]
-
-    INFO_RESOURCES = [
-        'aircon/get_sensor_info',
-        'aircon/get_control_info',
-    ]
-
     VALUES_SUMMARY = [
         'name',
         'ip',
@@ -115,6 +97,29 @@ class DaikinBRP069(Appliance):
         'cur': 'internal clock',
         'adv': 'advanced mode',
     }
+
+    def __init__(self, device_id, session: ClientSession | None = None):
+        super().__init__(device_id, session)
+        self.info_resources.update({
+            'aircon/get_sensor_info': brp069.AirconGetSensorInfo,
+            'aircon/get_control_info': brp069.AirconGetControlInfo
+        })
+
+        self.http_resources.update({
+            'common/basic_info': base.CommonBasicInfo,
+            'common/get_remote_method': brp069.CommonGetRemoteMethod,
+            'aircon/get_sensor_info': brp069.AirconGetSensorInfo,
+            'aircon/get_model_info': brp069.AirconGetModelInfo,
+            'aircon/get_control_info': brp069.AirconGetControlInfo,
+            'aircon/get_target': brp069.AirconGetTarget,
+            'aircon/get_price': brp069.AirconGetPrice,
+            'common/get_holiday': brp069.CommonGetHoliday,
+            'common/get_notify': brp069.CommonGetNotify,
+            'aircon/get_day_power_ex': brp069.AirconGetDayPowerEx,
+            'aircon/get_week_power': brp069.AirconGetWeekPower,
+            'aircon/get_year_power': brp069.AirconGetYearPower,
+            'common/get_datetime': brp069.CommonGetdatetime,
+        })
 
     async def connect(self):
         """Init status."""
