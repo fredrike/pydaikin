@@ -128,7 +128,6 @@ def get_name(name):
     ret = None
 
     for device in devices:
-
         if device['name'].lower() == name.lower():
             ret = device
 
