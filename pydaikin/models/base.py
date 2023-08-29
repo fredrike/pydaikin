@@ -62,6 +62,11 @@ class DaikinResponse(BaseModel):
         "Set immediately as stale"
         self.expiration_date = datetime.now()
 
+    @classmethod
+    def get_url(cls):
+        "Get url of this resource"
+        raise NotImplementedError
+
 
 class CommonBasicInfo(DaikinResponse):
     "Model for common/basic_info"
