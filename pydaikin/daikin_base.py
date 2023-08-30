@@ -11,7 +11,7 @@ from aiohttp.web_exceptions import HTTPForbidden
 from retry import retry
 
 from .discovery import get_name
-from .models import base
+from .models import base, brp069
 from .power import ATTR_COOL, ATTR_HEAT, ATTR_TOTAL, TIME_TODAY, DaikinPowerMixin
 from .values import ApplianceValues
 
@@ -238,42 +238,50 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     @property
     def mac(self) -> str:
         """Return device's MAC address."""
-        return self.values.get('mac', self.device_ip)
+        model: base.CommonBasicInfo = self.values["common/basic_info"]
+        return model.mac
 
     @property
     def support_away_mode(self) -> bool:
         """Return True if the device support away_mode."""
-        return 'en_hol' in self.values
+        model: base.CommonBasicInfo = self.values["common/basic_info"]
+        return model.support_away_mode
 
     @property
     def support_fan_rate(self) -> bool:
         """Return True if the device support setting fan_rate."""
-        return 'f_rate' in self.values
+        model: brp069.AirconGetControlInfo = self.values["aircon/get_control_info"]
+        return model.support_fan_rate is not None
 
     @property
     def support_swing_mode(self) -> bool:
         """Return True if the device support setting swing_mode."""
-        return 'f_dir' in self.values
+        model: brp069.AirconGetControlInfo = self.values["aircon/get_control_info"]
+        return model.support_swing_mode
 
     @property
     def support_outside_temperature(self) -> bool:
         """Return True if the device is not an AirBase unit."""
-        return self.outside_temperature is not None
+        model: brp069.AirconGetSensorInfo = self.values["aircon/get_sensor_info"]
+        return model.support_outside_temperature
 
     @property
     def support_humidity(self) -> bool:
         """Return True if the device has humidity sensor."""
-        return False
+        model: brp069.AirconGetSensorInfo = self.values["aircon/get_sensor_info"]
+        return model.support_humidity
 
     @property
     def support_advanced_modes(self) -> bool:
         """Return True if the device supports advanced modes."""
-        return 'adv' in self.values
+        model: brp069.AirconGetControlInfo = self.values["aircon/get_control_info"]
+        return model.support_advanced_modes
 
     @property
     def support_compressor_frequency(self) -> bool:
         """Return True if the device supports compressor frequency."""
-        return 'cmpfreq' in self.values
+        model: brp069.AirconGetSensorInfo = self.values["aircon/get_sensor_info"]
+        return model.support_compressor_frequency
 
     @property
     def support_energy_consumption(self) -> bool:
@@ -283,32 +291,38 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     @property
     def outside_temperature(self) -> Optional[float]:
         """Return current outside temperature."""
-        return self._parse_number('otemp')
+        model: brp069.AirconGetSensorInfo = self.values["aircon/get_sensor_info"]
+        return model.otemp
 
     @property
     def inside_temperature(self) -> Optional[float]:
         """Return current inside temperature."""
-        return self._parse_number('htemp')
+        model: brp069.AirconGetSensorInfo = self.values["aircon/get_sensor_info"]
+        return model.htemp
 
     @property
     def target_temperature(self) -> Optional[float]:
         """Return current target temperature."""
-        return self._parse_number('stemp')
+        model: brp069.AirconGetControlInfo = self.values["aircon/get_control_info"]
+        return model.stemp
 
     @property
     def compressor_frequency(self) -> Optional[float]:
         """Return current compressor frequency."""
-        return self._parse_number('cmpfreq')
+        model: brp069.AirconGetSensorInfo = self.values["aircon/get_sensor_info"]
+        return model.cmpfreq
 
     @property
     def humidity(self) -> Optional[float]:
         """Return current humidity."""
-        return self._parse_number('hhum')
+        model: brp069.AirconGetSensorInfo = self.values["aircon/get_sensor_info"]
+        return model.hhum
 
     @property
     def target_humidity(self) -> Optional[float]:
         """Return target humidity."""
-        return self._parse_number('shum')
+        model: brp069.AirconGetSensorInfo = self.values["aircon/get_sensor_info"]
+        return model.shum
 
     @property
     def current_total_power_consumption(self):
@@ -372,12 +386,12 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     @property
     def fan_rate(self) -> list:
         """Return list of supported fan rates."""
-        return list(map(str.title, self.TRANSLATIONS.get('f_rate', {}).values()))
+        return [x.value for x in brp069.FanRateHumanEnum]
 
     @property
     def swing_modes(self) -> list:
         """Return list of supported swing modes."""
-        return list(map(str.title, self.TRANSLATIONS.get('f_dir', {}).values()))
+        return [x.value for x in brp069.FanDirectionHumanEnum]
 
     async def set(self, settings):
         """Set settings on Daikin device."""

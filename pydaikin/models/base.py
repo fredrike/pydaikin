@@ -1,6 +1,7 @@
 """Base models common to all Daikin devices"""
 from datetime import datetime, timedelta
 import re
+from typing import Optional
 from urllib.parse import unquote
 
 from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
@@ -71,7 +72,7 @@ class DaikinResponse(BaseModel):
 class CommonBasicInfo(DaikinResponse):
     "Model for common/basic_info"
     dst: bool
-    en_hol: bool = Field(description="awayMode")
+    en_hol: Optional[bool] = Field(description="awayMode")
     mac: str
     name: str
     pow: bool = Field(description="power")
@@ -97,3 +98,7 @@ class CommonBasicInfo(DaikinResponse):
     def get_url(cls):
         "Get url of this resource"
         return "common/basic_info"
+
+    @property
+    def support_away_mode(self) -> bool:
+        return self.en_hol is not None

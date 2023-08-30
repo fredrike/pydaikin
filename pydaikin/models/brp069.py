@@ -1,8 +1,9 @@
 "Models and enums for BRP069"
 # pylint: disable=too-few-public-methods,relative-beyond-top-level
 from enum import Enum
+from typing import Optional
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, field_validator
 
 from .base import DaikinResponse
 from .types import (
@@ -100,22 +101,47 @@ class AdvHumanEnum(Enum):
 
 class AirconGetSensorInfo(DaikinResponse):
     "Model for aircon/get_sensor_info"
-    cmpfreq: int = Field(description="compressor frequency")
+    cmpfreq: Optional[int] = Field(description="compressor frequency", default=None)
     err: int = Field(description="error code")
     htemp: float = Field(description="inside temp")
-    otemp: float = Field(description="outside temp")
+    hhum: Optional[float] = Field(description="current humidity", default=None)
+    shum: Optional[float] = Field(description="target humidity", default=None)
+    otemp: Optional[float] = Field(description="outside temp", default=None)
+
+    @field_validator("otemp", "htemp", "hhum", "shum", mode="before")
+    @classmethod
+    def check_float(cls, value) -> Optional[float]:
+        try:
+            return float(value)
+        except ValueError:
+            return None
 
     @classmethod
     def get_url(cls):
         "Get url of this resource"
         return "aircon/get_sensor_info"
 
+    @property
+    def support_humidity(self) -> bool:
+        """Return True if the device has humidity sensor."""
+        return self.hhum is not None
+
+    @property
+    def support_outside_temperature(self) -> bool:
+        """Return True if the device is not an AirBase unit."""
+        return self.otemp is not None
+
+    @property
+    def support_compressor_frequency(self) -> bool:
+        """Return True if the device supports compressor frequency."""
+        return self.cmpfreq is not None
+
 
 class AirconGetControlInfo(DaikinResponse):
     "Model for aircon/get_control_info"
-    adv: AdvEnum = Field(description="advanced mode")
-    f_dir: FanDirectionEnum = Field(description="fan direction")
-    f_rate: FanRateEnum = Field(description="fan rate")
+    adv: Optional[AdvEnum] = Field(description="advanced mode")
+    f_dir: Optional[FanDirectionEnum] = Field(description="fan direction")
+    f_rate: Optional[FanRateEnum] = Field(description="fan rate")
     mode: AirconModeEnum
     stemp: float = Field(description="target temp")
 
@@ -123,6 +149,21 @@ class AirconGetControlInfo(DaikinResponse):
     def get_url(cls):
         "Get url of this resource"
         return "aircon/get_control_info"
+
+    @property
+    def support_fan_rate(self) -> bool:
+        """Return True if the device support setting fan_rate."""
+        return self.f_rate is not None
+
+    @property
+    def support_swing_mode(self) -> bool:
+        """Return True if the device support setting swing_mode."""
+        return self.f_dir is not None
+
+    @property
+    def support_advanced_modes(self) -> bool:
+        """Return True if the device supports advanced modes."""
+        return self.adv is not None
 
 
 class AirconGetDayPowerEx(DaikinResponse):
