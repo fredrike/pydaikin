@@ -109,7 +109,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         return outmodel
 
     @retry(tries=3, delay=1)
-    async def get(self, path: str, params: dict = None):
+    async def get(self, path: str, params: Optional[dict] = None):
         """Make the http request."""
         if params is None:
             params = {}
