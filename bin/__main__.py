@@ -25,7 +25,7 @@ async def list_all_devices():
         except ClientError:
             support_energy_consumption = "Unknown"
         print(
-            f"{dev['ip']} ({dev['mac']}): {dev['name']} - ",
+            f"{dev.ip_addr} ({dev.mac}): {dev.name} - ",
             f"{support_energy_consumption} energy consumption",
         )
 
