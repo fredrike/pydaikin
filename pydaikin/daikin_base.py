@@ -23,7 +23,6 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
     base_url: str
     http_resources: Dict[str, base.DaikinResponse]
-    info_resources: Dict[str, base.DaikinResponse]
     session: Optional[ClientSession]
 
     TRANSLATIONS = {}
@@ -87,9 +86,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         """Init the pydaikin appliance, representing one Daikin device."""
         self.values = ApplianceValues()
         self.http_resources = {}
-        self.info_resources = {
-            "common/basic_info": base.CommonBasicInfo
-        }
+
         self.session = session
         self._energy_consumption_history = defaultdict(list)
         if session:
@@ -98,12 +95,6 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             self.device_ip = self.discover_ip(device_id)
 
         self.base_url = f"http://{self.device_ip}"
-        await self.update_status(self.info_resources.keys())
-
-    async def connect(self):
-        """Init status."""
-        # Re-defined in all sub-classes
-        raise NotImplementedError
 
     async def _get_resource(self, model: object, params: Optional[dict] = None):
         "Get a DaikinResponse model"
@@ -135,12 +126,12 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
                 return await resp.text()
 
-    async def update_status(self):
+    async def connect(self):
         """Update status from resources."""
 
         resources = [
             resource
-            for _, resource in self.info_resources.items()
+            for _, resource in self.http_resources.items()
             if resource.is_stale  # pylint: disable=using-constant-test
         ]
 

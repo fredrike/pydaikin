@@ -19,7 +19,7 @@ class TestAppliance(unittest.IsolatedAsyncioTestCase):
         mockresponse.status = 200
         mock_get.return_value.__aenter__.return_value = mockresponse
 
-        appliance = Appliance("192.168.1.181")
+        appliance = await Appliance("192.168.1.181")
 
         response = await appliance._get_resource(CommonBasicInfo)
 
@@ -32,7 +32,7 @@ class TestAppliance(unittest.IsolatedAsyncioTestCase):
         mockresponse.status = 403
         mock_get.return_value.__aenter__.return_value = mockresponse
 
-        appliance = Appliance("192.168.1.181")
+        appliance = await Appliance("192.168.1.181")
 
         with self.assertRaises(HTTPForbidden):
             await appliance._get_resource(CommonBasicInfo)
@@ -44,21 +44,21 @@ class TestAppliance(unittest.IsolatedAsyncioTestCase):
         mockresponse.status = 200
         mock_get.return_value.__aenter__.return_value = mockresponse
 
-        appliance = Appliance("192.168.1.181")
+        appliance = await Appliance("192.168.1.181")
 
         with self.assertRaises(ValueError):
             await appliance._get_resource(CommonBasicInfo)
 
     @patch("pydaikin.daikin_base.ClientSession.get")
-    async def test_update_status(self, mock_get):
+    async def test_connect(self, mock_get):
         mock_get.side_effect = mock_brp069
 
-        appliance = Appliance("192.168.1.181")
+        appliance = await Appliance("192.168.1.181")
         appliance.http_resources = {
             "common/basic_info": CommonBasicInfo
         }
 
-        await appliance.update_status()
+        await appliance.connect()
 
         for k, v in appliance.http_resources.items():
             with self.subTest(k):

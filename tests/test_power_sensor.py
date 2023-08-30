@@ -192,7 +192,7 @@ async def test_power_sensors(initial_date, duration, tick_step, device: DaikinBR
                         device._consume_100w_heat()
 
             # We update the device
-            await device.update_status()
+            await device.connect()
 
             if VERBOSE:
                 device.show_sensors()

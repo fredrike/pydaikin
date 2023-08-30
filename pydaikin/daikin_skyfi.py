@@ -61,7 +61,7 @@ class DaikinSkyFi(Appliance):
 
     async def connect(self):
         """Init status."""
-        await self.update_status(self.HTTP_RESOURCES)
+        await self.connect(self.HTTP_RESOURCES)
 
     async def set_holiday(self, mode):
         """Set holiday mode."""
@@ -115,7 +115,7 @@ class DaikinSkyFi(Appliance):
     async def set(self, settings):
         """Set settings on Daikin device."""
         _LOGGER.debug("Updating settings: %s", settings)
-        await self.update_status(['ac.cgi?pass={}'])
+        await self.connect(['ac.cgi?pass={}'])
 
         # Merge current_val with mapped settings
         self.values.update(
