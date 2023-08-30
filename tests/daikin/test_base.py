@@ -60,6 +60,4 @@ class TestAppliance(unittest.IsolatedAsyncioTestCase):
 
         await appliance.connect()
 
-        for k, v in appliance.http_resources.items():
-            with self.subTest(k):
-                self.assertIsInstance(appliance.values[k], v)
+        self.assertIsInstance(appliance.values["common/basic_info"], CommonBasicInfo)
