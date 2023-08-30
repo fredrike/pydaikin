@@ -6,7 +6,7 @@ from pydaikin.daikin_brp069 import DaikinBRP069
 from .mock import mock_brp069
 
 
-class TestAppliance(unittest.IsolatedAsyncioTestCase):
+class TestDaikinBRP069(unittest.IsolatedAsyncioTestCase):
 
     @patch("pydaikin.daikin_base.ClientSession.get")
     async def test_connect(self, mock_get):
