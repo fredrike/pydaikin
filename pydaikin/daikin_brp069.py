@@ -98,12 +98,8 @@ class DaikinBRP069(Appliance):
         'adv': 'advanced mode',
     }
 
-    def __init__(self, device_id, session: ClientSession | None = None):
-        super().__init__(device_id, session)
-        self.info_resources.update({
-            'aircon/get_sensor_info': brp069.AirconGetSensorInfo,
-            'aircon/get_control_info': brp069.AirconGetControlInfo
-        })
+    async def __init__(self, device_id, session: ClientSession | None = None):
+        await super().__init__(device_id, session)
 
         self.http_resources.update({
             'common/basic_info': base.CommonBasicInfo,
@@ -123,17 +119,8 @@ class DaikinBRP069(Appliance):
 
     async def connect(self):
         """Init status."""
+        await super().connect()
         await self.auto_set_clock()
-        if self.values:
-            await self.connect(self.HTTP_RESOURCES[1:])
-        else:
-            await self.connect(self.HTTP_RESOURCES)
-
-        if self.support_energy_consumption:
-            self.INFO_RESOURCES += [  # pylint: disable=invalid-name
-                'aircon/get_day_power_ex',
-                'aircon/get_week_power',
-            ]
 
     async def _update_settings(self, settings):
         """Update settings to set on Daikin device."""
