@@ -143,7 +143,20 @@ class AirconGetControlInfo(DaikinResponse):
     f_dir: Optional[FanDirectionEnum] = Field(description="fan direction")
     f_rate: Optional[FanRateEnum] = Field(description="fan rate")
     mode: AirconModeEnum
-    stemp: float = Field(description="target temp")
+    stemp: Optional[float] = Field(description="target temp")
+
+    @field_validator("stemp", mode="before")
+    @classmethod
+    def validate_stemp(cls, value) -> Optional[float]:
+        """Check field is a float.
+        Other possible observed values:
+          - '--' when off
+          - 'M' dehumidifier"""
+
+        try:
+            return float(value)
+        except ValueError:
+            return None
 
     @classmethod
     def get_url(cls):
