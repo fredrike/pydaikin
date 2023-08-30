@@ -150,7 +150,7 @@ async def main():  # pylint: disable=too-many-branches
             ) if args.file else nullcontext() as file:
                 try:
                     while True:
-                        await daikin.connect()
+                        await daikin.refresh_data()
                         daikin.show_sensors()
                         if args.file:
                             daikin.log_sensors(file)

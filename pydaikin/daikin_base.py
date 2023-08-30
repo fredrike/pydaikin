@@ -129,7 +129,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
                 return await resp.text()
 
-    async def connect(self):
+    async def refresh_data(self):
         """Update status from resources."""
 
         resources = [

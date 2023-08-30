@@ -58,7 +58,7 @@ class TestAppliance(unittest.IsolatedAsyncioTestCase):
             "common/basic_info": CommonBasicInfo
         }
 
-        await appliance.connect()
+        await appliance.refresh_data()
 
         self.assertIsInstance(appliance.values["common/basic_info"], CommonBasicInfo)
 
@@ -71,6 +71,6 @@ class TestAppliance(unittest.IsolatedAsyncioTestCase):
             "common/basic_info": CommonBasicInfo
         }
 
-        await appliance.connect()
+        await appliance.refresh_data()
 
         self.assertEqual(appliance.values["common/basic_info"], None)

@@ -117,9 +117,9 @@ class DaikinBRP069(Appliance):
             'common/get_datetime': brp069.CommonGetdatetime,
         })
 
-    async def connect(self):
+    async def refresh_data(self):
         """Init status."""
-        await super().connect()
+        await super().refresh_data()
         await self.auto_set_clock()
 
     async def _update_settings(self, settings):

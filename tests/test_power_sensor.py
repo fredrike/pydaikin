@@ -158,7 +158,7 @@ async def test_power_sensors(initial_date, duration, tick_step, device: DaikinBR
     with freeze_time(initial_date) as ft:
         dt = None
 
-        await device.connect()
+        await device.refresh_data()
 
         assert 'datas' in device.values
         assert device.support_energy_consumption
@@ -192,7 +192,7 @@ async def test_power_sensors(initial_date, duration, tick_step, device: DaikinBR
                         device._consume_100w_heat()
 
             # We update the device
-            await device.connect()
+            await device.refresh_data()
 
             if VERBOSE:
                 device.show_sensors()

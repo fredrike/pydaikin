@@ -43,13 +43,13 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
             )
         else:  # special case for BRP069 and AirBase
             self._generated_object = DaikinBRP069(device_id, session)
-            await self._generated_object.connect(
+            await self._generated_object.refresh_data(
                 self._generated_object.HTTP_RESOURCES[:1]
             )
             if not self._generated_object.values:
                 self._generated_object = DaikinAirBase(device_id, session)
 
-        await self._generated_object.connect()
+        await self._generated_object.refresh_data()
 
         if not self._generated_object.values.get("mode"):
             raise DaikinException(

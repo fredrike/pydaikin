@@ -13,6 +13,6 @@ class TestDaikinBRP069(unittest.IsolatedAsyncioTestCase):
         mock_get.side_effect = mock_brp069
 
         pydaikin = await DaikinBRP069("1.1.1.1")
-        await pydaikin.connect()
+        await pydaikin.refresh_data()
 
         self.assertIn("aircon/get_model_info", pydaikin.values)
