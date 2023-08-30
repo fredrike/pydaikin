@@ -96,12 +96,15 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
         self.base_url = f"http://{self.device_ip}"
 
-    async def _get_resource(self, model: object, params: Optional[dict] = None):
+    async def _get_resource(self, model: type[base.DaikinResponse], params: Optional[dict] = None):
         "Get a DaikinResponse model"
+        if params is None:
+            params = {}
+
         path = model.get_url()
         response_text = await self.get(path, params)
 
-        outmodel = model(_response=response_text)
+        outmodel = model(_response=response_text)  # type: ignore
 
         return outmodel
 
