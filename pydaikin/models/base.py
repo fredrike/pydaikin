@@ -4,7 +4,7 @@ import re
 from typing import Optional
 from urllib.parse import unquote
 
-from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def calculate_expiration_date() -> datetime:
@@ -53,7 +53,6 @@ class DaikinResponse(BaseModel):
         value.update(response)
         return value
 
-    @computed_field
     @property
     def is_stale(self) -> bool:
         "Return whether the object should be refreshed or not"
