@@ -74,7 +74,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
                 except socket.gaierror as exc:
                     raise ValueError(f"no device found for {device_id}") from exc
             else:
-                device_ip = device_name['ip']
+                device_ip = device_name.ip_addr
         return device_id
 
     async def __new__(cls, *a, **kw):  # pylint: disable=invalid-overridden-method
