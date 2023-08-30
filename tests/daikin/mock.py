@@ -40,3 +40,14 @@ def mock_brp069(url, *args, **kwargs):
     mock.text.return_value = response
 
     return mock
+
+
+def mock_always_error(*args, **kwargs):
+
+    response = "ret=PARAM NG,msg=404 Not Found"
+
+    mock = AsyncMock()
+    mock.status = 200
+    mock.text.return_value = response
+
+    return mock

@@ -22,7 +22,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
 
     base_url: str
-    http_resources: Dict[str, base.DaikinResponse]
+    http_resources: Dict[str, Optional[base.DaikinResponse]]
     session: Optional[ClientSession]
 
     TRANSLATIONS = {}
@@ -140,7 +140,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             try:
                 self.values[resource.get_url()] = await self._get_resource(resource)
             except ValueError:
-                continue
+                self.values[resource.get_url()] = None
 
         self._register_energy_consumption_history()
 

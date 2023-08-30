@@ -7,7 +7,7 @@ from asyncmock import AsyncMock
 from pydaikin.daikin_base import Appliance
 from pydaikin.models.base import CommonBasicInfo, DaikinResponse
 
-from .mock import mock_brp069
+from .mock import mock_always_error, mock_brp069
 
 
 class TestAppliance(unittest.IsolatedAsyncioTestCase):
@@ -61,3 +61,16 @@ class TestAppliance(unittest.IsolatedAsyncioTestCase):
         await appliance.connect()
 
         self.assertIsInstance(appliance.values["common/basic_info"], CommonBasicInfo)
+
+    @patch("pydaikin.daikin_base.ClientSession.get")
+    async def test_response_error(self, mock_get):
+        mock_get.side_effect = mock_always_error
+
+        appliance = await Appliance("192.168.1.181")
+        appliance.http_resources = {
+            "common/basic_info": CommonBasicInfo
+        }
+
+        await appliance.connect()
+
+        self.assertEqual(appliance.values["common/basic_info"], None)

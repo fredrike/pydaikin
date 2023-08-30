@@ -9,5 +9,6 @@ class ApplianceValues(UserDict):
 
     def __getitem__(self, __key: Any) -> Any:
         item = super().__getitem__(__key)
-        item.expire_now()
+        if item is not None:
+            item.expire_now()
         return item
