@@ -40,10 +40,6 @@ class DaikinBRP069(Appliance):
             '2': 'horizontal',
             '3': '3d',
         },
-        'en_streamer': {
-            '0': 'off',
-            '1': 'on',
-        },
         'adv': {
             '': 'off',
             '2': 'powerful',
@@ -206,19 +202,28 @@ class DaikinBRP069(Appliance):
             # Update the adv value from the response
             self.values.update(await self._get_resource(path, params))
 
-    async def set_streamer(self, mode):
+    async def set_streamer(self, mode: Literal["on", "off"]):
         """Enable or disable the streamer."""
-        value = self.human_to_daikin('en_streamer', mode)
-        if value in ('0', '1'):
-            path = 'aircon/set_special_mode'
-            params = {
-                "streamer": mode,
-                "set_spmode": value,
-            }
 
-            _LOGGER.debug("Sending request to %s with params: %s", path, params)
-            # Update the adv value from the response
-            self.values.update(await self._get_resource(path, params))
+        mapping = {
+            "on": "1",
+            "off": "0"
+        }
+
+        try:
+            daikinparam = mapping[mode]
+        except KeyError as exc:
+            raise ValueError('mode must be "on" or "off"') from exc
+
+        path = 'aircon/set_special_mode'
+        params = {
+            "streamer": daikinparam,
+            "set_spmode": daikinparam,
+        }
+
+        _LOGGER.debug("Sending request to %s with params: %s", path, params)
+        # Update the adv value from the response
+        await self.get(path, params)
 
     async def set_zone(self, zone_id, key, value):
         """Set zone status."""

@@ -56,3 +56,21 @@ class TestDaikinBRP069(unittest.IsolatedAsyncioTestCase):
             await pydaikin.set_holiday("batman")
 
         mock_get.assert_not_called()
+
+    @patch("pydaikin.daikin_base.ClientSession.get")
+    async def test_set_streamer(self, mock_get):
+        pydaikin = await DaikinBRP069("1.1.1.1")
+        mock_get.side_effect = mock_brp069
+
+        await pydaikin.set_streamer("on")
+        mock_get.assert_called_once_with('http://1.1.1.1/aircon/set_special_mode', params={"streamer": '1', "set_spmode": '1'})
+        mock_get.reset_mock()
+
+        await pydaikin.set_streamer("off")
+        mock_get.assert_called_once_with('http://1.1.1.1/aircon/set_special_mode', params={"streamer": '0', "set_spmode": '0'})
+        mock_get.reset_mock()
+
+        with self.assertRaises(ValueError):
+            await pydaikin.set_streamer("batman")
+
+        mock_get.assert_not_called()
