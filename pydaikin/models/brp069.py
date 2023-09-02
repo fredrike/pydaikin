@@ -284,6 +284,7 @@ class CommonGetdatetime(DaikinResponse):
 
 class CommonGetHoliday(DaikinResponse):
     "Model for aircon/get_holiday"
+    en_hol: bool
 
     @classmethod
     def get_url(cls):

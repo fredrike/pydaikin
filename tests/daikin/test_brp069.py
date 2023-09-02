@@ -38,3 +38,21 @@ class TestDaikinBRP069(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(pydaikin.compressor_frequency, 40)
         self.assertEqual(pydaikin.humidity, None)
         self.assertEqual(pydaikin.target_humidity, None)
+
+    @patch("pydaikin.daikin_base.ClientSession.get")
+    async def test_set_holiday(self, mock_get):
+        pydaikin = await DaikinBRP069("1.1.1.1")
+        mock_get.side_effect = mock_brp069
+
+        await pydaikin.set_holiday("on")
+        mock_get.assert_called_once_with('http://1.1.1.1/common/set_holiday', params={"en_hol": '1'})
+        mock_get.reset_mock()
+
+        await pydaikin.set_holiday("off")
+        mock_get.assert_called_once_with('http://1.1.1.1/common/set_holiday', params={"en_hol": '0'})
+        mock_get.reset_mock()
+
+        with self.assertRaises(ValueError):
+            await pydaikin.set_holiday("batman")
+
+        mock_get.assert_not_called()

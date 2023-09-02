@@ -1,6 +1,7 @@
 """Pydaikin appliance, represent a Daikin BRP069 device."""
 
 import logging
+from typing import Literal
 
 from aiohttp import ClientSession
 
@@ -38,10 +39,6 @@ class DaikinBRP069(Appliance):
             '1': 'vertical',
             '2': 'horizontal',
             '3': '3d',
-        },
-        'en_hol': {
-            '0': 'off',
-            '1': 'on',
         },
         'en_streamer': {
             '0': 'off',
@@ -175,17 +172,24 @@ class DaikinBRP069(Appliance):
         _LOGGER.debug("Sending request to %s with params: %s", path, params)
         await self._get_resource(path, params)
 
-    async def set_holiday(self, mode):
+    async def set_holiday(self, mode: Literal["on", "off"]):
         """Set holiday mode."""
-        value = self.human_to_daikin('en_hol', mode)
-        if value in ('0', '1'):
-            self.values["en_hol"] = value
 
-            path = 'common/set_holiday'
-            params = {"en_hol": value}
+        mapping = {
+            "on": "1",
+            "off": "0"
+        }
 
-            _LOGGER.debug("Sending request to %s with params: %s", path, params)
-            await self._get_resource(path, params)
+        try:
+            daikinparam = mapping[mode]
+        except KeyError as exc:
+            raise ValueError('mode must be "on" or "off"') from exc
+
+        path = 'common/set_holiday'
+        params = {"en_hol": daikinparam}
+
+        _LOGGER.debug("Sending request to %s with params: %s", path, params)
+        await self.get(path, params)
 
     async def set_advanced_mode(self, mode, value):
         """Enable or disable advanced modes."""
