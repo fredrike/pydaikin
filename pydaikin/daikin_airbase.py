@@ -166,19 +166,21 @@ class DaikinAirBase(DaikinBRP069):
         if not self.values.get("zone_name"):
             return None
         zone_onoff = self.represent("zone_onoff")[1]
-        zone_temp = 0
+        zone_list = enumerate(self.represent("zone_name")[1])
         if self.support_zone_temperature:
-            if self.values["mode"] == "1":
-                zone_temp = float(self.represent("lztemp_h")[1])
-            elif self.values["mode"] == "0" or self.values["mode"] == "2":
-                zone_temp = float(self.represent("lztemp_c")[1])
+            if self.values["mode"] == "0" or self.values["mode"] == "1":
+                zone_temp = self.represent("lztemp_h")[1]
+            elif self.values["mode"] == "2":
+                zone_temp = self.represent("lztemp_c")[1]
             else:
-                zone_temp = float(self.values["stemp"])
+                zone_temp = [self.values["stemp"]] * len(zone_list)
 
-        return [
-            (name.strip(" +,"), zone_onoff[i], zone_temp[i])
-            for i, name in enumerate(self.represent("zone_name")[1])
-        ]
+            return [
+                (name.strip(" +,"), zone_onoff[i], zone_temp[i])
+                for i, name in zone_list
+            ]
+
+        return [(name.strip(" +,"), zone_onoff[i], 0) for i, name in zone_list]
 
     async def set_zone(self, zone_id, key, value):
         """Set zone status."""
