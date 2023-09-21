@@ -52,6 +52,7 @@ class DaikinAirBase(DaikinBRP069):
         response = super(DaikinAirBase, DaikinAirBase).parse_response(response_body)
         if response.get("f_auto") == "1":
             response["f_rate"] = f'{response["f_rate"]}a'
+
         return response
 
     def __init__(
@@ -66,7 +67,7 @@ class DaikinAirBase(DaikinBRP069):
         await super().init()
         if not self.values:
             raise Exception("Empty values.")
-        self.values = {**self.DEFAULTS, **self.values}
+        self.values.update({**self.DEFAULTS, **self.values})
 
     async def _run_get_resource(self, resource):
         """Make the http request."""

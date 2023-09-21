@@ -1,0 +1,1 @@
+ret=OK,htemp=24.0,hhum=40,otemp=-,err=0,cmpfreq=0,mompow=1

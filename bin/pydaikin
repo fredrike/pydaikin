@@ -146,7 +146,7 @@ async def main():  # pylint: disable=too-many-branches
         if args.sensor:
             print('\nPress CTRL+C to stop logging sensor data...\n')
 
-            with (open(args.file, 'a') if args.file else nullcontext()) as file:
+            with open(args.file, 'a') if args.file else nullcontext() as file:
                 try:
                     while True:
                         await daikin.update_status()

@@ -172,7 +172,6 @@ async def test_power_sensors(initial_date, duration, tick_step, device: DaikinBR
         heat_energy = 0
 
         while datetime.utcnow() < initial_date + duration:
-
             # We simulate the consumption
             # The consumption is stopped 2 hours before the end of the simulation to let the monitoring stabilize
             if datetime.utcnow() < initial_date + duration - timedelta(hours=2):
