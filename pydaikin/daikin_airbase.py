@@ -176,7 +176,7 @@ class DaikinAirBase(DaikinBRP069):
                 zone_temp = [self.values["stemp"]] * len(zone_list)
 
             return [
-                (name.strip(" +,"), zone_onoff[i], zone_temp[i])
+                (name.strip(" +,"), zone_onoff[i], float(zone_temp[i]))
                 for i, name in zone_list
             ]
 
