@@ -166,26 +166,45 @@ class DaikinAirBase(DaikinBRP069):
         if not self.values.get("zone_name"):
             return None
         zone_onoff = self.represent("zone_onoff")[1]
-        zone_list = enumerate(self.represent("zone_name")[1])
+        zone_list = self.represent("zone_name")[1]
         if self.support_zone_temperature:
-            if self.values["mode"] == "0" or self.values["mode"] == "1":
+            mode = self.values["mode"]
+
+            if self.values["mode"] == "3":
+                mode = self.values["operate"]
+
+            if mode == "1":
                 zone_temp = self.represent("lztemp_h")[1]
-            elif self.values["mode"] == "2":
+            elif mode == "2":
                 zone_temp = self.represent("lztemp_c")[1]
             else:
                 zone_temp = [self.values["stemp"]] * len(zone_list)
 
             return [
                 (name.strip(" +,"), zone_onoff[i], float(zone_temp[i]))
-                for i, name in zone_list
+                for i, name in enumerate(zone_list)
             ]
 
-        return [(name.strip(" +,"), zone_onoff[i], 0) for i, name in zone_list]
+        return [(name.strip(" +,"), zone_onoff[i], 0) for i, name in enumerate(zone_list)]
 
     async def set_zone(self, zone_id, key, value):
         """Set zone status."""
         current_state = await self._get_resource("aircon/get_zone_setting")
         self.values.update(current_state)
+        if key == "lztemp":
+            mode = self.values["mode"]
+
+            if mode == "3":
+                mode = self.values["operate"]
+
+            if self.values["mode"] == "1":
+                key = "lztemp_h"
+            elif self.values["mode"] == "2":
+                key = "lztemp_c"
+
+        if key not in current_state:
+            raise KeyError
+
         current_group = self.represent(key)[1]
         current_group[zone_id] = value
         self.values[key] = quote(";".join(current_group)).lower()
