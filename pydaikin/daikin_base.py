@@ -18,6 +18,246 @@ from .values import ApplianceValues
 _LOGGER = logging.getLogger(__name__)
 
 
+class DaikinBase():
+    "Main class. Copies Home Assistant's ClimateEntity methods"
+
+    @final
+    @property
+    def state(self) -> str | None:
+        """Return the current state."""
+        return NotImplementedError()
+
+    @property
+    def precision(self) -> float:
+        """Return the precision of the system."""
+        return NotImplementedError()
+
+    @property
+    def capability_attributes(self) -> dict[str, Any] | None:
+        """Return the capability attributes."""
+        return NotImplementedError()
+
+    @final
+    @property
+    def state_attributes(self) -> dict[str, Any]:
+        """Return the optional state attributes."""
+        return NotImplementedError()
+
+    @property
+    def temperature_unit(self) -> str:
+        """Return the unit of measurement used by the platform."""
+        return NotImplementedError()
+
+    @property
+    def current_humidity(self) -> int | None:
+        """Return the current humidity."""
+        return NotImplementedError()
+
+    @property
+    def target_humidity(self) -> int | None:
+        """Return the humidity we try to reach."""
+        return NotImplementedError()
+
+    @property
+    def hvac_mode(self) -> HVACMode | None:
+        """Return hvac operation ie. heat, cool mode."""
+        return NotImplementedError()
+
+    @property
+    def hvac_modes(self) -> list[HVACMode]:
+        """Return the list of available hvac operation modes."""
+        return NotImplementedError()
+
+    @property
+    def hvac_action(self) -> HVACAction | None:
+        """Return the current running hvac operation if supported."""
+        return NotImplementedError()
+
+    @property
+    def current_temperature(self) -> float | None:
+        """Return the current temperature."""
+        return NotImplementedError()
+
+    @property
+    def target_temperature(self) -> float | None:
+        """Return the temperature we try to reach."""
+        return NotImplementedError()
+
+    @property
+    def target_temperature_step(self) -> float | None:
+        """Return the supported step of target temperature."""
+        return NotImplementedError()
+
+    @property
+    def target_temperature_high(self) -> float | None:
+        """Return the highbound target temperature we try to reach.
+
+        Requires ClimateEntityFeature.TARGET_TEMPERATURE_RANGE.
+        """
+        return NotImplementedError()
+
+    @property
+    def target_temperature_low(self) -> float | None:
+        """Return the lowbound target temperature we try to reach.
+
+        Requires ClimateEntityFeature.TARGET_TEMPERATURE_RANGE.
+        """
+        return NotImplementedError()
+
+    @property
+    def preset_mode(self) -> str | None:
+        """Return the current preset mode, e.g., home, away, temp.
+
+        Requires ClimateEntityFeature.PRESET_MODE.
+        """
+        return NotImplementedError()
+
+    @property
+    def preset_modes(self) -> list[str] | None:
+        """Return a list of available preset modes.
+
+        Requires ClimateEntityFeature.PRESET_MODE.
+        """
+        return NotImplementedError()
+
+    @property
+    def is_aux_heat(self) -> bool | None:
+        """Return true if aux heater.
+
+        Requires ClimateEntityFeature.AUX_HEAT.
+        """
+        return NotImplementedError()
+
+    @property
+    def fan_mode(self) -> str | None:
+        """Return the fan setting.
+
+        Requires ClimateEntityFeature.FAN_MODE.
+        """
+        return NotImplementedError()
+
+    @property
+    def fan_modes(self) -> list[str] | None:
+        """Return the list of available fan modes.
+
+        Requires ClimateEntityFeature.FAN_MODE.
+        """
+        return NotImplementedError()
+
+    @property
+    def swing_mode(self) -> str | None:
+        """Return the swing setting.
+
+        Requires ClimateEntityFeature.SWING_MODE.
+        """
+        return NotImplementedError()
+
+    @property
+    def swing_modes(self) -> list[str] | None:
+        """Return the list of available swing modes.
+
+        Requires ClimateEntityFeature.SWING_MODE.
+        """
+        return NotImplementedError()
+
+    def set_temperature(self, **kwargs: Any) -> None:
+        """Set new target temperature."""
+        raise NotImplementedError()
+
+    async def async_set_temperature(self, **kwargs: Any) -> None:
+        """Set new target temperature."""
+        return NotImplementedError()
+
+    def set_humidity(self, humidity: int) -> None:
+        """Set new target humidity."""
+        raise NotImplementedError()
+
+    async def async_set_humidity(self, humidity: int) -> None:
+        """Set new target humidity."""
+        return NotImplementedError()
+
+    def set_fan_mode(self, fan_mode: str) -> None:
+        """Set new target fan mode."""
+        raise NotImplementedError()
+
+    async def async_set_fan_mode(self, fan_mode: str) -> None:
+        """Set new target fan mode."""
+        return NotImplementedError()
+
+    def set_hvac_mode(self, hvac_mode: HVACMode) -> None:
+        """Set new target hvac mode."""
+        raise NotImplementedError()
+
+    async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
+        """Set new target hvac mode."""
+        return NotImplementedError()
+
+    def set_swing_mode(self, swing_mode: str) -> None:
+        """Set new target swing operation."""
+        raise NotImplementedError()
+
+    async def async_set_swing_mode(self, swing_mode: str) -> None:
+        """Set new target swing operation."""
+        return NotImplementedError()
+
+    def set_preset_mode(self, preset_mode: str) -> None:
+        """Set new preset mode."""
+        raise NotImplementedError()
+
+    async def async_set_preset_mode(self, preset_mode: str) -> None:
+        """Set new preset mode."""
+        return NotImplementedError()
+
+    def turn_aux_heat_on(self) -> None:
+        """Turn auxiliary heater on."""
+        raise NotImplementedError()
+
+    async def async_turn_aux_heat_on(self) -> None:
+        """Turn auxiliary heater on."""
+        return NotImplementedError()
+
+    def turn_aux_heat_off(self) -> None:
+        """Turn auxiliary heater off."""
+        raise NotImplementedError()
+
+    async def async_turn_aux_heat_off(self) -> None:
+        """Turn auxiliary heater off."""
+        return NotImplementedError()
+
+    async def async_turn_on(self) -> None:
+        """Turn the entity on."""
+        return NotImplementedError()
+
+    async def async_turn_off(self) -> None:
+        """Turn the entity off."""
+        return NotImplementedError()
+
+    @property
+    def supported_features(self) -> ClimateEntityFeature:
+        """Return the list of supported features."""
+        return NotImplementedError()
+
+    @property
+    def min_temp(self) -> float:
+        """Return the minimum temperature."""
+        return NotImplementedError()
+
+    @property
+    def max_temp(self) -> float:
+        """Return the maximum temperature."""
+        return NotImplementedError()
+
+    @property
+    def min_humidity(self) -> int:
+        """Return the minimum humidity."""
+        return NotImplementedError()
+
+    @property
+    def max_humidity(self) -> int:
+        """Return the maximum humidity."""
+        return NotImplementedError()
+
+
 class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
 
