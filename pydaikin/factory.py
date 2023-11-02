@@ -5,7 +5,7 @@ from typing import Optional
 from aiohttp import ClientSession
 
 from .daikin_airbase import DaikinAirBase
-from .daikin_base import Appliance
+from .daikin_base import ApplianceV1
 from .daikin_brp069 import DaikinBRP069
 from .daikin_brp072c import DaikinBRP072C
 from .daikin_skyfi import DaikinSkyFi
@@ -14,7 +14,7 @@ from .exceptions import DaikinException
 
 class DaikinFactory:  # pylint: disable=too-few-public-methods
     "Factory object generating instantiated instances of Appliance"
-    _generated_object: Appliance
+    _generated_object: ApplianceV1
 
     async def __new__(cls, *a, **kw):  # pylint: disable=invalid-overridden-method
         "Return not itself, but the Appliance instanced by __init__"

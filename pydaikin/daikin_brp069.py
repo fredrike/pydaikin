@@ -5,13 +5,13 @@ from typing import Literal
 
 from aiohttp import ClientSession
 
-from .daikin_base import Appliance
+from .daikin_base import ApplianceV1
 from .models import base, brp069
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class DaikinBRP069(Appliance):
+class DaikinBRP069(ApplianceV1):
     """Daikin class for BRP069[A-B]xx units."""
 
     TRANSLATIONS = {

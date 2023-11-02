@@ -4,7 +4,7 @@ from unittest.mock import patch
 from aiohttp.web_exceptions import HTTPForbidden
 from asyncmock import AsyncMock
 
-from pydaikin.daikin_base import Appliance
+from pydaikin.daikin_base import ApplianceV1
 from pydaikin.models.base import CommonBasicInfo, DaikinResponse
 
 from .mock import mock_always_error, mock_brp069
@@ -19,7 +19,7 @@ class TestAppliance(unittest.IsolatedAsyncioTestCase):
         mockresponse.status = 200
         mock_get.return_value.__aenter__.return_value = mockresponse
 
-        appliance = await Appliance("192.168.1.181")
+        appliance = await ApplianceV1("192.168.1.181")
 
         response = await appliance._get_resource(CommonBasicInfo)
 
@@ -32,7 +32,7 @@ class TestAppliance(unittest.IsolatedAsyncioTestCase):
         mockresponse.status = 403
         mock_get.return_value.__aenter__.return_value = mockresponse
 
-        appliance = await Appliance("192.168.1.181")
+        appliance = await ApplianceV1("192.168.1.181")
 
         with self.assertRaises(HTTPForbidden):
             await appliance._get_resource(CommonBasicInfo)
@@ -44,7 +44,7 @@ class TestAppliance(unittest.IsolatedAsyncioTestCase):
         mockresponse.status = 200
         mock_get.return_value.__aenter__.return_value = mockresponse
 
-        appliance = await Appliance("192.168.1.181")
+        appliance = await ApplianceV1("192.168.1.181")
 
         with self.assertRaises(ValueError):
             await appliance._get_resource(CommonBasicInfo)
@@ -53,7 +53,7 @@ class TestAppliance(unittest.IsolatedAsyncioTestCase):
     async def test_connect(self, mock_get):
         mock_get.side_effect = mock_brp069
 
-        appliance = await Appliance("192.168.1.181")
+        appliance = await ApplianceV1("192.168.1.181")
         appliance.http_resources = {
             "common/basic_info": CommonBasicInfo
         }
@@ -66,7 +66,7 @@ class TestAppliance(unittest.IsolatedAsyncioTestCase):
     async def test_response_error(self, mock_get):
         mock_get.side_effect = mock_always_error
 
-        appliance = await Appliance("192.168.1.181")
+        appliance = await ApplianceV1("192.168.1.181")
         appliance.http_resources = {
             "common/basic_info": CommonBasicInfo
         }
