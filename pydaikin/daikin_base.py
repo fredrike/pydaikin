@@ -21,7 +21,6 @@ _LOGGER = logging.getLogger(__name__)
 class DaikinBase():
     "Main class. Copies Home Assistant's ClimateEntity methods"
 
-    @final
     @property
     def state(self) -> str | None:
         """Return the current state."""
@@ -37,7 +36,6 @@ class DaikinBase():
         """Return the capability attributes."""
         return NotImplementedError()
 
-    @final
     @property
     def state_attributes(self) -> dict[str, Any]:
         """Return the optional state attributes."""
