@@ -188,11 +188,11 @@ class DaikinBase():
 
     def set_fan_mode(self, fan_mode: str) -> None:
         """Set new target fan mode."""
-        raise NotImplementedError()
+        raise NotImplementedError()  # type: ignore
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set new target fan mode."""
-        return NotImplementedError()
+        return NotImplementedError()  # type: ignore
 
     def set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new target hvac mode."""
@@ -245,7 +245,7 @@ class DaikinBase():
     @property
     def supported_features(self) -> ClimateEntityFeature:
         """Return the list of supported features."""
-        return NotImplementedError()
+        return NotImplementedError()  # type: ignore
 
     @property
     def min_temp(self) -> float:
@@ -268,7 +268,7 @@ class DaikinBase():
         return NotImplementedError()  # type: ignore
 
 
-class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
+class Appliance(DaikinBase, DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
 
     base_url: str
