@@ -1,10 +1,9 @@
 """Pydaikin base appliance, represent a Daikin device."""
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import timedelta
 import logging
 import socket
 from typing import Any, Dict, Optional
-from urllib.parse import unquote
 
 from aiohttp import ClientSession
 from aiohttp.web_exceptions import HTTPForbidden
@@ -275,36 +274,6 @@ class ApplianceV1(DaikinBase, DaikinPowerMixin):  # pylint: disable=too-many-pub
     http_resources: Dict[str, type[base.DaikinResponse]]
     session: Optional[ClientSession]
 
-    TRANSLATIONS = {}
-
-    VALUES_TRANSLATION = {}
-
-    VALUES_SUMMARY = []
-
-    @classmethod
-    def daikin_to_human(cls, dimension, value):
-        """Return converted values from Daikin to Human."""
-        return cls.TRANSLATIONS.get(dimension, {}).get(value, str(value))
-
-    @classmethod
-    def human_to_daikin(cls, dimension, value):
-        """Return converted values from Human to Daikin."""
-        translations_rev = {
-            dim: {v: k for k, v in item.items()}
-            for dim, item in cls.TRANSLATIONS.items()
-        }
-        return translations_rev.get(dimension, {}).get(value, value)
-
-    @classmethod
-    def daikin_values(cls, dimension):
-        """Return sorted list of translated values."""
-        return sorted(list(cls.TRANSLATIONS.get(dimension, {}).values()))
-
-    @staticmethod
-    def translate_mac(value):
-        """Return translated MAC address."""
-        return ':'.join(value[i : i + 2] for i in range(0, len(value), 2))
-
     @staticmethod
     def discover_ip(device_id):
         """Return translated name to ip address."""
@@ -399,91 +368,15 @@ class ApplianceV1(DaikinBase, DaikinPowerMixin):  # pylint: disable=too-many-pub
 
     def show_values(self, only_summary=False):
         """Print values."""
-        if only_summary:
-            keys = self.VALUES_SUMMARY
-        else:
-            keys = sorted(self.values.keys())
-
-        for key in keys:
-            if key in self.values:
-                (k, val) = self.represent(key)
-                print(f"{k : >20}: {val}")
+        return NotImplementedError()  # TODO
 
     def log_sensors(self, file):
         """Log sensors to a file."""
-        data = [
-            ('datetime', datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')),
-            ('in_temp', self.inside_temperature),
-        ]
-        if self.support_outside_temperature:
-            data.append(('out_temp', self.outside_temperature))
-        if self.support_compressor_frequency:
-            data.append(('cmp_freq', self.compressor_frequency))
-        if self.support_energy_consumption:
-            data.append(
-                ('total_today', self.energy_consumption(ATTR_TOTAL, TIME_TODAY))
-            )
-            data.append(('cool_today', self.energy_consumption(ATTR_COOL, TIME_TODAY)))
-            data.append(('heat_today', self.energy_consumption(ATTR_HEAT, TIME_TODAY)))
-            data.append(('total_power', self.current_total_power_consumption))
-            data.append(('cool_energy', self.last_hour_cool_energy_consumption))
-            data.append(('heat_energy', self.last_hour_heat_energy_consumption))
-        if file.tell() == 0:
-            file.write(','.join(k for k, _ in data))
-            file.write('\n')
-        file.write(','.join(str(v) for _, v in data))
-        file.write('\n')
-        file.flush()
+        return NotImplementedError()  # TODO
 
     def show_sensors(self):
         """Print sensors."""
-        data = [
-            datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
-            f'in_temp={int(self.inside_temperature)}°C',
-        ]
-        if self.support_outside_temperature:
-            data.append(f'out_temp={int(self.outside_temperature)}°C')
-        if self.support_compressor_frequency:
-            data.append(f'cmp_freq={int(self.compressor_frequency)}Hz')
-        if self.support_energy_consumption:
-            data.append(
-                f'total_today={self.energy_consumption(ATTR_TOTAL, TIME_TODAY):.01f}kWh'
-            )
-            data.append(
-                f'cool_today={self.energy_consumption(ATTR_COOL, TIME_TODAY):.01f}kWh'
-            )
-            data.append(
-                f'heat_today={self.energy_consumption(ATTR_HEAT, TIME_TODAY):.01f}kWh'
-            )
-            data.append(f'total_power={self.current_total_power_consumption:.02f}kW')
-            data.append(f'cool_energy={self.last_hour_cool_energy_consumption:.01f}kW')
-            data.append(f'heat_energy={self.last_hour_heat_energy_consumption:.01f}kW')
-        print('  '.join(data))
-
-    def represent(self, key):
-        """Return translated value from key."""
-        k = self.VALUES_TRANSLATION.get(key, key)
-
-        # adapt the value
-        val = self.values.get(key)
-
-        if key == 'mode' and self.values['pow'] == '0':
-            val = 'off'
-        elif key == 'mac':
-            val = self.translate_mac(val)
-            val = unquote(self.values[key]).split(';')
-        else:
-            val = self.daikin_to_human(key, val)
-
-        _LOGGER.log(logging.NOTSET, 'Represent: %s, %s, %s', key, k, val)
-        return (k, val)
-
-    def _parse_number(self, dimension) -> Optional[float]:
-        """Parse float number."""
-        try:
-            return float(self.values.get(dimension))
-        except (TypeError, ValueError):
-            return None
+        return NotImplementedError()  # TODO
 
     @property
     def mac(self) -> str:
