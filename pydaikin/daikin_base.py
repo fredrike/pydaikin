@@ -267,7 +267,7 @@ class DaikinBase():
         return NotImplementedError()  # type: ignore
 
 
-class ApplianceV1(DaikinBase, DaikinPowerMixin):  # pylint: disable=too-many-public-methods
+class Appliance(DaikinBase, DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
 
     base_url: str
