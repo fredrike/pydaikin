@@ -1,4 +1,6 @@
 """Pydaikin base appliance, represent a Daikin device."""
+
+import asyncio
 from collections import defaultdict
 from datetime import datetime, timedelta
 import logging
@@ -31,6 +33,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     VALUES_SUMMARY = []
 
     INFO_RESOURCES = []
+
+    MAX_CONCURRENT_REQUESTS = 4
 
     @classmethod
     def daikin_to_human(cls, dimension, value):
@@ -137,8 +141,22 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             if self.values.should_resource_be_updated(resource)
         ]
         _LOGGER.debug("Updating %s", resources)
-        for resource in resources:
-            self.values.update_by_resource(resource, await self._get_resource(resource))
+        if len(resources) > 0:
+            resource_tasks = []
+            async with asyncio.TaskGroup() as tg:
+                semaphore = asyncio.Semaphore(value=self.MAX_CONCURRENT_REQUESTS)
+
+                async def wrap_task(coro):
+                    async with semaphore:
+                        return await coro
+
+                for resource in resources:
+                    resource_tasks.append(
+                        tg.create_task(wrap_task(self._get_resource(resource)))
+                    )
+
+            for resource, task in zip(resources, resource_tasks):
+                self.values.update_by_resource(resource, task.result())
 
         self._register_energy_consumption_history()
 
