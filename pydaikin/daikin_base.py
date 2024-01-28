@@ -100,6 +100,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
         self.base_url = f"http://{self.device_ip}"
 
+        self.request_semaphore = asyncio.Semaphore(value=self.MAX_CONCURRENT_REQUESTS)
+
     def __getitem__(self, name):
         """Return values from self.value."""
         if name in self.values:
@@ -122,7 +124,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         else:
             session = self.session
 
-        async with session as client_session:
+        async with session as client_session, self.request_semaphore:
             async with client_session.get(
                 f'{self.base_url}/{path}', params=params
             ) as resp:
@@ -141,22 +143,13 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             if self.values.should_resource_be_updated(resource)
         ]
         _LOGGER.debug("Updating %s", resources)
-        if len(resources) > 0:
-            resource_tasks = []
-            async with asyncio.TaskGroup() as tg:
-                semaphore = asyncio.Semaphore(value=self.MAX_CONCURRENT_REQUESTS)
+        async with asyncio.TaskGroup() as tg:
+            tasks = [
+                tg.create_task(self._get_resource(resource)) for resource in resources
+            ]
 
-                async def wrap_task(coro):
-                    async with semaphore:
-                        return await coro
-
-                for resource in resources:
-                    resource_tasks.append(
-                        tg.create_task(wrap_task(self._get_resource(resource)))
-                    )
-
-            for resource, task in zip(resources, resource_tasks):
-                self.values.update_by_resource(resource, task.result())
+        for resource, task in zip(resources, tasks):
+            self.values.update_by_resource(resource, task.result())
 
         self._register_energy_consumption_history()
 
