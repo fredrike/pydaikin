@@ -170,7 +170,7 @@ class DaikinAirBase(DaikinBRP069):
         if self.support_zone_temperature:
             mode = self.values["mode"]
 
-            if self.values["mode"] == "3":
+            if mode == "3":
                 mode = self.values["operate"]
 
             if mode == "1":
@@ -185,7 +185,9 @@ class DaikinAirBase(DaikinBRP069):
                 for i, name in enumerate(zone_list)
             ]
 
-        return [(name.strip(" +,"), zone_onoff[i], 0) for i, name in enumerate(zone_list)]
+        return [
+            (name.strip(" +,"), zone_onoff[i], 0) for i, name in enumerate(zone_list)
+        ]
 
     async def set_zone(self, zone_id, key, value):
         """Set zone status."""
