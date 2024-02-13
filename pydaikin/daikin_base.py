@@ -1,4 +1,6 @@
 """Pydaikin base appliance, represent a Daikin device."""
+
+import asyncio
 from collections import defaultdict
 from datetime import datetime, timedelta
 import logging
@@ -31,6 +33,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     VALUES_SUMMARY = []
 
     INFO_RESOURCES = []
+
+    MAX_CONCURRENT_REQUESTS = 4
 
     @classmethod
     def daikin_to_human(cls, dimension, value):
@@ -96,6 +100,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
         self.base_url = f"http://{self.device_ip}"
 
+        self.request_semaphore = asyncio.Semaphore(value=self.MAX_CONCURRENT_REQUESTS)
+
     def __getitem__(self, name):
         """Return values from self.value."""
         if name in self.values:
@@ -118,7 +124,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         else:
             session = self.session
 
-        async with session as client_session:
+        async with session as client_session, self.request_semaphore:
             async with client_session.get(
                 f'{self.base_url}/{path}', params=params
             ) as resp:
@@ -137,8 +143,13 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             if self.values.should_resource_be_updated(resource)
         ]
         _LOGGER.debug("Updating %s", resources)
-        for resource in resources:
-            self.values.update_by_resource(resource, await self._get_resource(resource))
+        async with asyncio.TaskGroup() as tg:
+            tasks = [
+                tg.create_task(self._get_resource(resource)) for resource in resources
+            ]
+
+        for resource, task in zip(resources, tasks):
+            self.values.update_by_resource(resource, task.result())
 
         self._register_energy_consumption_history()
 
