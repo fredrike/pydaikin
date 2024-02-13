@@ -1,4 +1,5 @@
 """Test for Daikin AC power & energy sensors."""
+
 from datetime import datetime, timedelta
 import random
 from unittest.mock import patch
