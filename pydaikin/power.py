@@ -1,4 +1,5 @@
 """Pydaikin power mixin."""
+
 from collections import namedtuple
 from datetime import datetime, timedelta
 import logging

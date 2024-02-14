@@ -1,9 +1,11 @@
 """Pydaikin appliance, represent a Daikin AirBase device."""
 
 import logging
+from typing import Optional
 from urllib.parse import quote, unquote
 
 from .daikin_brp069 import DaikinBRP069
+from .exceptions import DaikinException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,13 +68,13 @@ class DaikinAirBase(DaikinBRP069):
         """Init status and set defaults."""
         await super().init()
         if not self.values:
-            raise Exception("Empty values.")
+            raise DaikinException("Empty values.")
         self.values.update({**self.DEFAULTS, **self.values})
 
-    async def _run_get_resource(self, resource):
+    async def _get_resource(self, path: str, params: Optional[dict] = None):
         """Make the http request."""
-        resource = "skyfi/%s" % resource
-        return await super()._run_get_resource(resource)
+        path = f"skyfi/{path}"
+        return await super()._get_resource(path, params)
 
     @property
     def support_away_mode(self):
@@ -141,15 +143,22 @@ class DaikinAirBase(DaikinBRP069):
         await self._update_settings(settings)
 
         self.values.setdefault("f_airside", 0)
-        query_c = (
-            "aircon/set_control_info"
-            "?pow={pow}&mode={mode}&stemp={stemp}&shum={shum}"
-            "&f_rate={f_rate[0]}&f_auto={f_auto}&f_dir={f_dir}"
-            "&lpw=&f_airside={f_airside}"
-        ).format(**self.values)
 
-        _LOGGER.debug("Sending query_c: %s", query_c)
-        await self._get_resource(query_c)
+        path = "aircon/set_control_info"
+        params = {
+            "f_airside": self.values["f_airside"],
+            "f_auto": self.values["f_auto"],
+            "f_dir": self.values["f_dir"],
+            "f_rate": self.values["f_rate"][0],
+            "lpw": "",
+            "mode": self.values["mode"],
+            "pow": self.values["pow"],
+            "shum": self.values["shum"],
+            "stemp": self.values["stemp"],
+        }
+
+        _LOGGER.debug("Sending request to %s with params: %s", path, params)
+        await self._get_resource(path, params)
 
     def represent(self, key):
         """Return translated value from key."""
@@ -211,15 +220,14 @@ class DaikinAirBase(DaikinBRP069):
         current_group[zone_id] = value
         self.values[key] = quote(";".join(current_group)).lower()
 
-        query = "aircon/set_zone_setting?zone_name={}&zone_onoff={}".format(
-            current_state["zone_name"],
-            self.values["zone_onoff"],
-        )
+        path = "aircon/set_zone_setting"
+        params = {
+            "zone_name": current_state["zone_name"],
+            "zone_onoff": self.values["zone_onoff"],
+        }
 
         if self.support_zone_temperature:
-            query += "&lztemp_c={}&lztemp_h={}".format(
-                self.values["lztemp_c"], self.values["lztemp_h"]
-            )
+            params.update({"lztemp_h": self.values["lztemp_h"]})
 
-        _LOGGER.debug("Set zone:: %s", query)
-        await self._get_resource(query)
+        _LOGGER.debug("Sending request to %s with params: %s", path, params)
+        await self._get_resource(path, params)

@@ -1,23 +1,20 @@
 """Pydaikin base appliance, represent a Daikin device."""
+
+import asyncio
 from collections import defaultdict
 from datetime import datetime, timedelta
 import logging
-import re
 import socket
+from typing import Optional
 from urllib.parse import unquote
 
-from aiohttp import ClientSession, ServerDisconnectedError
+from aiohttp import ClientSession
 from aiohttp.web_exceptions import HTTPForbidden
+from retry import retry
 
-from .discovery import get_name  # pylint: disable=cyclic-import
-from .exceptions import DaikinException
-from .power import (  # pylint: disable=cyclic-import
-    ATTR_COOL,
-    ATTR_HEAT,
-    ATTR_TOTAL,
-    TIME_TODAY,
-    DaikinPowerMixin,
-)
+from .discovery import get_name
+from .power import ATTR_COOL, ATTR_HEAT, ATTR_TOTAL, TIME_TODAY, DaikinPowerMixin
+from .response import parse_response
 from .values import ApplianceValues
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,6 +23,9 @@ _LOGGER = logging.getLogger(__name__)
 class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
 
+    base_url: str
+    session: Optional[ClientSession]
+
     TRANSLATIONS = {}
 
     VALUES_TRANSLATION = {}
@@ -33,6 +33,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     VALUES_SUMMARY = []
 
     INFO_RESOURCES = []
+
+    MAX_CONCURRENT_REQUESTS = 4
 
     @classmethod
     def daikin_to_human(cls, dimension, value):
@@ -54,67 +56,10 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         return sorted(list(cls.TRANSLATIONS.get(dimension, {}).values()))
 
     @staticmethod
-    async def factory(device_id, session=None, **kwargs):
-        """Factory to init the corresponding Daikin class."""
-        from .daikin_airbase import (  # pylint: disable=import-outside-toplevel,cyclic-import
-            DaikinAirBase,
-        )
-        from .daikin_brp069 import (  # pylint: disable=import-outside-toplevel,cyclic-import
-            DaikinBRP069,
-        )
-        from .daikin_brp072c import (  # pylint: disable=import-outside-toplevel,cyclic-import
-            DaikinBRP072C,
-        )
-        from .daikin_skyfi import (  # pylint: disable=import-outside-toplevel,cyclic-import
-            DaikinSkyFi,
-        )
-
-        if 'password' in kwargs and kwargs['password'] is not None:
-            appl = DaikinSkyFi(device_id, session, password=kwargs['password'])
-        elif 'key' in kwargs and kwargs['key'] is not None:
-            appl = DaikinBRP072C(
-                device_id,
-                session,
-                key=kwargs['key'],
-                uuid=kwargs.get('uuid'),
-            )
-        else:  # special case for BRP069 and AirBase
-            appl = DaikinBRP069(device_id, session)
-            await appl.update_status(appl.HTTP_RESOURCES[:1])
-            if appl.values == {}:
-                appl = DaikinAirBase(device_id, session)
-        await appl.init()
-        if not appl.values.get("mode"):
-            raise DaikinException(
-                f"Error creating device, {device_id} is not supported."
-            )
-        return appl
-
-    @staticmethod
     def parse_response(response_body):
-        """Parse response from Daikin."""
-        response = dict(
-            (match.group(1), match.group(2))
-            for match in re.finditer(r'(\w+)=([^=]*)(?:,|$)', response_body)
-        )
-        if 'ret' not in response:
-            raise ValueError("missing 'ret' field in response")
-        if response.pop('ret') != 'OK':
-            return {}
-        if 'name' in response:
-            response['name'] = unquote(response['name'])
-
-        # Translate swing mode from 2 parameters to 1 (Special case for certain models e.g Alira X)
-        if response.get("f_dir_ud") == "0" and response.get("f_dir_lr") == "0":
-            response["f_dir"] = '0'
-        if response.get("f_dir_ud") == "S" and response.get("f_dir_lr") == "0":
-            response["f_dir"] = '1'
-        if response.get("f_dir_ud") == "0" and response.get("f_dir_lr") == "S":
-            response["f_dir"] = '2'
-        if response.get("f_dir_ud") == "S" and response.get("f_dir_lr") == "S":
-            response["f_dir"] = '3'
-
-        return response
+        """Parse response from Daikin.
+        Subclassed by submodules with own implementation"""
+        return parse_response(response_body)
 
     @staticmethod
     def translate_mac(value):
@@ -138,20 +83,24 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
                 try:
                     device_ip = socket.gethostbyname(device_id)
                 except socket.gaierror as exc:
-                    raise ValueError("no device found for %s" % device_id) from exc
+                    raise ValueError(f"no device found for {device_id}") from exc
             else:
                 device_ip = device_name['ip']
         return device_id
 
-    def __init__(self, device_id, session=None):
+    def __init__(self, device_id, session: Optional[ClientSession] = None):
         """Init the pydaikin appliance, representing one Daikin device."""
         self.values = ApplianceValues()
         self.session = session
         self._energy_consumption_history = defaultdict(list)
         if session:
-            self._device_ip = device_id
+            self.device_ip = device_id
         else:
-            self._device_ip = self.discover_ip(device_id)
+            self.device_ip = self.discover_ip(device_id)
+
+        self.base_url = f"http://{self.device_ip}"
+
+        self.request_semaphore = asyncio.Semaphore(value=self.MAX_CONCURRENT_REQUESTS)
 
     def __getitem__(self, name):
         """Return values from self.value."""
@@ -164,31 +113,25 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         # Re-defined in all sub-classes
         raise NotImplementedError
 
-    async def _get_resource(self, resource, retries=3):
-        """Update resource."""
-        try:
-            if self.session and not self.session.closed:
-                return await self._run_get_resource(resource)
-            async with ClientSession() as self.session:
-                return await self._run_get_resource(resource)
-        except ServerDisconnectedError as error:
-            _LOGGER.debug("ServerDisconnectedError %d", retries)
-            if retries == 0:
-                raise error
-            return await self._get_resource(resource, retries=retries - 1)
-
-    async def _run_get_resource(self, resource):
+    @retry(tries=3, delay=1)
+    async def _get_resource(self, path: str, params: Optional[dict] = None):
         """Make the http request."""
-        async with self.session.get(f'http://{self._device_ip}/{resource}') as resp:
-            return await self._handle_response(resp)
+        if params is None:
+            params = {}
 
-    async def _handle_response(self, resp):
-        """Handle the http response."""
-        if resp.status == 200:
-            return self.parse_response(await resp.text())
-        if resp.status == 403:
-            raise HTTPForbidden
-        return {}
+        if self.session is None:
+            session = ClientSession()
+        else:
+            session = self.session
+
+        async with session as client_session, self.request_semaphore:
+            async with client_session.get(
+                f'{self.base_url}/{path}', params=params
+            ) as resp:
+                if resp.status == 403:
+                    raise HTTPForbidden
+                assert resp.status == 200, f"Response code is {resp.status}"
+                return self.parse_response(await resp.text())
 
     async def update_status(self, resources=None):
         """Update status from resources."""
@@ -200,8 +143,13 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             if self.values.should_resource_be_updated(resource)
         ]
         _LOGGER.debug("Updating %s", resources)
-        for resource in resources:
-            self.values.update_by_resource(resource, await self._get_resource(resource))
+        async with asyncio.TaskGroup() as tg:
+            tasks = [
+                tg.create_task(self._get_resource(resource)) for resource in resources
+            ]
+
+        for resource, task in zip(resources, tasks):
+            self.values.update_by_resource(resource, task.result())
 
         self._register_energy_consumption_history()
 
@@ -215,7 +163,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         for key in keys:
             if key in self.values:
                 (k, val) = self.represent(key)
-                print("%20s: %s" % (k, val))
+                print(f"{k : >20}: {val}")
 
     def log_sensors(self, file):
         """Log sensors to a file."""
@@ -286,7 +234,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         _LOGGER.log(logging.NOTSET, 'Represent: %s, %s, %s', key, k, val)
         return (k, val)
 
-    def _parse_number(self, dimension):
+    def _parse_number(self, dimension) -> Optional[float]:
         """Parse float number."""
         try:
             return float(self.values.get(dimension))
@@ -294,82 +242,77 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             return None
 
     @property
-    def device_ip(self):
-        """Return device's IP address."""
-        return self._device_ip
-
-    @property
-    def mac(self):
+    def mac(self) -> str:
         """Return device's MAC address."""
-        return self.values.get('mac', self._device_ip)
+        return self.values.get('mac', self.device_ip)
 
     @property
-    def support_away_mode(self):
+    def support_away_mode(self) -> bool:
         """Return True if the device support away_mode."""
         return 'en_hol' in self.values
 
     @property
-    def support_fan_rate(self):
+    def support_fan_rate(self) -> bool:
         """Return True if the device support setting fan_rate."""
         return 'f_rate' in self.values
 
     @property
-    def support_swing_mode(self):
+    def support_swing_mode(self) -> bool:
         """Return True if the device support setting swing_mode."""
         return 'f_dir' in self.values
 
     @property
-    def support_outside_temperature(self):
+    def support_outside_temperature(self) -> bool:
         """Return True if the device is not an AirBase unit."""
         return self.outside_temperature is not None
 
     @property
-    def support_humidity(self):
+    def support_humidity(self) -> bool:
         """Return True if the device has humidity sensor."""
         return False
 
     @property
-    def support_advanced_modes(self):
+    def support_advanced_modes(self) -> bool:
         """Return True if the device supports advanced modes."""
         return 'adv' in self.values
 
     @property
-    def support_compressor_frequency(self):
+    def support_compressor_frequency(self) -> bool:
         """Return True if the device supports compressor frequency."""
         return 'cmpfreq' in self.values
 
     @property
-    def support_energy_consumption(self):
+    def support_energy_consumption(self) -> bool:
         """Return True if the device supports energy consumption monitoring."""
         return super().support_energy_consumption
 
     @property
-    def outside_temperature(self):
+    def outside_temperature(self) -> Optional[float]:
         """Return current outside temperature."""
         return self._parse_number('otemp')
 
     @property
-    def inside_temperature(self):
+    def inside_temperature(self) -> Optional[float]:
         """Return current inside temperature."""
         return self._parse_number('htemp')
 
     @property
-    def target_temperature(self):
+    def target_temperature(self) -> Optional[float]:
         """Return current target temperature."""
         return self._parse_number('stemp')
 
     @property
-    def compressor_frequency(self):
+    def compressor_frequency(self) -> Optional[float]:
         """Return current compressor frequency."""
         return self._parse_number('cmpfreq')
 
     @property
-    def humidity(self):
+    def humidity(self) -> Optional[float]:
         """Return current humidity."""
         return self._parse_number('hhum')
 
     @property
-    def target_humidity(self):
+    def target_humidity(self) -> Optional[float]:
         """Return target humidity."""
         return self._parse_number('shum')
 
@@ -433,12 +376,12 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         )
 
     @property
-    def fan_rate(self):
+    def fan_rate(self) -> list:
         """Return list of supported fan rates."""
         return list(map(str.title, self.TRANSLATIONS.get('f_rate', {}).values()))
 
     @property
-    def swing_modes(self):
+    def swing_modes(self) -> list:
         """Return list of supported swing modes."""
         return list(map(str.title, self.TRANSLATIONS.get('f_dir', {}).values()))
 

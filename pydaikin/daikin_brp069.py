@@ -166,58 +166,63 @@ class DaikinBRP069(Appliance):
         """Set settings on Daikin device."""
         await self._update_settings(settings)
 
-        query_c = 'aircon/set_control_info?pow=%s&mode=%s&stemp=%s&shum=%s' % (
-            self.values['pow'],
-            self.values['mode'],
-            self.values['stemp'],
-            self.values['shum'],
-        )
+        path = 'aircon/set_control_info'
+        params = {
+            "mode": self.values["mode"],
+            "pow": self.values["pow"],
+            "shum": self.values["shum"],
+            "stemp": self.values["stemp"],
+        }
 
         # Apparently some remote controllers doesn't support f_rate and f_dir
         if self.support_fan_rate:
-            query_c += '&f_rate=%s' % self.values['f_rate']
+            params.update({"f_rate": self.values['f_rate']})
         if self.support_swing_mode:
-            if 'f_dir_lr' in self.values and 'f_dir_ud' in self.values:
-                # Australian Alira X uses 2 separate parameters instead of the combined f_dir
-                f_dir_ud = 'S' if self.values['f_dir'] in ('1', '3') else '0'
-                f_dir_lr = 'S' if self.values['f_dir'] in ('2', '3') else '0'
-                query_c += '&f_dir_ud=%s&f_dir_lr=%s' % (f_dir_ud, f_dir_lr)
-            else:
-                query_c += '&f_dir=%s' % self.values['f_dir']
+            params.update({"f_dir": self.values['f_dir']})
 
-        _LOGGER.debug("Sending query_c: %s", query_c)
-        await self._get_resource(query_c)
+        _LOGGER.debug("Sending request to %s with params: %s", path, params)
+        await self._get_resource(path, params)
 
     async def set_holiday(self, mode):
         """Set holiday mode."""
         value = self.human_to_daikin('en_hol', mode)
         if value in ('0', '1'):
-            query_h = 'common/set_holiday?en_hol=%s' % value
-            self.values['en_hol'] = value
-            _LOGGER.debug("Sending query: %s", query_h)
-            await self._get_resource(query_h)
+            self.values["en_hol"] = value
+
+            path = 'common/set_holiday'
+            params = {"en_hol": value}
+
+            _LOGGER.debug("Sending request to %s with params: %s", path, params)
+            await self._get_resource(path, params)
 
     async def set_advanced_mode(self, mode, value):
         """Enable or disable advanced modes."""
         mode = self.human_to_daikin('spmode_kind', mode)
         value = self.human_to_daikin('spmode', value)
         if value in ('0', '1'):
-            query_h = 'aircon/set_special_mode?spmode_kind=%s&set_spmode=%s' % (
-                mode,
-                value,
-            )
-            _LOGGER.debug("Sending query: %s", query_h)
+            path = 'aircon/set_special_mode'
+            params = {
+                "spmode_kind": mode,
+                "set_spmode": value,
+            }
+
+            _LOGGER.debug("Sending request to %s with params: %s", path, params)
             # Update the adv value from the response
-            self.values.update(await self._get_resource(query_h))
+            self.values.update(await self._get_resource(path, params))
 
     async def set_streamer(self, mode):
         """Enable or disable the streamer."""
         value = self.human_to_daikin('en_streamer', mode)
         if value in ('0', '1'):
-            query_h = 'aircon/set_special_mode?en_streamer=%s' % value
-            _LOGGER.debug("Sending query: %s", query_h)
+            path = 'aircon/set_special_mode'
+            params = {
+                "streamer": mode,
+                "set_spmode": value,
+            }
+
+            _LOGGER.debug("Sending request to %s with params: %s", path, params)
             # Update the adv value from the response
-            self.values.update(await self._get_resource(query_h))
+            self.values.update(await self._get_resource(path, params))
 
     async def set_zone(self, zone_id, key, value):
         """Set zone status."""
@@ -225,7 +230,7 @@ class DaikinBRP069(Appliance):
     async def auto_set_clock(self):
         """Tells the AC to auto-set its internal clock."""
         try:
-            await self._get_resource('common/get_datetime?cur=')
+            await self._get_resource('common/get_datetime', {"cur": ""})
         except Exception as exc:  # pylint: disable=broad-except
             _LOGGER.error('Raised "%s" while trying to auto-set internal clock', exc)
 

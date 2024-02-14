@@ -1,6 +1,6 @@
 import pytest
 
-from pydaikin.daikin_base import Appliance
+from pydaikin.response import parse_response
 
 
 @pytest.mark.parametrize(
@@ -44,4 +44,4 @@ from pydaikin.daikin_base import Appliance
     ],
 )
 def test_parse_response(body: str, values: dict):
-    assert Appliance.parse_response(body) == values
+    assert parse_response(body) == values
