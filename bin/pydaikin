@@ -25,8 +25,9 @@ async def list_all_devices():
         except ClientError:
             support_energy_consumption = "Unknown"
         print(
-            "%18s (%s): %s - %s energy consumption"
-            % (dev['ip'], dev['mac'], dev['name'], support_energy_consumption)
+            f"{dev['ip'][:18]}"
+            f" ({dev['mac']}): {dev['name']}"
+            f" - {support_energy_consumption} energy consumption"
         )
 
 
@@ -137,7 +138,7 @@ async def main():  # pylint: disable=too-many-branches
     else:
         daikin = await DaikinFactory(args.device, key=args.key, password=args.password)
 
-        if _settings == {}:
+        if not _settings:
             daikin.show_values(not args.all)
         else:
             await daikin.set(_settings)
@@ -145,7 +146,9 @@ async def main():  # pylint: disable=too-many-branches
         if args.sensor:
             print('\nPress CTRL+C to stop logging sensor data...\n')
 
-            with (open(args.file, 'a') if args.file else nullcontext()) as file:
+            with (
+                open(args.file, 'a', encoding='utf-8') if args.file else nullcontext()
+            ) as file:
                 try:
                     while True:
                         await daikin.update_status()

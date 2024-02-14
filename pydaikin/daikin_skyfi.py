@@ -133,8 +133,12 @@ class DaikinSkyFi(Appliance):
         else:
             if 'mode' in settings:
                 self.values['opmode'] = '1'
-            query_c = 'set.cgi?pass={{}}&p={opmode}&t={settemp}&f={fanspeed}&m={acmode}'.format(
-                **self.values
+            query_c = (
+                f"set.cgi?pass={{}}"
+                f"&p={self.values['opmode']}"
+                f"&t={self.values['settemp']}"
+                f"&f={self.values['fanspeed']}"
+                f"&m={self.values['acmode']}"
             )
 
         await self.update_status([query_c])
@@ -148,11 +152,11 @@ class DaikinSkyFi(Appliance):
             v
             for i, v in enumerate(
                 [
-                    (self.represent(f'zone{i+1}')[1].strip(' +,'), onoff)
+                    (self.represent(f'zone{i + 1}')[1].strip(' +,'), onoff)
                     for i, onoff in enumerate(self.represent('zone')[1])
                 ]
             )
-            if v != f'Zone {i+1}'
+            if v != f'Zone {i + 1}'
         ]
 
     async def set_zone(self, zone_id, key, value):

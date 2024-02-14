@@ -1,4 +1,5 @@
 """Smart container for appliance's data"""
+
 from collections.abc import MutableMapping
 from datetime import datetime, timedelta
 
