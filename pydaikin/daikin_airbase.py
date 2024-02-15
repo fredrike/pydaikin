@@ -208,9 +208,9 @@ class DaikinAirBase(DaikinBRP069):
             if mode == "3":
                 mode = self.values["operate"]
 
-            if self.values["mode"] == "1":
+            if mode == "1":
                 key = "lztemp_h"
-            elif self.values["mode"] == "2":
+            elif mode == "2":
                 key = "lztemp_c"
 
         if key not in current_state:
