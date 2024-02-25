@@ -1,14 +1,37 @@
 """Pydaikin appliance, represent a Daikin BRP069 device."""
 
+from enum import Enum, StrEnum
 import logging
 from typing import Literal
 
 from aiohttp import ClientSession
 
 from .daikin_base import Appliance
+from .enums import FanModeEnum
 from .models import base, brp069
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class FanModeEnumToGlobal(Enum):
+    "Enum to map LocalFanModeEnum to global FanModeEnum"
+    AUTO = FanModeEnum.AUTO
+    SILENCE = FanModeEnum.SILENCE
+    S_1 = FanModeEnum.S_1
+    S_2 = FanModeEnum.S_2
+    S_3 = FanModeEnum.S_3
+    S_4 = FanModeEnum.S_4
+    S_5 = FanModeEnum.S_5
+
+
+class LocaFanModeEnum(StrEnum):
+    AUTO = "A"
+    SILENCE = "B"
+    S_1 = "3"
+    S_2 = "4"
+    S_3 = "5"
+    S_4 = "6"
+    S_5 = "7"
 
 
 class DaikinBRP069(Appliance):
