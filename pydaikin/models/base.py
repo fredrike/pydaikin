@@ -26,9 +26,6 @@ class DaikinResponse(BaseModel):
         default_factory=calculate_expiration_date, exclude=True
     )
 
-    class Config:
-        validate_assignment = True
-
     @field_validator("ret", mode="after")
     @classmethod
     def validate_ret(cls, value):
