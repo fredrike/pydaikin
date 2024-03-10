@@ -1,7 +1,6 @@
 from typing import List, Optional, Union
 
-from pydantic import BaseModel, model_validator
-from pydantic.fields import FieldInfo
+from pydantic import BaseModel, Field
 
 
 class Md(BaseModel):
@@ -21,21 +20,7 @@ class ItemWithValue(BaseModel):
 class Pc(BaseModel):
     pn: str
     pt: int
-    pch: List[Union["Pc", ItemWithValue]]
-
-    @model_validator(mode="before")
-    def to_dict(self):
-        for x in self['pch']:
-            if "pv" in x:
-                newfield = FieldInfo(annotation=str, required=False)
-                self.model_fields[x['pn']] = newfield
-                self.__annotations__[x['pn']] = newfield
-                setattr(self, x['pn'], x['pv'])
-            else:
-                newfield = FieldInfo(annotation=List[Pc], required=False)
-                self.model_fields[x['pn']] = newfield
-                self.__annotations__[x['pn']] = newfield
-                setattr(self, x['pn'], x['pch'])
+    pch: List[Union["Pc", ItemWithValue]] = Field()
 
 
 class Response(BaseModel):
