@@ -70,6 +70,9 @@ class DaikinAirBase(DaikinBRP069):
         if not self.values:
             raise DaikinException("Empty values.")
         self.values.update({**self.DEFAULTS, **self.values})
+        # Friendly display the model
+        if self.values.get("model", None) == "NOTSUPPORT":
+            self.values["model"] = "Airbase BRP15B61"
 
     async def _get_resource(self, path: str, params: Optional[dict] = None):
         """Make the http request."""
