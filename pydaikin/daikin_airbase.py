@@ -183,8 +183,11 @@ class DaikinAirBase(DaikinBRP069):
         """Return list of zones."""
         if not self.values.get("zone_name"):
             return None
+        enabled_zones = len(self.represent("zone_name")[1])
+        if self.support_zone_count:
+            enabled_zones = int(self.zone_count) #float to int
         zone_onoff = self.represent("zone_onoff")[1]
-        zone_list = self.represent("zone_name")[1]
+        zone_list = self.represent("zone_name")[1][:enabled_zones]  # Slicing to limit zones
         if self.support_zone_temperature:
             mode = self.values["mode"]
 

@@ -291,6 +291,11 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         return 'en_filter_sign' in self.values
 
     @property
+    def support_zone_count(self) -> bool:
+        """Return True if the device supports count of active zones."""
+        return 'en_zone' in self.values
+
+    @property
     def support_energy_consumption(self) -> bool:
         """Return True if the device supports energy consumption monitoring."""
         return super().support_energy_consumption
@@ -319,6 +324,11 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     def filter_dirty(self) -> Optional[float]:
         """Return current status of the filter."""
         return self._parse_number('en_filter_sign')
+
+    @property
+    def zone_count(self) -> Optional[float]:
+        """Return number of enabled zones."""
+        return self._parse_number('en_zone')
 
     @property
     def humidity(self) -> Optional[float]:
