@@ -88,7 +88,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
                 device_ip = device_name['ip']
         return device_id
 
-    def __init__(self, device_id, session: Optional[ClientSession] = None):
+    def __init__(self, device_id, session: Optional[ClientSession] = None) -> None:
         """Init the pydaikin appliance, representing one Daikin device."""
         self.values = ApplianceValues()
         self.session = session
@@ -175,6 +175,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             data.append(('out_temp', self.outside_temperature))
         if self.support_compressor_frequency:
             data.append(('cmp_freq', self.compressor_frequency))
+        if self.support_filter_dirty:
+            data.append(('en_filter_sign', self.filter_dirty))
         if self.support_energy_consumption:
             data.append(
                 ('total_today', self.energy_consumption(ATTR_TOTAL, TIME_TODAY))
@@ -201,6 +203,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             data.append(f'out_temp={int(self.outside_temperature)}°C')
         if self.support_compressor_frequency:
             data.append(f'cmp_freq={int(self.compressor_frequency)}Hz')
+        if self.support_filter_dirty:
+            data.append(f'en_filter_sign={int(self.filter_dirty)}')
         if self.support_energy_consumption:
             data.append(
                 f'total_today={self.energy_consumption(ATTR_TOTAL, TIME_TODAY):.01f}kWh'
@@ -282,6 +286,11 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         return 'cmpfreq' in self.values
 
     @property
+    def support_filter_dirty(self) -> bool:
+        """Return True if the device supports dirty filter notification."""
+        return 'en_filter_sign' in self.values
+
+    @property
     def support_energy_consumption(self) -> bool:
         """Return True if the device supports energy consumption monitoring."""
         return super().support_energy_consumption
@@ -305,6 +314,11 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     def compressor_frequency(self) -> Optional[float]:
         """Return current compressor frequency."""
         return self._parse_number('cmpfreq')
+
+    @property
+    def filter_dirty(self) -> Optional[float]:
+        """Return current status of the filter."""
+        return self._parse_number('en_filter_sign')
 
     @property
     def humidity(self) -> Optional[float]:
