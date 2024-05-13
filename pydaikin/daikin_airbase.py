@@ -90,9 +90,15 @@ class DaikinAirBase(DaikinBRP069):
         return False
 
     @property
-    def support_outside_temperature(self):
-        """AirBase unit returns otemp if master controller starts before it."""
-        return True
+    def outside_temperature(self):
+        """
+        AirBase unit returns otemp if master controller starts before it.
+
+        No Outside Thermometor returns a '-' (Non Number).
+        Return current outside temperature if available.
+        """
+        value = self.values.get('otemp')
+        return self._parse_number('otemp') if value != '-' else None
 
     @property
     def support_zone_temperature(self):
