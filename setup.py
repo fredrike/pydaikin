@@ -20,7 +20,7 @@ setup(
         )
     ),
     license='GPL',
-    url='https://bitbucket.org/mustang51/pydaikin',
+    url='https://github.com/fredrike/pydaikin/',
     python_requires='>=3.11',
     packages=['pydaikin'],
     keywords=['homeautomation', 'daikin'],
