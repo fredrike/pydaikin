@@ -118,13 +118,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         if params is None:
             params = {}
 
-        if self.session is None:
-            session = ClientSession()
-        else:
-            session = self.session
-
-        async with session as client_session, self.request_semaphore:
-            async with client_session.get(
+        async with self.request_semaphore:
+            async with self.session.get(
                 f'{self.base_url}/{path}', params=params
             ) as resp:
                 if resp.status == 403:
