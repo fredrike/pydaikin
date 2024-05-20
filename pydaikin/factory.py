@@ -1,5 +1,6 @@
 "Factory to generate Pydaikin complete objects"
 
+import logging
 from typing import Optional
 
 from aiohttp import ClientSession
@@ -11,6 +12,9 @@ from .daikin_brp072c import DaikinBRP072C
 from .daikin_skyfi import DaikinSkyFi
 from .exceptions import DaikinException
 
+from aiohttp.web_exceptions import HTTPNotFound
+
+_LOGGER = logging.getLogger(__name__)
 
 class DaikinFactory:  # pylint: disable=too-few-public-methods
     "Factory object generating instantiated instances of Appliance"
@@ -31,7 +35,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
         **kwargs,
     ) -> None:
         """Factory to init the corresponding Daikin class."""
-
+        # _LOGGER.warning("device_id: %s password: %s key: %s kwargs: %s",device_id, password, key, kwargs)
         if password is not None:
             self._generated_object = DaikinSkyFi(device_id, session, password=password)
         elif key is not None:
@@ -42,11 +46,16 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 uuid=kwargs.get('uuid'),
             )
         else:  # special case for BRP069 and AirBase
-            self._generated_object = DaikinBRP069(device_id, session)
-            await self._generated_object.update_status(
-                self._generated_object.HTTP_RESOURCES[:1]
-            )
-            if not self._generated_object.values:
+            try:
+                _LOGGER.debug("Trying connection to BRP069")
+                self._generated_object = DaikinBRP069(device_id, session)
+                await self._generated_object.update_status(
+                    self._generated_object.HTTP_RESOURCES[:1]
+                )
+                if not self._generated_object.values:
+                    raise DaikinException("Empty Values.")
+            except (HTTPNotFound,DaikinException) as err:
+                _LOGGER.debug("Falling back to AirBase: %s", err)
                 self._generated_object = DaikinAirBase(device_id, session)
 
         await self._generated_object.init()
@@ -55,3 +64,5 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
             raise DaikinException(
                 f"Error creating device, {device_id} is not supported."
             )
+
+        _LOGGER.debug("Daikin generated object: %s", self._generated_object)

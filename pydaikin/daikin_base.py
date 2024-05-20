@@ -9,6 +9,8 @@ from typing import Optional
 from urllib.parse import unquote
 
 from aiohttp import ClientSession
+from aiohttp.web_exceptions import HTTPError,HTTPForbidden
+from aiohttp.client_exceptions import ServerDisconnectedError
 from tenacity import before_sleep_log, retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 from .discovery import get_name
@@ -118,14 +120,23 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         if params is None:
             params = {}
 
+        _LOGGER.debug("Calling: %s/%s %s",self.base_url, path, params)
+
+        # cannot manage session on outer async with or this will close the session
+        # passed to pydaikin (homeassistant for instance)
         async with self.request_semaphore:
             async with self.session.get(
                 f'{self.base_url}/{path}', params=params
-            ) as resp:
-                if resp.status == 403:
-                    raise HTTPForbidden
-                assert resp.status == 200, f"Response code is {resp.status}"
-                return self.parse_response(await resp.text())
+            ) as response:
+                if response.status == 403:
+                    raise HTTPForbidden(reason=f"HTTP 403 Forbidden for {response.url}")
+                #Airbase returns a 404 response on invalid urls but requires fallback
+                if response.status == 404:
+                    _LOGGER.debug("HTTP 404 Not Found for %s", response.url)
+                    return {} #return an empty dict to indicate successful connection but bad data
+                if response.status != 200:
+                    raise HTTPError(reason=f"Unexpected HTTP status code {response.status} for {response.url}")
+                return self.parse_response(await response.text())
 
     async def update_status(self, resources=None):
         """Update status from resources."""
@@ -137,10 +148,15 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             if self.values.should_resource_be_updated(resource)
         ]
         _LOGGER.debug("Updating %s", resources)
-        async with asyncio.TaskGroup() as tg:
-            tasks = [
-                tg.create_task(self._get_resource(resource)) for resource in resources
-            ]
+
+        try:
+            async with asyncio.TaskGroup() as tg:
+                tasks = [
+                    tg.create_task(self._get_resource(resource)) for resource in resources
+                ]
+        except ExceptionGroup as eg:
+            for exc in eg.exceptions:
+                _LOGGER.error("Exception in TaskGroup: %s", exc)
 
         for resource, task in zip(resources, tasks):
             self.values.update_by_resource(resource, task.result())
