@@ -9,8 +9,7 @@ from typing import Optional
 from urllib.parse import unquote
 
 from aiohttp import ClientSession
-from aiohttp.web_exceptions import HTTPForbidden
-from retry import retry
+from tenacity import before_sleep_log, retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 from .discovery import get_name
 from .power import ATTR_COOL, ATTR_HEAT, ATTR_TOTAL, TIME_TODAY, DaikinPowerMixin
@@ -113,7 +112,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         # Re-defined in all sub-classes
         raise NotImplementedError
 
-    @retry(tries=3, delay=1)
+    @retry(reraise=True, wait=wait_fixed(1), stop=stop_after_attempt(3), retry=retry_if_exception_type(ServerDisconnectedError),before_sleep=before_sleep_log(_LOGGER, logging.DEBUG))
     async def _get_resource(self, path: str, params: Optional[dict] = None):
         """Make the http request."""
         if params is None:
