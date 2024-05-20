@@ -91,7 +91,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     def __init__(self, device_id, session: Optional[ClientSession] = None) -> None:
         """Init the pydaikin appliance, representing one Daikin device."""
         self.values = ApplianceValues()
-        self.session = session
+        self.session = session if session is not None else ClientSession()
         self._energy_consumption_history = defaultdict(list)
         if session:
             self.device_ip = device_id
