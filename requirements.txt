@@ -1,4 +1,4 @@
 netifaces
 aiohttp
 urllib3
-retry
+tenacity
