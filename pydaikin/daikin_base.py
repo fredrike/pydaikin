@@ -297,8 +297,12 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
     @property
     def support_filter_dirty(self) -> bool:
-        """Return True if the device supports dirty filter notification."""
-        return 'en_filter_sign' in self.values
+        """Return True if the device supports dirty filter notification and it is turned on."""
+        return (
+            'en_filter_sign' in self.values and
+            'filter_sign_info' in self.values and
+            int(self._parse_number('en_filter_sign')) == 1
+        )
 
     @property
     def support_zone_count(self) -> bool:
@@ -333,7 +337,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     @property
     def filter_dirty(self) -> Optional[float]:
         """Return current status of the filter."""
-        return self._parse_number('en_filter_sign')
+        return self._parse_number('filter_sign_info')
 
     @property
     def zone_count(self) -> Optional[float]:
