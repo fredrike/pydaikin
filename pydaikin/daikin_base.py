@@ -9,9 +9,15 @@ from typing import Optional
 from urllib.parse import unquote
 
 from aiohttp import ClientSession
-from aiohttp.web_exceptions import HTTPError,HTTPForbidden
 from aiohttp.client_exceptions import ServerDisconnectedError
-from tenacity import before_sleep_log, retry, retry_if_exception_type, stop_after_attempt, wait_fixed
+from aiohttp.web_exceptions import HTTPError, HTTPForbidden
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_fixed,
+)
 
 from .discovery import get_name
 from .power import ATTR_COOL, ATTR_HEAT, ATTR_TOTAL, TIME_TODAY, DaikinPowerMixin
@@ -114,13 +120,19 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         # Re-defined in all sub-classes
         raise NotImplementedError
 
-    @retry(reraise=True, wait=wait_fixed(1), stop=stop_after_attempt(3), retry=retry_if_exception_type(ServerDisconnectedError),before_sleep=before_sleep_log(_LOGGER, logging.DEBUG))
+    @retry(
+        reraise=True,
+        wait=wait_fixed(1),
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type(ServerDisconnectedError),
+        before_sleep=before_sleep_log(_LOGGER, logging.DEBUG),
+    )
     async def _get_resource(self, path: str, params: Optional[dict] = None):
         """Make the http request."""
         if params is None:
             params = {}
 
-        _LOGGER.debug("Calling: %s/%s %s",self.base_url, path, params)
+        _LOGGER.debug("Calling: %s/%s %s", self.base_url, path, params)
 
         # cannot manage session on outer async with or this will close the session
         # passed to pydaikin (homeassistant for instance)
@@ -130,12 +142,16 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             ) as response:
                 if response.status == 403:
                     raise HTTPForbidden(reason=f"HTTP 403 Forbidden for {response.url}")
-                #Airbase returns a 404 response on invalid urls but requires fallback
+                # Airbase returns a 404 response on invalid urls but requires fallback
                 if response.status == 404:
                     _LOGGER.debug("HTTP 404 Not Found for %s", response.url)
-                    return {} #return an empty dict to indicate successful connection but bad data
+                    return (
+                        {}
+                    )  # return an empty dict to indicate successful connection but bad data
                 if response.status != 200:
-                    raise HTTPError(reason=f"Unexpected HTTP status code {response.status} for {response.url}")
+                    raise HTTPError(
+                        reason=f"Unexpected HTTP status code {response.status} for {response.url}"
+                    )
                 return self.parse_response(await response.text())
 
     async def update_status(self, resources=None):
@@ -152,7 +168,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         try:
             async with asyncio.TaskGroup() as tg:
                 tasks = [
-                    tg.create_task(self._get_resource(resource)) for resource in resources
+                    tg.create_task(self._get_resource(resource))
+                    for resource in resources
                 ]
         except ExceptionGroup as eg:
             for exc in eg.exceptions:
@@ -299,9 +316,9 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     def support_filter_dirty(self) -> bool:
         """Return True if the device supports dirty filter notification and it is turned on."""
         return (
-            'en_filter_sign' in self.values and
-            'filter_sign_info' in self.values and
-            int(self._parse_number('en_filter_sign')) == 1
+            'en_filter_sign' in self.values
+            and 'filter_sign_info' in self.values
+            and int(self._parse_number('en_filter_sign')) == 1
         )
 
     @property

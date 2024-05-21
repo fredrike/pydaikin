@@ -4,6 +4,7 @@ import logging
 from typing import Optional
 
 from aiohttp import ClientSession
+from aiohttp.web_exceptions import HTTPNotFound
 
 from .daikin_airbase import DaikinAirBase
 from .daikin_base import Appliance
@@ -12,9 +13,8 @@ from .daikin_brp072c import DaikinBRP072C
 from .daikin_skyfi import DaikinSkyFi
 from .exceptions import DaikinException
 
-from aiohttp.web_exceptions import HTTPNotFound
-
 _LOGGER = logging.getLogger(__name__)
+
 
 class DaikinFactory:  # pylint: disable=too-few-public-methods
     "Factory object generating instantiated instances of Appliance"
@@ -54,7 +54,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 )
                 if not self._generated_object.values:
                     raise DaikinException("Empty Values.")
-            except (HTTPNotFound,DaikinException) as err:
+            except (HTTPNotFound, DaikinException) as err:
                 _LOGGER.debug("Falling back to AirBase: %s", err)
                 self._generated_object = DaikinAirBase(device_id, session)
 

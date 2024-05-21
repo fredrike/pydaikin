@@ -114,7 +114,7 @@ class DaikinBRP069(Appliance):
         'en_hol': 'away_mode',
         'cur': 'internal clock',
         'adv': 'advanced mode',
-        'filter_sign_info': 'filter dirty'
+        'filter_sign_info': 'filter dirty',
     }
 
     async def init(self):
