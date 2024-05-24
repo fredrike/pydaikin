@@ -21,7 +21,7 @@ DISCOVERY_MSG = "DAIKIN_UDP/common/basic_info"
 class Discovery:  # pylint: disable=too-few-public-methods
     """Discovery class."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -37,11 +37,13 @@ class Discovery:  # pylint: disable=too-few-public-methods
             broadcast_ips = [ip]
         else:
             # get all IPv4 definitions in the system
+            # pylint: disable=c-extension-no-member
             net_groups = [
                 netifaces.ifaddresses(i)[netifaces.AF_INET]
                 for i in netifaces.interfaces()
                 if netifaces.AF_INET in netifaces.ifaddresses(i)
             ]
+            # pylint: enable=c-extension-no-member
 
             # flatten the previous list
             net_ips = [item for sublist in net_groups for item in sublist]
