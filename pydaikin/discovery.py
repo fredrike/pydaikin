@@ -37,13 +37,11 @@ class Discovery:  # pylint: disable=too-few-public-methods
             broadcast_ips = [ip]
         else:
             # get all IPv4 definitions in the system
-            # pylint: disable=c-extension-no-member
             net_groups = [
                 netifaces.ifaddresses(i)[netifaces.AF_INET]
                 for i in netifaces.interfaces()
                 if netifaces.AF_INET in netifaces.ifaddresses(i)
             ]
-            # pylint: enable=c-extension-no-member
 
             # flatten the previous list
             net_ips = [item for sublist in net_groups for item in sublist]
