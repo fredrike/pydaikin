@@ -57,9 +57,9 @@ class DaikinAirBase(DaikinBRP069):
 
         return response
 
-    def __init__(
+    def __init__(  # pylint:disable=useless-parent-delegation
         self, device_id, session=None
-    ) -> None:  # pylint:disable=useless-parent-delegation
+    ) -> None:
         """Init the pydaikin appliance, representing one Daikin AirBase
         (BRP15B61) device."""
         super().__init__(device_id, session)

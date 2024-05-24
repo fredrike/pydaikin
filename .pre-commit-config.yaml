@@ -33,3 +33,4 @@ repos:
         exclude: 'tests/'
         args:
         - --ignore=setup.py
+        - --extension-pkg-allow-list=netifaces
