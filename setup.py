@@ -31,7 +31,7 @@ setup(
         "Topic :: Software Development :: Libraries :: Application Frameworks",
         "Topic :: Home Automation",
     ],
-    install_requires=['netifaces', 'aiohttp', 'urllib3'],
+    install_requires=['netifaces', 'aiohttp', 'urllib3', 'tenacity'],
     tests_require=['pytest', 'pytest-aiohttp', 'freezegun'],
     scripts=['bin/pydaikin'],
 )
