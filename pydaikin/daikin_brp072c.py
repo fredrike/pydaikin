@@ -12,7 +12,7 @@ _LOGGER = logging.getLogger(__name__)
 class DaikinBRP072C(DaikinBRP069):
     """Daikin class for BRP072Cxx units."""
 
-    def __init__(self, device_id, session=None, key=None, uuid=None):
+    def __init__(self, device_id, session=None, key=None, uuid=None) -> None:
         """Init the pydaikin appliance, representing one Daikin AirBase
         (BRP15B61) device."""
         super().__init__(device_id, session)

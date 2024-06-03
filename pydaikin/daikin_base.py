@@ -9,8 +9,15 @@ from typing import Optional
 from urllib.parse import unquote
 
 from aiohttp import ClientSession
-from aiohttp.web_exceptions import HTTPForbidden
-from retry import retry
+from aiohttp.client_exceptions import ServerDisconnectedError
+from aiohttp.web_exceptions import HTTPError, HTTPForbidden
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_fixed,
+)
 
 from .discovery import get_name
 from .power import ATTR_COOL, ATTR_HEAT, ATTR_TOTAL, TIME_TODAY, DaikinPowerMixin
@@ -88,10 +95,10 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
                 device_ip = device_name['ip']
         return device_id
 
-    def __init__(self, device_id, session: Optional[ClientSession] = None):
+    def __init__(self, device_id, session: Optional[ClientSession] = None) -> None:
         """Init the pydaikin appliance, representing one Daikin device."""
         self.values = ApplianceValues()
-        self.session = session
+        self.session = session if session is not None else ClientSession()
         self._energy_consumption_history = defaultdict(list)
         if session:
             self.device_ip = device_id
@@ -113,25 +120,39 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         # Re-defined in all sub-classes
         raise NotImplementedError
 
-    @retry(tries=3, delay=1)
+    @retry(
+        reraise=True,
+        wait=wait_fixed(1),
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type(ServerDisconnectedError),
+        before_sleep=before_sleep_log(_LOGGER, logging.DEBUG),
+    )
     async def _get_resource(self, path: str, params: Optional[dict] = None):
         """Make the http request."""
         if params is None:
             params = {}
 
-        if self.session is None:
-            session = ClientSession()
-        else:
-            session = self.session
+        _LOGGER.debug("Calling: %s/%s %s", self.base_url, path, params)
 
-        async with session as client_session, self.request_semaphore:
-            async with client_session.get(
+        # cannot manage session on outer async with or this will close the session
+        # passed to pydaikin (homeassistant for instance)
+        async with self.request_semaphore:
+            async with self.session.get(
                 f'{self.base_url}/{path}', params=params
-            ) as resp:
-                if resp.status == 403:
-                    raise HTTPForbidden
-                assert resp.status == 200, f"Response code is {resp.status}"
-                return self.parse_response(await resp.text())
+            ) as response:
+                if response.status == 403:
+                    raise HTTPForbidden(reason=f"HTTP 403 Forbidden for {response.url}")
+                # Airbase returns a 404 response on invalid urls but requires fallback
+                if response.status == 404:
+                    _LOGGER.debug("HTTP 404 Not Found for %s", response.url)
+                    return (
+                        {}
+                    )  # return an empty dict to indicate successful connection but bad data
+                if response.status != 200:
+                    raise HTTPError(
+                        reason=f"Unexpected HTTP status code {response.status} for {response.url}"
+                    )
+                return self.parse_response(await response.text())
 
     async def update_status(self, resources=None):
         """Update status from resources."""
@@ -143,10 +164,16 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             if self.values.should_resource_be_updated(resource)
         ]
         _LOGGER.debug("Updating %s", resources)
-        async with asyncio.TaskGroup() as tg:
-            tasks = [
-                tg.create_task(self._get_resource(resource)) for resource in resources
-            ]
+
+        try:
+            async with asyncio.TaskGroup() as tg:
+                tasks = [
+                    tg.create_task(self._get_resource(resource))
+                    for resource in resources
+                ]
+        except ExceptionGroup as eg:
+            for exc in eg.exceptions:
+                _LOGGER.error("Exception in TaskGroup: %s", exc)
 
         for resource, task in zip(resources, tasks):
             self.values.update_by_resource(resource, task.result())
@@ -175,6 +202,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             data.append(('out_temp', self.outside_temperature))
         if self.support_compressor_frequency:
             data.append(('cmp_freq', self.compressor_frequency))
+        if self.support_filter_dirty:
+            data.append(('en_filter_sign', self.filter_dirty))
         if self.support_energy_consumption:
             data.append(
                 ('total_today', self.energy_consumption(ATTR_TOTAL, TIME_TODAY))
@@ -201,6 +230,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             data.append(f'out_temp={int(self.outside_temperature)}°C')
         if self.support_compressor_frequency:
             data.append(f'cmp_freq={int(self.compressor_frequency)}Hz')
+        if self.support_filter_dirty:
+            data.append(f'en_filter_sign={int(self.filter_dirty)}')
         if self.support_energy_consumption:
             data.append(
                 f'total_today={self.energy_consumption(ATTR_TOTAL, TIME_TODAY):.01f}kWh'
@@ -282,6 +313,20 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         return 'cmpfreq' in self.values
 
     @property
+    def support_filter_dirty(self) -> bool:
+        """Return True if the device supports dirty filter notification and it is turned on."""
+        return (
+            'en_filter_sign' in self.values
+            and 'filter_sign_info' in self.values
+            and int(self._parse_number('en_filter_sign')) == 1
+        )
+
+    @property
+    def support_zone_count(self) -> bool:
+        """Return True if the device supports count of active zones."""
+        return 'en_zone' in self.values
+
+    @property
     def support_energy_consumption(self) -> bool:
         """Return True if the device supports energy consumption monitoring."""
         return super().support_energy_consumption
@@ -305,6 +350,16 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     def compressor_frequency(self) -> Optional[float]:
         """Return current compressor frequency."""
         return self._parse_number('cmpfreq')
+
+    @property
+    def filter_dirty(self) -> Optional[float]:
+        """Return current status of the filter."""
+        return self._parse_number('filter_sign_info')
+
+    @property
+    def zone_count(self) -> Optional[float]:
+        """Return number of enabled zones."""
+        return self._parse_number('en_zone')
 
     @property
     def humidity(self) -> Optional[float]:

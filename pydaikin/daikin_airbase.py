@@ -57,9 +57,9 @@ class DaikinAirBase(DaikinBRP069):
 
         return response
 
-    def __init__(
+    def __init__(  # pylint:disable=useless-parent-delegation
         self, device_id, session=None
-    ):  # pylint:disable=useless-super-delegation
+    ) -> None:
         """Init the pydaikin appliance, representing one Daikin AirBase
         (BRP15B61) device."""
         super().__init__(device_id, session)
@@ -70,6 +70,9 @@ class DaikinAirBase(DaikinBRP069):
         if not self.values:
             raise DaikinException("Empty values.")
         self.values.update({**self.DEFAULTS, **self.values})
+        # Friendly display the model
+        if self.values.get("model", None) == "NOTSUPPORT":
+            self.values["model"] = "Airbase BRP15B61"
 
     async def _get_resource(self, path: str, params: Optional[dict] = None):
         """Make the http request."""
@@ -87,9 +90,15 @@ class DaikinAirBase(DaikinBRP069):
         return False
 
     @property
-    def support_outside_temperature(self):
-        """AirBase unit returns otemp if master controller starts before it."""
-        return True
+    def outside_temperature(self):
+        """
+        AirBase unit returns otemp if master controller starts before it.
+
+        No Outside Thermometor returns a '-' (Non Number).
+        Return current outside temperature if available.
+        """
+        value = self.values.get('otemp')
+        return self._parse_number('otemp') if value != '-' else None
 
     @property
     def support_zone_temperature(self):
@@ -174,8 +183,13 @@ class DaikinAirBase(DaikinBRP069):
         """Return list of zones."""
         if not self.values.get("zone_name"):
             return None
+        enabled_zones = len(self.represent("zone_name")[1])
+        if self.support_zone_count:
+            enabled_zones = int(self.zone_count)  # float to int
         zone_onoff = self.represent("zone_onoff")[1]
-        zone_list = self.represent("zone_name")[1]
+        zone_list = self.represent("zone_name")[1][
+            :enabled_zones
+        ]  # Slicing to limit zones
         if self.support_zone_temperature:
             mode = self.values["mode"]
 
