@@ -239,7 +239,15 @@ class DaikinAirBase(DaikinBRP069):
         }
 
         if self.support_zone_temperature:
+            params.update({"lztemp_c": self.values["lztemp_c"]})
             params.update({"lztemp_h": self.values["lztemp_h"]})
 
-        _LOGGER.debug("Sending request to %s with params: %s", path, params)
-        await self._get_resource(path, params)
+        # # Convert params dictionary to query string format
+        params_str = "&".join(f"{k}={v}" for k, v in params.items())
+        path = f"{path}?{params_str}"  # Append params as query string to path
+
+        _LOGGER.debug(
+            "Updating ['aircon/set_zone_setting']: %s",
+            ",".join(f"{k}={unquote(v).replace(" ", "")}" for k, v in params.items()),
+        )
+        await self._get_resource(path)
