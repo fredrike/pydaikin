@@ -60,8 +60,7 @@ class DaikinAirBase(DaikinBRP069):
     def __init__(  # pylint:disable=useless-parent-delegation
         self, device_id, session=None
     ) -> None:
-        """Init the pydaikin appliance, representing one Daikin AirBase
-        (BRP15B61) device."""
+        """Init Daikin AirBase (BRP15B61) device."""
         super().__init__(device_id, session)
 
     async def init(self):
@@ -91,14 +90,13 @@ class DaikinAirBase(DaikinBRP069):
 
     @property
     def outside_temperature(self):
-        """
-        AirBase unit returns otemp if master controller starts before it.
+        """AirBase unit returns otemp if master controller starts before it.
 
         No Outside Thermometor returns a '-' (Non Number).
         Return current outside temperature if available.
         """
-        value = self.values.get('otemp')
-        return self._parse_number('otemp') if value != '-' else None
+        value = self.values.get("otemp")
+        return self._parse_number("otemp") if value != "-" else None
 
     @property
     def support_zone_temperature(self):
