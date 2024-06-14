@@ -248,6 +248,6 @@ class DaikinAirBase(DaikinBRP069):
 
         _LOGGER.debug(
             "Updating ['aircon/set_zone_setting']: %s",
-            ",".join(f"{k}={unquote(v).replace(" ", "")}" for k, v in params.items()),
+            ",".join(f"{k}={unquote(v)}" for k, v in params.items()),
         )
         await self._get_resource(path)
