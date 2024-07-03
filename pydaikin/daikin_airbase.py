@@ -242,9 +242,10 @@ class DaikinAirBase(DaikinBRP069):
             params.update({"lztemp_c": self.values["lztemp_c"]})
             params.update({"lztemp_h": self.values["lztemp_h"]})
 
-        # Zone Name requires %20 encoding which is not handled well within yarl resulting
-        # in '%20' being encoded again to '%2520'
-        # For detailed info before changing the below refer to: https://github.com/fredrike/pydaikin/pull/11
+        # Zone Name requires %20 encoding which is not handled well 
+        # within yarl resulting in '%20' being encoded again to '%2520'
+        # For detailed info before changing query string to pparam
+        # refer to: https://github.com/fredrike/pydaikin/pull/11
 
         # # Convert params dictionary to query string format
         params_str = "&".join(f"{k}={v}" for k, v in params.items())
