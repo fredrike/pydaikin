@@ -60,8 +60,7 @@ class DaikinAirBase(DaikinBRP069):
     def __init__(  # pylint:disable=useless-parent-delegation
         self, device_id, session=None
     ) -> None:
-        """Init the pydaikin appliance, representing one Daikin AirBase
-        (BRP15B61) device."""
+        """Init Daikin AirBase (BRP15B61) device."""
         super().__init__(device_id, session)
 
     async def init(self):
@@ -91,14 +90,13 @@ class DaikinAirBase(DaikinBRP069):
 
     @property
     def outside_temperature(self):
-        """
-        AirBase unit returns otemp if master controller starts before it.
+        """AirBase unit returns otemp if master controller starts before it.
 
         No Outside Thermometor returns a '-' (Non Number).
         Return current outside temperature if available.
         """
-        value = self.values.get('otemp')
-        return self._parse_number('otemp') if value != '-' else None
+        value = self.values.get("otemp")
+        return self._parse_number("otemp") if value != "-" else None
 
     @property
     def support_zone_temperature(self):
@@ -241,7 +239,20 @@ class DaikinAirBase(DaikinBRP069):
         }
 
         if self.support_zone_temperature:
+            params.update({"lztemp_c": self.values["lztemp_c"]})
             params.update({"lztemp_h": self.values["lztemp_h"]})
 
-        _LOGGER.debug("Sending request to %s with params: %s", path, params)
-        await self._get_resource(path, params)
+        # Zone Name requires %20 encoding which is not handled well
+        # within yarl resulting in '%20' being encoded again to '%2520'
+        # For detailed info before changing query string to pparam
+        # refer to: https://github.com/fredrike/pydaikin/pull/11
+
+        # # Convert params dictionary to query string format
+        params_str = "&".join(f"{k}={v}" for k, v in params.items())
+        path = f"{path}?{params_str}"  # Append params as query string to path
+
+        _LOGGER.debug(
+            "Updating ['aircon/set_zone_setting']: %s",
+            ",".join(f"{k}={unquote(v)}" for k, v in params.items()),
+        )
+        await self._get_resource(path)
