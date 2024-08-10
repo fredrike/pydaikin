@@ -117,6 +117,9 @@ class DaikinBRP069(Appliance):
         'filter_sign_info': 'filter dirty',
     }
 
+    headers = None
+    ssl_context = None
+
     async def init(self):
         """Init status."""
         await self.auto_set_clock()
