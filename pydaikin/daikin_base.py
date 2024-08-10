@@ -145,7 +145,10 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         # passed to pydaikin (homeassistant for instance)
         async with self.request_semaphore:
             async with self.session.get(
-                f'{self.base_url}/{path}', params=params, headers=headers, ssl_context=self.ssl_context
+                f'{self.base_url}/{path}',
+                params=params,
+                headers=headers,
+                ssl_context=self.ssl_context,
             ) as response:
                 if response.status == 403:
                     raise HTTPForbidden(reason=f"HTTP 403 Forbidden for {response.url}")
