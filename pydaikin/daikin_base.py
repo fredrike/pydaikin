@@ -32,7 +32,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
 
     base_url: str
-    headers: Optional[dict] = None
+    headers: dict = {}
     session: Optional[ClientSession]
     ssl_context: Optional[SSLContext] = None
 
@@ -135,11 +135,9 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         if params is None:
             params = {}
 
-        headers = self.headers
-        if headers is None:
-            headers = {}
-
-        _LOGGER.debug("Calling: %s/%s %s [%s]", self.base_url, path, params, headers)
+        _LOGGER.debug(
+            "Calling: %s/%s %s [%s]", self.base_url, path, params, self.headers
+        )
 
         # cannot manage session on outer async with or this will close the session
         # passed to pydaikin (homeassistant for instance)
@@ -147,7 +145,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             async with self.session.get(
                 f'{self.base_url}/{path}',
                 params=params,
-                headers=headers,
+                headers=self.headers,
                 ssl_context=self.ssl_context,
             ) as response:
                 if response.status == 403:
