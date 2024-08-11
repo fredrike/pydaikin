@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 import logging
 import socket
+from ssl import SSLContext
 from typing import Optional
 from urllib.parse import unquote
 
@@ -31,7 +32,9 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
 
     base_url: str
+    headers: Optional[dict]
     session: Optional[ClientSession]
+    ssl_context: Optional[SSLContext]
 
     TRANSLATIONS = {}
 
@@ -132,13 +135,20 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         if params is None:
             params = {}
 
-        _LOGGER.debug("Calling: %s/%s %s", self.base_url, path, params)
+        headers = self.headers
+        if headers is None:
+            headers = {}
+
+        _LOGGER.debug("Calling: %s/%s %s [%s]", self.base_url, path, params, headers)
 
         # cannot manage session on outer async with or this will close the session
         # passed to pydaikin (homeassistant for instance)
         async with self.request_semaphore:
             async with self.session.get(
-                f'{self.base_url}/{path}', params=params
+                f'{self.base_url}/{path}',
+                params=params,
+                headers=headers,
+                ssl_context=self.ssl_context,
             ) as response:
                 if response.status == 403:
                     raise HTTPForbidden(reason=f"HTTP 403 Forbidden for {response.url}")
