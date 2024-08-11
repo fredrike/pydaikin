@@ -135,7 +135,9 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         if params is None:
             params = {}
 
-        _LOGGER.debug("Calling: %s/%s %s [%s]", self.base_url, path, params, self.headers)
+        _LOGGER.debug(
+            "Calling: %s/%s %s [%s]", self.base_url, path, params, self.headers
+        )
 
         # cannot manage session on outer async with or this will close the session
         # passed to pydaikin (homeassistant for instance)
