@@ -32,9 +32,9 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
 
     base_url: str
-    headers: Optional[dict]
+    headers: Optional[dict] = None
     session: Optional[ClientSession]
-    ssl_context: Optional[SSLContext]
+    ssl_context: Optional[SSLContext] = None
 
     TRANSLATIONS = {}
 
