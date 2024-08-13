@@ -32,7 +32,6 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     """Daikin main appliance class."""
 
     base_url: str
-    headers: dict = {}
     session: Optional[ClientSession]
     ssl_context: Optional[SSLContext] = None
 
@@ -102,6 +101,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         """Init the pydaikin appliance, representing one Daikin device."""
         self.values = ApplianceValues()
         self.session = session if session is not None else ClientSession()
+        self.headers: dict = {}
         self._energy_consumption_history = defaultdict(list)
         if session:
             self.device_ip = device_id
