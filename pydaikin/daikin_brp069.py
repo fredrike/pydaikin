@@ -217,8 +217,7 @@ class DaikinBRP069(Appliance):
         if value in ('0', '1'):
             path = 'aircon/set_special_mode'
             params = {
-                "streamer": mode,
-                "set_spmode": value,
+                "en_streamer": value,
             }
 
             _LOGGER.debug("Sending request to %s with params: %s", path, params)
