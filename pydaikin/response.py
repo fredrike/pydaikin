@@ -15,4 +15,15 @@ def parse_response(response_body):
         return {}
     if 'name' in response:
         response['name'] = unquote(response['name'])
+
+    # Translate swing mode from 2 parameters to 1 (Special case for certain models e.g Alira X)
+    if response.get("f_dir_ud") == "0" and response.get("f_dir_lr") == "0":
+        response["f_dir"] = '0'
+    if response.get("f_dir_ud") == "S" and response.get("f_dir_lr") == "0":
+        response["f_dir"] = '1'
+    if response.get("f_dir_ud") == "0" and response.get("f_dir_lr") == "S":
+        response["f_dir"] = '2'
+    if response.get("f_dir_ud") == "S" and response.get("f_dir_lr") == "S":
+        response["f_dir"] = '3'
+        
     return response
