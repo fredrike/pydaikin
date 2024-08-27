@@ -35,7 +35,7 @@ script-files = ['bin/pydaikin']
 
 [tool.black]
 skip-string-normalization = true
-target-version = ["py37", "py38"]
+target-version = ["py311"]
 include = '\.pyi?$|pydaikin$'
 exclude = '''
 /(

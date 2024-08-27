@@ -116,9 +116,10 @@ def device():
         device._get_cool_kWh_previous_hour = _get_cool_kWh_previous_hour
         device._get_heat_kWh_previous_hour = _get_heat_kWh_previous_hour
 
-        with patch.object(device, 'values') as values, patch.object(
-            device, '_get_resource'
-        ) as get_resource:
+        with (
+            patch.object(device, 'values') as values,
+            patch.object(device, '_get_resource') as get_resource,
+        ):
             get_resource.side_effect = magic_get_resource
             values.get.side_effect = values_get
             values.__getitem__ = values_getitem
