@@ -1,0 +1,138 @@
+name: Create new release
+on: 
+  workflow_dispatch:
+    inputs:
+      part:
+        description: 'Part to version-bump'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
+
+env:
+  PROJECT: pydaikin
+
+jobs:
+  bump_version:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.current_version }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version-file: 'pyproject.toml' # Read python version from a file pyproject.toml
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install bump2version --user
+    - name: Configure Git
+      run: |
+        git config user.name "${{ github.actor }}"
+        git config user.email '${{ github.actor }}@users.noreply.github.com'
+
+    - name: Bump Version
+      id: version
+      run: |
+        bump2version ${{ inputs.part }}
+        # Sets current_version=v1.2.3 
+        grep current_version .bumpversion.cfg| sed -e 's/ //g' -e 's/=/=v/' >> $GITHUB_OUTPUT
+    - name: Commit version change to master
+      run: |
+        git push --follow-tags
+    
+  build:
+    name: Build distribution 📦
+    needs:
+    - bump_version
+    outputs:
+      version: ${{ needs.bump_version.outputs.version }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version-file: 'pyproject.toml' # Read python version from a file pyproject.toml
+    - name: Install dependencies
+      run: |
+        pip install build --user
+    - name: Build a binary wheel and a source tarball
+      run: |
+        python3 -m build
+    - name: Store the distribution packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+
+  github-release:
+    name: >-
+      Sign the Python 🐍 distribution 📦 with Sigstore
+      and upload them to GitHub Release
+    needs:
+    - build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # IMPORTANT: mandatory for making GitHub Releases
+      id-token: write  # IMPORTANT: mandatory for sigstore
+
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Sign the dists with Sigstore
+      uses: sigstore/gh-action-sigstore-python@v2.1.1
+      with:
+        inputs: >-
+          ./dist/*.tar.gz
+          ./dist/*.whl
+    - name: Create GitHub Release
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        CURRENT_VERSION: ${{ needs.build.outputs.version }}
+      run: >-
+        gh release create
+        "$CURRENT_VERSION"
+        --repo '${{ github.repository }}'
+        --generate-notes
+    - name: Upload artifact signatures to GitHub Release
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        CURRENT_VERSION: ${{ needs.build.outputs.version }}
+      # Upload to GitHub Release using the `gh` CLI.
+      # `dist/` contains the built packages, and the
+      # sigstore-produced signatures and certificates.
+      run: >-
+        gh release upload
+        "$CURRENT_VERSION"
+        dist/**
+        --repo '${{ github.repository }}'
+    
+  publish-to-pypi:
+    name: Publish Python 🐍 distribution 📦 to PyPI
+    needs:
+    - build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: pypi
+      url: https://pypi.org/p/${{ env.PROJECT }}
+
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Publish distribution 📦 to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
