@@ -25,5 +25,5 @@ def parse_response(response_body):
         response["f_dir"] = '2'
     if response.get("f_dir_ud") == "S" and response.get("f_dir_lr") == "S":
         response["f_dir"] = '3'
-        
+
     return response
