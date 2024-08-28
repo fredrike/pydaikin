@@ -144,7 +144,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             "Calling: %s/%s %s [%s]",
             self.base_url,
             path,
-            {**params, **{"pass": "****"}},
+            params if "pass" not in params else {**params, **{"pass": "****"}},
             self.headers,
         )
 

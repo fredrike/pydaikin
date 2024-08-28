@@ -3,6 +3,8 @@
 import logging
 from urllib.parse import unquote
 
+from aiohttp import ClientSession
+
 from .daikin_base import Appliance
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,12 +52,11 @@ class DaikinSkyFi(Appliance):
     def __init__(
         self,
         device_id: str,
+        session: ClientSession | None,
         password: str,
-        session=None,
     ) -> None:
         """Init the pydaikin appliance, representing one Daikin SkyFi device."""
         super().__init__(device_id, session)
-        # self.device_ip = f'{self.device_ip}'
         self.base_url = f"http://{self.device_ip}:2000"
         self._password = password
 
