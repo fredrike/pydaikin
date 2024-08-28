@@ -47,11 +47,16 @@ class DaikinSkyFi(Appliance):
         },
     }
 
-    def __init__(self, device_id, session=None, password=None) -> None:
+    def __init__(
+        self,
+        device_id: str,
+        password: str,
+        session=None,
+    ) -> None:
         """Init the pydaikin appliance, representing one Daikin SkyFi device."""
         super().__init__(device_id, session)
-        self.device_ip = f'{self.device_ip}:2000'
-        self.base_url = f"http://{self.device_ip}"
+        # self.device_ip = f'{self.device_ip}'
+        self.base_url = f"http://{self.device_ip}:2000"
         self._password = password
 
     def __getitem__(self, name):
@@ -108,9 +113,24 @@ class DaikinSkyFi(Appliance):
             params = {}
 
         params["pass"] = "HIDDEN"
-        _LOGGER.debug("Sending request to %s with params: %s", path, params)
+        _LOGGER.debug(
+            "Sending request to %s%s with params: %s",
+            self.base_url,
+            path,
+            params,
+        )
 
         params["pass"] = self._password
+
+        async with self.session.get(
+            f'{self.base_url}/{path}',
+            params=params,
+        ) as response:
+            logging.debug(
+                "SkyFi: status: %s, text: %s",
+                response.status,
+                await response.text(),
+            )
         return await super()._get_resource(path, params)
 
     def represent(self, key):
