@@ -3,6 +3,8 @@
 import logging
 from urllib.parse import unquote
 
+from aiohttp import ClientSession
+
 from .daikin_base import Appliance
 
 _LOGGER = logging.getLogger(__name__)
@@ -11,7 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 class DaikinSkyFi(Appliance):
     """Daikin class for SkyFi units."""
 
-    HTTP_RESOURCES = ['ac.cgi?pass={}', 'zones.cgi?pass={}']
+    HTTP_RESOURCES = ['ac.cgi', 'zones.cgi']
 
     INFO_RESOURCES = HTTP_RESOURCES
 
@@ -47,11 +49,15 @@ class DaikinSkyFi(Appliance):
         },
     }
 
-    def __init__(self, device_id, session=None, password=None) -> None:
+    def __init__(
+        self,
+        device_id: str,
+        session: ClientSession | None,
+        password: str,
+    ) -> None:
         """Init the pydaikin appliance, representing one Daikin SkyFi device."""
         super().__init__(device_id, session)
-        self.device_ip = f'{self.device_ip}:2000'
-        self.base_url = f"http://{self.device_ip}"
+        self.base_url = f"http://{self.device_ip}:2000"
         self._password = password
 
     def __getitem__(self, name):
@@ -102,6 +108,14 @@ class DaikinSkyFi(Appliance):
         )
         return response
 
+    async def _get_resource(self, path: str, params: dict | None = None):
+        """Make the http request."""
+        if params is None:
+            params = {}
+        params["pass"] = self._password
+
+        return await super()._get_resource(path, params)
+
     def represent(self, key):
         """Return translated value from key."""
         k, val = super().represent(self.SKYFI_TO_DAIKIN.get(key, key))
@@ -115,7 +129,7 @@ class DaikinSkyFi(Appliance):
     async def set(self, settings):
         """Set settings on Daikin device."""
         _LOGGER.debug("Updating settings: %s", settings)
-        await self.update_status(['ac.cgi?pass={}'])
+        await self.update_status(['ac.cgi'])
 
         # Merge current_val with mapped settings
         self.values.update(
@@ -129,19 +143,20 @@ class DaikinSkyFi(Appliance):
         # we are using an extra mode "off" to power off the unit
         if settings.get('mode', '') == 'off':
             self.values['opmode'] = '0'
-            query_c = 'set.cgi?pass={}&p=0'
+            params = {
+                "p": self.values['opmode'],
+            }
         else:
             if 'mode' in settings:
                 self.values['opmode'] = '1'
-            query_c = (
-                f"set.cgi?pass={{}}"
-                f"&p={self.values['opmode']}"
-                f"&t={self.values['settemp']}"
-                f"&f={self.values['fanspeed']}"
-                f"&m={self.values['acmode']}"
-            )
+            params = {
+                "p": self.values['opmode'],
+                "t": self.values['settemp'],
+                "f": self.values['fanspeed'],
+                "m": self.values['acmode'],
+            }
 
-        await self.update_status([query_c])
+        self.values.update(await self._get_resource("set.cgi", params))
 
     @property
     def zones(self):
@@ -165,11 +180,8 @@ class DaikinSkyFi(Appliance):
             return
         zone_id += 1
 
-        path = "setzone.cgi"
-        params = {"pass": "HIDDEN", "z": zone_id, "s": value}
-        _LOGGER.debug("Sending request to %s with params: %s", path, params)
-
-        params["pass"] = self._password
-
-        current_state = await self._get_resource(path, params)
-        self.values.update(current_state)
+        params = {
+            "z": zone_id,
+            "s": value,
+        }
+        self.values.update(await self._get_resource("setzone.cgi", params))

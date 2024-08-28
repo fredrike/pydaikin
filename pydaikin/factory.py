@@ -37,7 +37,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
         """Factory to init the corresponding Daikin class."""
 
         if password is not None:
-            self._generated_object = DaikinSkyFi(device_id, session, password=password)
+            self._generated_object = DaikinSkyFi(device_id, session, password)
         elif key is not None:
             self._generated_object = DaikinBRP072C(
                 device_id,
