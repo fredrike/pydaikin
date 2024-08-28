@@ -10,7 +10,11 @@ from typing import Optional
 from urllib.parse import unquote
 
 from aiohttp import ClientSession
-from aiohttp.client_exceptions import ServerDisconnectedError
+from aiohttp.client_exceptions import (
+    ClientOSError,
+    ClientResponseError,
+    ServerDisconnectedError,
+)
 from aiohttp.web_exceptions import HTTPError, HTTPForbidden
 from tenacity import (
     before_sleep_log,
@@ -127,7 +131,13 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         reraise=True,
         wait=wait_fixed(1),
         stop=stop_after_attempt(3),
-        retry=retry_if_exception_type(ServerDisconnectedError),
+        retry=retry_if_exception_type(
+            (
+                ServerDisconnectedError,
+                ClientOSError,
+                ClientResponseError,
+            )
+        ),
         before_sleep=before_sleep_log(_LOGGER, logging.DEBUG),
     )
     async def _get_resource(self, path: str, params: Optional[dict] = None):

@@ -122,15 +122,18 @@ class DaikinSkyFi(Appliance):
 
         params["pass"] = self._password
 
-        async with self.session.get(
-            f'{self.base_url}/{path}',
-            params=params,
-        ) as response:
-            logging.debug(
-                "SkyFi: status: %s, text: %s",
-                response.status,
-                await response.text(),
-            )
+        try:
+            async with self.session.get(
+                f'{self.base_url}/{path}',
+                params=params,
+            ) as response:
+                logging.debug(
+                    "SkyFi: status: %s, text: %s",
+                    response.status,
+                    await response.text(),
+                )
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logging.warning("SkyFi Exception: %s", exc)
         return await super()._get_resource(path, params)
 
     def represent(self, key):
