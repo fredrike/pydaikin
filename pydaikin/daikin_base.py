@@ -10,18 +10,14 @@ from typing import Optional
 from urllib.parse import unquote
 
 from aiohttp import ClientSession
-from aiohttp.client_exceptions import (
-    ClientOSError,
-    ClientResponseError,
-    ServerDisconnectedError,
-)
+from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
 from aiohttp.web_exceptions import HTTPError, HTTPForbidden
 from tenacity import (
     before_sleep_log,
     retry,
     retry_if_exception_type,
     stop_after_attempt,
-    wait_fixed,
+    wait_random_exponential,
 )
 
 from .discovery import get_name
@@ -129,13 +125,12 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
     @retry(
         reraise=True,
-        wait=wait_fixed(1),
+        wait=wait_random_exponential(multiplier=0.2, max=1.2),
         stop=stop_after_attempt(3),
         retry=retry_if_exception_type(
             (
                 ServerDisconnectedError,
                 ClientOSError,
-                ClientResponseError,
             )
         ),
         before_sleep=before_sleep_log(_LOGGER, logging.DEBUG),
@@ -146,7 +141,11 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             params = {}
 
         _LOGGER.debug(
-            "Calling: %s/%s %s [%s]", self.base_url, path, params, self.headers
+            "Calling: %s/%s %s [%s]",
+            self.base_url,
+            path,
+            {**params, **{"pass": "****"}},
+            self.headers,
         )
 
         # cannot manage session on outer async with or this will close the session
