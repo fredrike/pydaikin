@@ -54,6 +54,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.bump_version.outputs.version }}
     - uses: actions/setup-python@v5
       with:
         python-version-file: 'pyproject.toml' # Read python version from a file pyproject.toml
