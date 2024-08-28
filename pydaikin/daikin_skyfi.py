@@ -111,29 +111,8 @@ class DaikinSkyFi(Appliance):
         """Make the http request."""
         if params is None:
             params = {}
-
-        params["pass"] = "HIDDEN"
-        _LOGGER.debug(
-            "Sending request to %s%s with params: %s",
-            self.base_url,
-            path,
-            params,
-        )
-
         params["pass"] = self._password
 
-        try:
-            async with self.session.get(
-                f'{self.base_url}/{path}',
-                params=params,
-            ) as response:
-                logging.debug(
-                    "SkyFi: status: %s, text: %s",
-                    response.status,
-                    await response.text(),
-                )
-        except Exception as exc:  # pylint: disable=broad-exception-caught
-            logging.warning("SkyFi Exception: %s", exc)
         return await super()._get_resource(path, params)
 
     def represent(self, key):
