@@ -15,5 +15,4 @@ def parse_response(response_body):
         return {}
     if 'name' in response:
         response['name'] = unquote(response['name'])
-
     return response
