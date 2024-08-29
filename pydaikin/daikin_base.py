@@ -10,8 +10,12 @@ from typing import Optional
 from urllib.parse import unquote
 
 from aiohttp import ClientSession
-from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
-from aiohttp.web_exceptions import HTTPError, HTTPForbidden
+from aiohttp.client_exceptions import (
+    ClientOSError,
+    ClientResponseError,
+    ServerDisconnectedError,
+)
+from aiohttp.web_exceptions import HTTPForbidden
 from tenacity import (
     before_sleep_log,
     retry,
@@ -129,8 +133,9 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         stop=stop_after_attempt(3),
         retry=retry_if_exception_type(
             (
-                ServerDisconnectedError,
                 ClientOSError,
+                ClientResponseError,
+                ServerDisconnectedError,
             )
         ),
         before_sleep=before_sleep_log(_LOGGER, logging.DEBUG),
@@ -166,9 +171,12 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
                         {}
                     )  # return an empty dict to indicate successful connection but bad data
                 if response.status != 200:
-                    raise HTTPError(
-                        reason=f"Unexpected HTTP status code {response.status} for {response.url}"
+                    _LOGGER.debug(
+                        "Unexpected HTTP status code %s for %s",
+                        response.status,
+                        response.url,
                     )
+                response.raise_for_status()
                 return self.parse_response(await response.text())
 
     async def update_status(self, resources=None):
