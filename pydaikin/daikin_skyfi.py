@@ -112,8 +112,8 @@ class DaikinSkyFi(Appliance):
         """Make the http request."""
         if params is None:
             params = {}
-        params["pass"] = self._password
-
+        # ensure password is the first parameter
+        params = {**{"pass": self._password}, **params}
         return await super()._get_resource(path, params)
 
     def represent(self, key):
