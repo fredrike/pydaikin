@@ -117,6 +117,26 @@ class DaikinBRP069(Appliance):
         'filter_sign_info': 'filter dirty',
     }
 
+    @staticmethod
+    def parse_response(response_body):
+        """Parse response from Daikin
+
+        Translate swing mode from 2 parameters to 1 (Special case for certain models e.g Alira X)
+        """
+        _LOGGER.debug("Parsing %s", response_body)
+        response = super(DaikinBRP069, DaikinBRP069).parse_response(response_body)
+
+        if response.get("f_dir_ud") == "0" and response.get("f_dir_lr") == "0":
+            response["f_dir"] = '0'
+        elif response.get("f_dir_ud") == "S" and response.get("f_dir_lr") == "0":
+            response["f_dir"] = '1'
+        elif response.get("f_dir_ud") == "0" and response.get("f_dir_lr") == "S":
+            response["f_dir"] = '2'
+        elif response.get("f_dir_ud") == "S" and response.get("f_dir_lr") == "S":
+            response["f_dir"] = '3'
+
+        return response
+
     async def init(self):
         """Init status."""
         await self.auto_set_clock()
@@ -179,7 +199,13 @@ class DaikinBRP069(Appliance):
         if self.support_fan_rate:
             params.update({"f_rate": self.values['f_rate']})
         if self.support_swing_mode:
-            params.update({"f_dir": self.values['f_dir']})
+            if 'f_dir_lr' in self.values and 'f_dir_ud' in self.values:
+                # Australian Alira X uses 2 separate parameters instead of the combined f_dir
+                f_dir_ud = 'S' if self.values['f_dir'] in ('1', '3') else '0'
+                f_dir_lr = 'S' if self.values['f_dir'] in ('2', '3') else '0'
+                params.update({"f_dir_ud": f_dir_ud, "f_dir_lr": f_dir_lr})
+            else:
+                params.update({"f_dir": self.values['f_dir']})
 
         _LOGGER.debug("Sending request to %s with params: %s", path, params)
         await self._get_resource(path, params)
