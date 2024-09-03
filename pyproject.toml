@@ -26,9 +26,9 @@ maintainers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/fredrike/pypoint"
-Repository = "https://github.com/fredrike/pypoint.git"
-Issues = "https://github.com/fredrike/pypoint/issues"
+Homepage = "https://github.com/fredrike/pydaikin"
+Repository = "https://github.com/fredrike/pydaikin.git"
+Issues = "https://github.com/fredrike/pydaikin/issues"
 
 [tool.setuptools]
 script-files = ['bin/pydaikin']
