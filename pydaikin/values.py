@@ -37,6 +37,9 @@ class ApplianceValues(MutableMapping):
     def __len__(self):
         return len(self._data)
 
+    def __str__(self):
+        return f"{self._data}"
+
     # --- Custom methods to use smart updates ---
     def get(
         self, key: str, default=None, *, invalidate: bool = True
