@@ -145,15 +145,13 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         if params is None:
             params = {}
 
-        # pylint: disable-next=undefined-variable
-        if _get_resource.retry.statistics["attempt_number"] == 1:  # noqa: F821
-            _LOGGER.debug(
-                "Calling: %s/%s %s [%s]",
-                self.base_url,
-                path,
-                params if "pass" not in params else {**params, **{"pass": "****"}},
-                self.headers,
-            )
+        _LOGGER.debug(
+            "Calling: %s/%s %s [%s]",
+            self.base_url,
+            path,
+            params if "pass" not in params else {**params, **{"pass": "****"}},
+            self.headers,
+        )
 
         # cannot manage session on outer async with or this will close the session
         # passed to pydaikin (homeassistant for instance)
