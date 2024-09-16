@@ -1,5 +1,6 @@
 """Pydaikin appliance, represent a Daikin device."""
 
+from asyncio import sleep
 import logging
 from urllib.parse import unquote
 
@@ -48,6 +49,8 @@ class DaikinSkyFi(Appliance):
             '7': 'high/auto',
         },
     }
+
+    MAX_CONCURRENT_REQUESTS = 1
 
     def __init__(
         self,
@@ -114,7 +117,9 @@ class DaikinSkyFi(Appliance):
             params = {}
         # ensure password is the first parameter
         params = {**{"pass": self._password}, **params}
-        return await super()._get_resource(path, params)
+        ret = await super()._get_resource(path, params)
+        await sleep(0.3)
+        return ret
 
     def represent(self, key):
         """Return translated value from key."""
