@@ -167,7 +167,7 @@ class DaikinSkyFi(Appliance):
     def zones(self):
         """Return list of zones."""
         if 'nz' not in self.values:
-            return False
+            return False  # pragma: no cover
         return [
             v
             for i, v in enumerate(
