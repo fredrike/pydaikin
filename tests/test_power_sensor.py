@@ -9,6 +9,8 @@ import pytest
 
 from pydaikin.daikin_brp069 import DaikinBRP069
 
+from .test_init import client_session
+
 
 @pytest.fixture
 def device():
@@ -107,7 +109,7 @@ def device():
         return dict(foo='bar')
 
     with patch.object(DaikinBRP069, 'discover_ip'):
-        device = DaikinBRP069('ip')
+        device = DaikinBRP069('ip', client_session)
         device._cool_energy_100w_ticks = cool_energy_100w_ticks
         device._heat_energy_100w_ticks = heat_energy_100w_ticks
         device._consume_100w_cool = _consume_100w_cool
