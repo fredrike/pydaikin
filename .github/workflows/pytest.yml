@@ -44,7 +44,6 @@ jobs:
           pre-commit install
 
       - name: Run pre-commit hooks
-        continue-on-error: true
         run: >
           git ls-files | xargs pre-commit run
           --show-diff-on-failure
@@ -52,6 +51,19 @@ jobs:
           --files
 
       - name: Test with pytest
-        continue-on-error: true
-        run: |
+        run: >
           pytest tests
+          --log-cli-level=DEBUG
+          --cov=pydaikin
+          --cov-report=xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ matrix.python-version }}
+          path: coverage.xml
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
