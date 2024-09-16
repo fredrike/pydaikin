@@ -96,7 +96,7 @@ class DaikinSkyFi(Appliance):
     @staticmethod
     def parse_response(response_body):
         """Parse response from Daikin and map it to general Daikin format."""
-        _LOGGER.debug("Parsing %s", response_body)
+        _LOGGER.debug("Parsing response %s", response_body)
         response = dict([e.split('=') for e in response_body.split('&')])
         if response.get('fanflags') == '3':
             response['fanspeed'] = str(int(response['fanspeed']) + 4)
