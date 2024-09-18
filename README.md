@@ -1,7 +1,12 @@
 ![PyPI - License](https://img.shields.io/pypi/l/pydaikin?color=green)
-![Bitbucket open pull requests](https://img.shields.io/bitbucket/pr/mustang51/pydaikin?logo=bitbucket&logoColor=white)
 ![PyPI - Downloads](https://img.shields.io/pypi/dw/pydaikin?label=downloads&logo=pypi&logoColor=white)
 ![PyPI - Version](https://img.shields.io/pypi/v/pydaikin?label=version&logo=pypi&logoColor=white)
+
+[![Test Python package](https://github.com/fredrike/pydaikin/actions/workflows/pytest.yml/badge.svg)](https://github.com/fredrike/pydaikin/actions/workflows/pytest.yml)
+[![Pylint](https://github.com/fredrike/pydaikin/actions/workflows/pylint.yml/badge.svg)](https://github.com/fredrike/pydaikin/actions/workflows/pylint.yml)
+[![codecov](https://codecov.io/github/fredrike/pydaikin/graph/badge.svg?token=DFEYF4L0J2)](https://codecov.io/github/fredrike/pydaikin)
+![GitHub Pull Requests](https://img.shields.io/github/issues-pr/fredrike/pydaikin?logo=github)
+![GitHub Issues](https://img.shields.io/github/issues/fredrike/pydaikin?logo=github)
 
 PyDaikin is a standalone program and a library that interface AirConditioners from Daikin.
 
