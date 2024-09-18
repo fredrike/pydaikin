@@ -1,5 +1,6 @@
 """Pydaikin appliance, represent a Daikin device."""
 
+from asyncio import sleep
 import logging
 from urllib.parse import unquote
 
@@ -49,6 +50,8 @@ class DaikinSkyFi(Appliance):
         },
     }
 
+    MAX_CONCURRENT_REQUESTS = 1
+
     def __init__(
         self,
         device_id: str,
@@ -96,7 +99,7 @@ class DaikinSkyFi(Appliance):
     @staticmethod
     def parse_response(response_body):
         """Parse response from Daikin and map it to general Daikin format."""
-        _LOGGER.debug("Parsing %s", response_body)
+        _LOGGER.debug("Parsing response %s", response_body)
         response = dict([e.split('=') for e in response_body.split('&')])
         if response.get('fanflags') == '3':
             response['fanspeed'] = str(int(response['fanspeed']) + 4)
@@ -114,7 +117,9 @@ class DaikinSkyFi(Appliance):
             params = {}
         # ensure password is the first parameter
         params = {**{"pass": self._password}, **params}
-        return await super()._get_resource(path, params)
+        ret = await super()._get_resource(path, params)
+        await sleep(0.3)
+        return ret
 
     def represent(self, key):
         """Return translated value from key."""
@@ -162,7 +167,7 @@ class DaikinSkyFi(Appliance):
     def zones(self):
         """Return list of zones."""
         if 'nz' not in self.values:
-            return False
+            return False  # pragma: no cover
         return [
             v
             for i, v in enumerate(

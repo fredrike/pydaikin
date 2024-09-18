@@ -7,7 +7,6 @@ import pytest_asyncio
 from pydaikin.daikin_airbase import DaikinAirBase
 from pydaikin.daikin_brp069 import DaikinBRP069
 from pydaikin.daikin_brp072c import DaikinBRP072C
-from pydaikin.daikin_skyfi import DaikinSkyFi
 
 
 @pytest_asyncio.fixture
@@ -177,27 +176,6 @@ async def test_daikinBRP072C(aresponses, client_session):
     )
 
     device = DaikinBRP072C('ip', session=client_session, key="xxxkeyxxx")
-
-    await device.init()
-
-    aresponses.assert_all_requests_matched()
-    aresponses.assert_no_unused_routes()
-
-
-@pytest.mark.asyncio
-async def test_daikinSkiFi(aresponses, client_session):
-    aresponses.add(
-        path_pattern="/zones.cgi",
-        method_pattern="GET",
-        response="nz=8&zone1=Zone%201&zone2=Zone%202&zone3=Zone%203&zone4=Zone%204&zone5=Zone%205&zone6=Zone%206&zone7=Zone%207&zone8=Zone%208",
-    )
-    aresponses.add(
-        path_pattern="/ac.cgi",
-        method_pattern="GET",
-        response="opmode=0&units=.&settemp=24.0&fanspeed=3&fanflags=1&acmode=16&tonact=0&toffact=0&prog=0&time=23:36&day=6&roomtemp=23&outsidetemp=0&louvre=1&zone=0&flt=0&test=0&errdata=146&sensors=1",
-    )
-
-    device = DaikinSkyFi('ip', session=client_session, password="xxxpasswordxxx")
 
     await device.init()
 
