@@ -117,6 +117,8 @@ class DaikinBRP069(Appliance):
         'filter_sign_info': 'filter dirty',
     }
 
+    MAX_CONCURRENT_REQUESTS = 1
+
     @staticmethod
     def parse_response(response_body):
         """Parse response from Daikin
