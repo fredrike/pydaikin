@@ -148,10 +148,13 @@ class DaikinBRP069(Appliance):
             await self.update_status(self.HTTP_RESOURCES)
 
         if self.support_energy_consumption:
-            self.INFO_RESOURCES += [  # pylint: disable=invalid-name
-                'aircon/get_day_power_ex',
-                'aircon/get_week_power',
-            ]
+            self.INFO_RESOURCES = (  # pylint: disable=invalid-name
+                self.INFO_RESOURCES
+                + [
+                    'aircon/get_day_power_ex',
+                    'aircon/get_week_power',
+                ]
+            )
 
     async def _update_settings(self, settings):
         """Update settings to set on Daikin device."""
