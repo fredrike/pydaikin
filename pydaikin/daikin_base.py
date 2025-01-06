@@ -182,7 +182,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     async def update_status(self, resources=None):
         """Update status from resources."""
         if resources is None:
-            resources = self.INFO_RESOURCES
+            resources = self.get_info_resources()
         resources = [
             resource
             for resource in resources
@@ -204,6 +204,9 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             self.values.update_by_resource(resource, task.result())
 
         self._register_energy_consumption_history()
+
+    def get_info_resources(self):
+        return self.INFO_RESOURCES
 
     def show_values(self, only_summary=False):
         """Print values."""
