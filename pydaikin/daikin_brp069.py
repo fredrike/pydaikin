@@ -153,9 +153,8 @@ class DaikinBRP069(Appliance):
                 'aircon/get_day_power_ex',
                 'aircon/get_week_power',
             ]
-        
-        return self.INFO_RESOURCES
 
+        return self.INFO_RESOURCES
 
     async def _update_settings(self, settings):
         """Update settings to set on Daikin device."""
