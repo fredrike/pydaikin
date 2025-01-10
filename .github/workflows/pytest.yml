@@ -3,6 +3,9 @@ name: Test Python package
 on:
   push:
   pull_request:
+  schedule:
+    - cron: '0 1 * * SUN'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -63,7 +66,7 @@ jobs:
           name: coverage-report-${{ matrix.python-version }}
           path: coverage.xml
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
