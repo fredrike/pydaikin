@@ -1,4 +1,5 @@
 "Function to parse responses coming in, used by multiple classes"
+
 import logging
 import re
 from urllib.parse import unquote
