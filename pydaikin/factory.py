@@ -18,6 +18,7 @@ _LOGGER = logging.getLogger(__name__)
 
 class DaikinFactory:  # pylint: disable=too-few-public-methods
     "Factory object generating instantiated instances of Appliance"
+
     _generated_object: Appliance
 
     async def __new__(cls, *a, **kw):  # pylint: disable=invalid-overridden-method
