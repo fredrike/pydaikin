@@ -1,7 +1,7 @@
 """Pydaikin power mixin."""
 
 from collections import namedtuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
 ENERGY_CONSUMPTION_MAX_HISTORY = timedelta(hours=6)
@@ -99,7 +99,7 @@ class DaikinPowerMixin:
 
         for mode in (ATTR_TOTAL, ATTR_COOL, ATTR_HEAT):
             new_state = EnergyConsumptionState(
-                datetime=datetime.utcnow(),
+                datetime=datetime.now(timezone.utc),
                 first_state=not (self._energy_consumption_history[mode]),
                 today=self.energy_consumption(
                     mode=mode, time=TIME_TODAY, invalidate=False
@@ -131,7 +131,7 @@ class DaikinPowerMixin:
                             self._energy_consumption_history[mode]
                         )
                         if state.datetime
-                        < datetime.utcnow() - ENERGY_CONSUMPTION_MAX_HISTORY
+                        < datetime.now(timezone.utc) - ENERGY_CONSUMPTION_MAX_HISTORY
                     ),
                     default=len(self._energy_consumption_history[mode]),
                 )
@@ -268,7 +268,7 @@ class DaikinPowerMixin:
             if min_power is not None and est_power > 0:
                 est_power = max(est_power, min_power)
 
-        if exp_diff_time and datetime.utcnow() > history[-1].datetime + exp_diff_time:
+        if exp_diff_time and datetime.now(timezone.utc) > history[-1].datetime + exp_diff_time:
             # The power estimation was computed for a given duration
             # So if we exceed this duration we should return a zero power
             est_power = 0

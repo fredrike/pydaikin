@@ -1,6 +1,7 @@
 """Pydaikin appliance, represent a Daikin BRP069 device."""
 
 import logging
+from datetime import datetime, timezone
 
 from .daikin_base import Appliance
 
@@ -254,6 +255,14 @@ class DaikinBRP069(Appliance):
 
     async def set_zone(self, zone_id, key, value):
         """Set zone status."""
+
+    async def set_clock(self):
+        """Sets the clock on the AC to the current time"""
+        now = datetime.now(timezone.utc)
+        try:
+            await self._get_resource('common/notify_date_time', {"date=": now.strftime('%Y/%m/%d'), "zone": "GMT", "time":now.strftime('%H:%M:%S')})
+        except Exception as exc:  # pylint: disable=broad-except
+            _LOGGER.error('Raised "%s" while setting internal clock', exc)
 
     async def auto_set_clock(self):
         """Tells the AC to auto-set its internal clock."""

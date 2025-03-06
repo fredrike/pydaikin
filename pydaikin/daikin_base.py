@@ -2,7 +2,7 @@
 
 import asyncio
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 import socket
 from ssl import SSLContext
@@ -220,7 +220,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     def log_sensors(self, file):
         """Log sensors to a file."""
         data = [
-            ('datetime', datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')),
+            ('datetime', datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')),
             ('in_temp', self.inside_temperature),
         ]
         if self.support_outside_temperature:
@@ -248,7 +248,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     def show_sensors(self):
         """Print sensors."""
         data = [
-            datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+            datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'),
             f'in_temp={int(self.inside_temperature)}°C',
         ]
         if self.support_outside_temperature:
