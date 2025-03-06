@@ -268,7 +268,10 @@ class DaikinPowerMixin:
             if min_power is not None and est_power > 0:
                 est_power = max(est_power, min_power)
 
-        if exp_diff_time and datetime.now(timezone.utc) > history[-1].datetime + exp_diff_time:
+        if (
+            exp_diff_time
+            and datetime.now(timezone.utc) > history[-1].datetime + exp_diff_time
+        ):
             # The power estimation was computed for a given duration
             # So if we exceed this duration we should return a zero power
             est_power = 0
