@@ -267,7 +267,7 @@ class DaikinBRP069(Appliance):
             await self._get_resource(
                 'common/notify_date_time',
                 {
-                    "date=": now.strftime('%Y/%m/%d'),
+                    "date": now.strftime('%Y/%m/%d'),
                     "zone": "GMT",
                     "time": now.strftime('%H:%M:%S'),
                 },
