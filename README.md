@@ -18,3 +18,18 @@ Currently the following Daikin WiFi modules are supported:
 * SKYFi (different protocol, have a password)
 
 The integration was initially built by Yari Adan, but lately have been taken over by Fredrik Erlandsson.
+
+Here is a simple example code for connecting to a  "BRP069" style AC:
+```
+import logging, asyncio
+from pydaikin.daikin_base import Appliance
+from pydaikin.factory import DaikinFactory
+
+logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
+
+async def testDaikin():
+    device: Appliance = await DaikinFactory("10.0.0.1")
+    device.show_sensors()
+
+asyncio.run(testDaikin())
+```
