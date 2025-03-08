@@ -1,7 +1,7 @@
 """Smart container for appliance's data"""
 
 from collections.abc import MutableMapping
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 class ApplianceValues(MutableMapping):
@@ -62,13 +62,13 @@ class ApplianceValues(MutableMapping):
         self._last_update_by_resource = {
             resource: last_update
             for resource, last_update in self._last_update_by_resource.items()
-            if datetime.utcnow() - last_update < self.TTL
+            if datetime.now(timezone.utc) - last_update < self.TTL
         }
         return resource not in self._last_update_by_resource
 
     def update_by_resource(self, resource: str, data: dict):
         """Update the values and keep track of which resource provided them."""
         self._data.update(data)
-        self._last_update_by_resource[resource] = datetime.utcnow()
+        self._last_update_by_resource[resource] = datetime.now(timezone.utc)
         for k in data.keys():
             self._resource_by_key[k] = resource
