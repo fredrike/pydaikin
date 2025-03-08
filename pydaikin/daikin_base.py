@@ -206,6 +206,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         self._register_energy_consumption_history()
 
     def get_info_resources(self):
+        """Returns info_resources"""
         return self.INFO_RESOURCES
 
     def show_values(self, only_summary=False):

@@ -148,7 +148,7 @@ class DaikinBRP069(Appliance):
             await self.update_status(self.HTTP_RESOURCES)
 
     def get_info_resources(self):
-        """returns info_resources"""
+        """Returns info_resources"""
         if self.support_energy_consumption:
             return self.INFO_RESOURCES + [
                 'aircon/get_day_power_ex',
