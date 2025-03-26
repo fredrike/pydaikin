@@ -160,7 +160,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
                 f'{self.base_url}/{path}',
                 params=params,
                 headers=self.headers,
-                ssl_context=self.ssl_context,
+                ssl=self.ssl_context,
             ) as response:
                 if response.status == 403:
                     raise HTTPForbidden(reason=f"HTTP 403 Forbidden for {response.url}")
