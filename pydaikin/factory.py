@@ -45,6 +45,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 session,
                 key=key,
                 uuid=kwargs.get('uuid'),
+                ssl_context=kwargs.get('ssl_context'),
             )
         else:  # special case for BRP069 and AirBase
             try:
