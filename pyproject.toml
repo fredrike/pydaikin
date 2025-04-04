@@ -18,7 +18,7 @@ classifiers = [
   "Topic :: Home Automation",
 ]
 dependencies = ['netifaces', 'aiohttp', 'urllib3', 'tenacity']
-requires-python = ">= 3.11"
+requires-python = ">= 3.12"
 readme = "README.md"
 maintainers = [
   { name = "Fredrik Erlandsson", email = "fredrik.e@gmail.com" },
