@@ -1,21 +1,23 @@
-import logging
 import asyncio
+import logging
 import time
+
 from pydaikin.factory import DaikinFactory
 
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
 
+
 async def test_daikin():
     print("\n=== Testing Daikin Firmware 2.8.0 Integration ===\n")
-    
+
     # Replace with your device's IP address
     device_ip = "192.168.50.47"
     device = await DaikinFactory(device_ip)
-    
+
     print(f"Device type: {type(device).__name__}")
     print(f"Device IP: {device_ip}")
     print(f"Device MAC: {device.values._data.get('mac', 'unknown')}")
-    
+
     # Get initial state
     print("\n=== Initial State ===")
     print(f"Power: {'On' if device.values._data.get('pow') == '1' else 'Off'}")
@@ -26,12 +28,12 @@ async def test_daikin():
     print(f"Inside temperature: {device.values._data.get('htemp', 'unknown')}")
     print(f"Outside temperature: {device.values._data.get('otemp', 'unknown')}")
     print(f"Humidity: {device.values._data.get('hhum', 'unknown')}")
-    
+
     # Get all values for reference
     print("\n=== All Values ===")
     for key, value in device.values._data.items():
         print(f"  {key}: {value}")
-    
+
     # Test 1: Turn On
     print("\n=== Test 1: Turn On ===")
     try:
@@ -43,7 +45,7 @@ async def test_daikin():
         await asyncio.sleep(2)  # Wait for the command to take effect
     except Exception as e:
         print(f"Error turning on: {e}")
-    
+
     # Test 2: Set Temperature
     print("\n=== Test 2: Set Temperature ===")
     try:
@@ -55,7 +57,7 @@ async def test_daikin():
         await asyncio.sleep(2)
     except Exception as e:
         print(f"Error setting temperature: {e}")
-    
+
     # Test 3: Set Fan Mode
     print("\n=== Test 3: Set Fan Mode ===")
     try:
@@ -67,7 +69,7 @@ async def test_daikin():
         await asyncio.sleep(2)
     except Exception as e:
         print(f"Error setting fan mode: {e}")
-    
+
     # Test 4: Set Swing Mode
     print("\n=== Test 4: Set Swing Mode ===")
     try:
@@ -79,7 +81,7 @@ async def test_daikin():
         await asyncio.sleep(2)
     except Exception as e:
         print(f"Error setting swing mode: {e}")
-    
+
     # Test 5: Change Mode
     print("\n=== Test 5: Change Mode ===")
     try:
@@ -91,7 +93,7 @@ async def test_daikin():
         await asyncio.sleep(2)
     except Exception as e:
         print(f"Error changing mode: {e}")
-    
+
     # Test 6: Turn Off
     print("\n=== Test 6: Turn Off ===")
     try:
@@ -102,7 +104,7 @@ async def test_daikin():
         print(f"Mode: {device.values._data.get('mode', 'unknown')}")
     except Exception as e:
         print(f"Error turning off: {e}")
-    
+
     # Final state
     print("\n=== Final State ===")
     print(f"Power: {'On' if device.values._data.get('pow') == '1' else 'Off'}")
@@ -113,7 +115,8 @@ async def test_daikin():
     print(f"Inside temperature: {device.values._data.get('htemp', 'unknown')}")
     print(f"Outside temperature: {device.values._data.get('otemp', 'unknown')}")
     print(f"Humidity: {device.values._data.get('hhum', 'unknown')}")
-    
+
     print("\n=== Test Complete ===")
+
 
 asyncio.run(test_daikin())
