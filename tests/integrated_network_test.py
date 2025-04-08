@@ -95,10 +95,28 @@ async def test_single_device(device_info):
         should_test_control = input("\nWould you like to test control capability? (y/n): ").lower() == 'y'
         if should_test_control:
             if device.values._data.get('pow') == '1':
-                # If on, try adjusting temperature
-                if device.values._data.get('stemp') and device.values._data.get('stemp') != '--':
-                    curr_temp = float(device.values._data.get('stemp'))
+                # Device is ON, offer different test options
+                print("\nTest options:")
+                print("1. Temperature adjustment")
+                print("2. Fan speed control")
+                print("3. Operation mode control")
+                print("4. Airflow direction control")
+                print("5. All tests")
+                print("6. Turn device OFF")
+                
+                test_choice = input("Choose a test (1-6): ")
+                
+                # Store original values to restore later
+                orig_temp = device.values._data.get('stemp')
+                orig_fan_rate = device.values._data.get('f_rate')
+                orig_mode = device.values._data.get('mode')
+                orig_dir = device.values._data.get('f_dir')
+                
+                # Test temperature adjustment
+                if test_choice in ('1', '5') and orig_temp and orig_temp != '--':
+                    curr_temp = float(orig_temp)
                     new_temp = str(curr_temp + 0.5)
+                    print(f"\nTesting temperature control:")
                     print(f"Setting temperature from {curr_temp} to {new_temp}...")
                     await device.set({"stemp": new_temp})
                     print(f"New temperature: {device.values._data.get('stemp')}")
@@ -108,16 +126,115 @@ async def test_single_device(device_info):
                     print(f"Restoring temperature to {curr_temp}...")
                     await device.set({"stemp": str(curr_temp)})
                     print(f"Temperature restored: {device.values._data.get('stemp')}")
+                
+                # Test fan speed control
+                if test_choice in ('2', '5') and device.support_fan_rate:
+                    print(f"\nTesting fan speed control:")
+                    print(f"Current fan speed: {device.values._data.get('f_rate')}")
+                    
+                    # Get available fan speeds
+                    fan_rates = device.fan_rate
+                    if fan_rates:
+                        print(f"Available fan speeds: {', '.join(fan_rates)}")
+                        
+                        # Find a different fan speed to test
+                        current_fan = device.values._data.get('f_rate')
+                        test_fan = None
+                        
+                        for fan in fan_rates:
+                            if fan.lower() != current_fan.lower():
+                                test_fan = fan.lower()
+                                break
+                        
+                        if test_fan:
+                            print(f"Setting fan speed to: {test_fan}...")
+                            await device.set({"f_rate": test_fan})
+                            print(f"New fan speed: {device.values._data.get('f_rate')}")
+                            
+                            # Restore original fan speed
+                            await asyncio.sleep(2)
+                            print(f"Restoring fan speed to {orig_fan_rate}...")
+                            await device.set({"f_rate": orig_fan_rate})
+                            print(f"Fan speed restored: {device.values._data.get('f_rate')}")
+                        else:
+                            print("No alternative fan speed available to test.")
+                    else:
+                        print("No fan speeds available.")
                 else:
-                    # Try turning off
-                    print("Testing power off...")
+                    if test_choice in ('2', '5') and not device.support_fan_rate:
+                        print("This device does not support fan speed control.")
+                
+                # Test operation mode control
+                if test_choice in ('3', '5'):
+                    print(f"\nTesting operation mode control:")
+                    print(f"Current mode: {device.values._data.get('mode')}")
+                    
+                    # Test cooling mode if not already in it
+                    if orig_mode != 'cool':
+                        print("Setting mode to 'cool'...")
+                        await device.set({"mode": "cool"})
+                        print(f"New mode: {device.values._data.get('mode')}")
+                        
+                        # Wait a moment before changing back
+                        await asyncio.sleep(2)
+                    
+                    # Test fan mode if available
+                    print("Setting mode to 'fan'...")
+                    await device.set({"mode": "fan"})
+                    print(f"New mode: {device.values._data.get('mode')}")
+                    
+                    # Restore original mode
+                    await asyncio.sleep(2)
+                    print(f"Restoring mode to {orig_mode}...")
+                    await device.set({"mode": orig_mode})
+                    print(f"Mode restored: {device.values._data.get('mode')}")
+                
+                # Test airflow direction control
+                if test_choice in ('4', '5') and device.support_swing_mode:
+                    print(f"\nTesting airflow direction control:")
+                    print(f"Current direction: {device.values._data.get('f_dir')}")
+                    
+                    # Get available swing modes
+                    swing_modes = device.swing_modes
+                    if swing_modes:
+                        print(f"Available directions: {', '.join(swing_modes)}")
+                        
+                        # Find a different direction to test
+                        current_dir = device.values._data.get('f_dir')
+                        test_dir = None
+                        
+                        for direction in swing_modes:
+                            if direction.lower() != current_dir.lower():
+                                test_dir = direction.lower()
+                                break
+                        
+                        if test_dir:
+                            print(f"Setting direction to: {test_dir}...")
+                            await device.set({"f_dir": test_dir})
+                            print(f"New direction: {device.values._data.get('f_dir')}")
+                            
+                            # Restore original direction
+                            await asyncio.sleep(2)
+                            print(f"Restoring direction to {orig_dir}...")
+                            await device.set({"f_dir": orig_dir})
+                            print(f"Direction restored: {device.values._data.get('f_dir')}")
+                        else:
+                            print("No alternative direction available to test.")
+                    else:
+                        print("No direction modes available.")
+                else:
+                    if test_choice in ('4', '5') and not device.support_swing_mode:
+                        print("This device does not support airflow direction control.")
+                
+                # Turn off if requested
+                if test_choice == '6':
+                    print("\nTesting power off...")
                     await device.set({"mode": "off"})
                     print(f"Power after OFF command: {'On' if device.values._data.get('pow') == '1' else 'Off'}")
                     
                     # Turn back on if requested
                     if input("Turn device back on? (y/n): ").lower() == 'y':
-                        prev_mode = device.values._data.get('mode')
-                        mode_to_set = prev_mode if prev_mode and prev_mode != 'off' else 'cool'
+                        mode_to_set = orig_mode if orig_mode and orig_mode != 'off' else 'cool'
                         print(f"Turning back ON to {mode_to_set} mode...")
                         await device.set({"mode": mode_to_set})
                         print(f"Power after ON command: {'On' if device.values._data.get('pow') == '1' else 'Off'}")
@@ -127,6 +244,13 @@ async def test_single_device(device_info):
                     print("Testing power on to cool mode...")
                     await device.set({"mode": "cool"})
                     print(f"Power after ON command: {'On' if device.values._data.get('pow') == '1' else 'Off'}")
+                    
+                    # If turned on successfully, offer to run tests
+                    if device.values._data.get('pow') == '1':
+                        if input("Run additional tests? (y/n): ").lower() == 'y':
+                            # Recursively call the function to offer test options
+                            await test_single_device(device_info)
+                            return True, device_id, device_class
                     
                     # Turn back off if requested
                     if input("Test complete. Turn device back OFF? (y/n): ").lower() == 'y':
