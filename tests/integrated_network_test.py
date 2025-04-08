@@ -4,7 +4,6 @@ import ipaddress
 import logging
 import socket
 import sys
-import time
 from urllib.parse import unquote
 
 from pydaikin.discovery import get_devices
@@ -27,7 +26,6 @@ async def test_single_device(device_info):
         mac = device_info.get('mac', 'Unknown')
         name = device_info.get('name', 'Unknown')
         device_id = f"{ip_address}:{port}" if port and port != 80 else ip_address
-        device_type = device_info.get('type', '')
         adp_kind = device_info.get('adp_kind', '')
     else:
         # Just an IP address string
@@ -55,7 +53,7 @@ async def test_single_device(device_info):
     if adp_kind == '3' or adp_kind == 3:
         need_key = True
         print(
-            f"Device appears to be a BRP072C device which requires an authentication key."
+            "Device appears to be a BRP072C device which requires an authentication key."
         )
 
         # Check if we have a pre-defined key for this device
@@ -139,7 +137,7 @@ async def test_single_device(device_info):
 
                 # Test fan speed control
                 if test_choice in ('2', '5') and device.support_fan_rate:
-                    print(f"\nTesting fan speed control:")
+                    print("\nTesting fan speed control:")
                     print(f"Current fan speed: {device.values._data.get('f_rate')}")
 
                     # Get available fan speeds
@@ -178,7 +176,7 @@ async def test_single_device(device_info):
 
                 # Test operation mode control
                 if test_choice in ('3', '5'):
-                    print(f"\nTesting operation mode control:")
+                    print("\nTesting operation mode control:")
                     print(f"Current mode: {device.values._data.get('mode')}")
 
                     # Test cooling mode if not already in it
@@ -203,7 +201,7 @@ async def test_single_device(device_info):
 
                 # Test airflow direction control
                 if test_choice in ('4', '5') and device.support_swing_mode:
-                    print(f"\nTesting airflow direction control:")
+                    print("\nTesting airflow direction control:")
                     print(f"Current direction: {device.values._data.get('f_dir')}")
 
                     # Get available swing modes
@@ -356,7 +354,7 @@ async def main():
 
             # Identify if this device might need a key
             if device.get('adp_kind') == '3' or device.get('adp_kind') == 3:
-                print(f"   ⚠️ This device likely requires an authentication key")
+                print("   ⚠️ This device likely requires an authentication key")
 
                 # Check if we have a pre-defined key
                 for key_name, _ in DEVICE_KEYS.items():
@@ -422,7 +420,7 @@ async def main():
 
             # Use ThreadPoolExecutor for parallel port scanning
             live_hosts = []
-            with ThreadPoolExecutor(max_workers=50) as executor:
+            with ThreadPoolExecutor(max_workers=50):
                 # Check common Daikin ports: 80 (default), 30050 (BRP devices), 49155 (BRP072C)
                 for port in [80, 30050, 49155]:
                     for i, ip in enumerate(hosts):

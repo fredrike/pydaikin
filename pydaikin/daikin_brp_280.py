@@ -3,8 +3,7 @@
 from dataclasses import dataclass, field
 import json
 import logging
-from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import quote
+from typing import Any, Dict, List, Optional
 
 from aiohttp import ClientSession
 
@@ -186,6 +185,7 @@ class DaikinBRP280(Appliance):
                     break
             if not found:
                 raise DaikinException(f'Key {current_key} not found')
+        return None
 
     def get_swing_state(self, data: dict) -> str:
         """Get the current swing state from response data."""
@@ -253,8 +253,8 @@ class DaikinBRP280(Appliance):
             if not response or 'responses' not in response:
                 raise DaikinException("Invalid response from device")
         except Exception as e:
-            _LOGGER.error(f"Error communicating with device: {e}")
-            raise DaikinException(f"Failed to communicate with device: {e}")
+            _LOGGER.error("Error communicating with device: %s", e)
+            raise DaikinException(f"Failed to communicate with device: {e}") from e
 
         # Extract basic info
         try:
@@ -575,15 +575,18 @@ class DaikinBRP280(Appliance):
 
             # Update status after setting
             await self.update_status()
+async def set_holiday(self, mode):
+    """Set holiday mode. Not supported in this firmware."""
+    _LOGGER.warning("Holiday mode not supported in firmware 2.8.0")
 
-    async def set_holiday(self, mode):
-        """Set holiday mode. Not supported in this firmware."""
-        _LOGGER.warning("Holiday mode not supported in firmware 2.8.0")
+async def set_advanced_mode(self, mode, value):
+    """Set advanced mode. Not supported in this firmware."""
+    _LOGGER.warning("Advanced mode not supported in firmware 2.8.0")
 
-    async def set_advanced_mode(self, mode, value):
-        """Set advanced mode. Not supported in this firmware."""
-        _LOGGER.warning("Advanced mode not supported in firmware 2.8.0")
+async def set_streamer(self, mode):
+    """Set streamer mode. Not supported in this firmware."""
+    _LOGGER.warning("Streamer mode not supported in firmware 2.8.0")
 
-    async def set_streamer(self, mode):
-        """Set streamer mode. Not supported in this firmware."""
-        _LOGGER.warning("Streamer mode not supported in firmware 2.8.0")
+async def set_zone(self, zone_id, status):
+    """Set zone status. Not supported in this firmware."""
+    _LOGGER.warning("Zone control not supported in firmware 2.8.0")

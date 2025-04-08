@@ -4,7 +4,6 @@ import ipaddress
 import logging
 import socket
 import sys
-import time
 
 from pydaikin.discovery import get_devices
 from pydaikin.factory import DaikinFactory

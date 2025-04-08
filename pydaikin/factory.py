@@ -71,8 +71,8 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                     _LOGGER.debug(
                         "Failed to communicate with firmware 2.8.0 endpoint: %s", e
                     )
-                    # Don't use from e here as it breaks the discovery flow
-                    raise DaikinException(f"Not a firmware 2.8.0 device: {e}")
+                    # Use from e to properly chain exceptions
+                    raise DaikinException(f"Not a firmware 2.8.0 device: {e}") from e
             except (HTTPNotFound, DaikinException) as err:
                 _LOGGER.debug("Not a firmware 2.8.0 device: %s", err)
 
@@ -126,7 +126,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
             device_name = get_name(device_id)
             if device_name and 'port' in device_name:
                 return device_name['ip'], int(device_name['port'])
-        except Exception as e:
+        except (KeyError, ValueError, TypeError) as e:
             _LOGGER.debug("Error looking up device in discovery: %s", e)
 
         # Default: just return the IP with no port

@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import time
 
 from pydaikin.factory import DaikinFactory
 
