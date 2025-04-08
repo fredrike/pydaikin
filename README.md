@@ -41,5 +41,6 @@ Firmware version 2.8.0 uses a different API structure compared to earlier firmwa
 
 * FTKM20YVMA with firmware version 2.8.0
 * FTXM46WVMA with firmware version 2.8.0
+* FTXV80WVMA with firmware version 2.8.0
 
 If you have a device with firmware 2.8.0 that's not working correctly, please open an issue with the device model and provide logs when using the debug mode.
