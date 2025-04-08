@@ -6,7 +6,7 @@ from aiohttp import ClientSession
 import pytest
 import pytest_asyncio
 
-from pydaikin.daikin_brp_280 import DaikinBRP280
+from pydaikin.daikin_brp084 import DaikinBRP084
 
 
 @pytest_asyncio.fixture
@@ -17,8 +17,8 @@ async def client_session():
 
 
 @pytest.mark.asyncio
-async def test_daikin_brp_280(aresponses, client_session):
-    """Test the DaikinBRP280 class for firmware 2.8.0 devices."""
+async def test_daikin_brp084(aresponses, client_session):
+    """Test the DaikinBRP084 class for firmware 2.8.0 devices."""
     # Mock response for initial status update
     mock_response = {
         "responses": [
@@ -126,7 +126,7 @@ async def test_daikin_brp_280(aresponses, client_session):
         response=json.dumps(mock_response),
     )
 
-    device = DaikinBRP280('ip', session=client_session)
+    device = DaikinBRP084('ip', session=client_session)
     await device.init()
 
     # Check basic properties

@@ -11,7 +11,7 @@ from .daikin_airbase import DaikinAirBase
 from .daikin_base import Appliance
 from .daikin_brp069 import DaikinBRP069
 from .daikin_brp072c import DaikinBRP072C
-from .daikin_brp_280 import DaikinBRP280
+from .daikin_brp084 import DaikinBRP084
 from .daikin_skyfi import DaikinSkyFi
 from .discovery import get_name
 from .exceptions import DaikinException
@@ -57,7 +57,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
             # First try to check if it's firmware 2.8.0
             try:
                 _LOGGER.debug("Trying connection to firmware 2.8.0")
-                self._generated_object = DaikinBRP280(device_ip, session)
+                self._generated_object = DaikinBRP084(device_ip, session)
                 try:
                     await self._generated_object.update_status()
                     # If we get here, it's likely a 2.8.0 device

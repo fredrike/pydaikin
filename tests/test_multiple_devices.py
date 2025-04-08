@@ -5,7 +5,7 @@ from aiohttp import web
 
 from pydaikin.daikin_airbase import DaikinAirBase
 from pydaikin.daikin_brp069 import DaikinBRP069
-from pydaikin.daikin_brp_280 import DaikinBRP280
+from pydaikin.daikin_brp084 import DaikinBRP084
 from pydaikin.daikin_skyfi import DaikinSkyFi
 from pydaikin.factory import DaikinFactory
 
@@ -270,7 +270,7 @@ async def test_device_factory():
 
             expected_class = None
             if device_type == "firmware280":
-                expected_class = DaikinBRP280
+                expected_class = DaikinBRP084
             elif device_type == "brp069":
                 expected_class = DaikinBRP069
             elif device_type == "airbase":
