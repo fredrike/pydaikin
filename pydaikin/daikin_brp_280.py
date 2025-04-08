@@ -68,6 +68,7 @@ class DaikinRequest:
         return payload
 
 
+# pylint: disable=abstract-method
 class DaikinBRP280(Appliance):
     """Daikin class for BRP devices with firmware 2.8.0."""
 
