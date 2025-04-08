@@ -189,45 +189,40 @@ class DaikinBRP280(Appliance):
 
     def get_swing_state(self, data: dict) -> str:
         """Get the current swing state from response data."""
+        result = 'off'  # Default return value
+        
         mode = self.values.get('mode', invalidate=False)
-        if mode is None or mode == 'off':
-            return 'off'
-
-        if mode not in self.HVAC_MODE_TO_SWING_ATTR_NAMES:
-            return 'off'
-
-        vertical_attr_name, horizontal_attr_name = self.HVAC_MODE_TO_SWING_ATTR_NAMES[
-            mode
-        ]
-
-        try:
-            vertical = "F" in self.find_value_by_pn(
-                data,
-                "/dsiot/edge/adr_0100.dgc_status",
-                "dgc_status",
-                "e_1002",
-                "e_3001",
-                vertical_attr_name,
-            )
-            horizontal = "F" in self.find_value_by_pn(
-                data,
-                "/dsiot/edge/adr_0100.dgc_status",
-                "dgc_status",
-                "e_1002",
-                "e_3001",
-                horizontal_attr_name,
-            )
-
-            if horizontal and vertical:
-                return 'both'
-            if horizontal:
-                return 'horizontal'
-            if vertical:
-                return 'vertical'
-
-            return 'off'
-        except DaikinException:
-            return 'off'
+        if mode is not None and mode != 'off' and mode in self.HVAC_MODE_TO_SWING_ATTR_NAMES:
+            vertical_attr_name, horizontal_attr_name = self.HVAC_MODE_TO_SWING_ATTR_NAMES[mode]
+            
+            try:
+                vertical = "F" in self.find_value_by_pn(
+                    data,
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    vertical_attr_name,
+                )
+                horizontal = "F" in self.find_value_by_pn(
+                    data,
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    horizontal_attr_name,
+                )
+                
+                if horizontal and vertical:
+                    result = 'both'
+                elif horizontal:
+                    result = 'horizontal'
+                elif vertical:
+                    result = 'vertical'
+            except DaikinException:
+                pass  # Keep default 'off'
+                
+        return result
 
     async def init(self):
         """Initialize the device and fetch initial state."""
@@ -434,13 +429,8 @@ class DaikinBRP280(Appliance):
 
         return self.values
 
-    async def set(self, settings):
-        """Set settings on Daikin device."""
-        await self._update_settings(settings)
-
-        requests = []
-
-        # Handle power state
+    def _handle_power_setting(self, settings, requests):
+        """Handle power-related settings."""
         if 'mode' in settings and settings['mode'] == 'off':
             # Turn off
             requests.append(
@@ -451,121 +441,136 @@ class DaikinBRP280(Appliance):
                     "/dsiot/edge/adr_0100.dgc_status",
                 )
             )
-        else:
-            # If turning on or changing mode
-            if 'mode' in settings and settings['mode'] != 'off':
-                # Turn on
+            return
+
+        # If turning on or changing mode
+        if 'mode' in settings and settings['mode'] != 'off':
+            # Turn on
+            requests.append(
+                DaikinAttribute(
+                    "p_01",
+                    "01",
+                    ["e_1002", "e_A002"],
+                    "/dsiot/edge/adr_0100.dgc_status",
+                )
+            )
+
+            # Set mode
+            mode_value = self.REVERSE_MODE_MAP.get(settings['mode'])
+            if mode_value:
                 requests.append(
                     DaikinAttribute(
                         "p_01",
-                        "01",
-                        ["e_1002", "e_A002"],
-                        "/dsiot/edge/adr_0100.dgc_status",
-                    )
-                )
-
-                # Set mode
-                mode_value = self.REVERSE_MODE_MAP.get(settings['mode'])
-                if mode_value:
-                    requests.append(
-                        DaikinAttribute(
-                            "p_01",
-                            mode_value,
-                            ["e_1002", "e_3001"],
-                            "/dsiot/edge/adr_0100.dgc_status",
-                        )
-                    )
-
-            # Set temperature if applicable
-            if (
-                'stemp' in settings
-                and self.values['mode'] in self.HVAC_MODE_TO_TEMP_HEX
-            ):
-                temp_param = self.HVAC_MODE_TO_TEMP_HEX[self.values['mode']]
-                temp_hex = self.temp_to_hex(float(settings['stemp']))
-                requests.append(
-                    DaikinAttribute(
-                        temp_param,
-                        temp_hex,
+                        mode_value,
                         ["e_1002", "e_3001"],
                         "/dsiot/edge/adr_0100.dgc_status",
                     )
                 )
 
-            # Set fan mode if applicable
-            if (
-                'f_rate' in settings
-                and self.values['mode'] in self.HVAC_MODE_TO_FAN_SPEED_ATTR_NAME
-            ):
-                fan_param = self.HVAC_MODE_TO_FAN_SPEED_ATTR_NAME[self.values['mode']]
-                fan_value = None
+    def _handle_temperature_setting(self, settings, requests):
+        """Handle temperature-related settings."""
+        if (
+            'stemp' in settings
+            and self.values['mode'] in self.HVAC_MODE_TO_TEMP_HEX
+        ):
+            temp_param = self.HVAC_MODE_TO_TEMP_HEX[self.values['mode']]
+            temp_hex = self.temp_to_hex(float(settings['stemp']))
+            requests.append(
+                DaikinAttribute(
+                    temp_param,
+                    temp_hex,
+                    ["e_1002", "e_3001"],
+                    "/dsiot/edge/adr_0100.dgc_status",
+                )
+            )
 
-                # Try both formats - the internal one and the user-friendly one
-                for key, value in self.FAN_MODE_MAP.items():
-                    if value == settings['f_rate'] or key == settings['f_rate']:
-                        fan_value = key
-                        break
+    def _handle_fan_setting(self, settings, requests):
+        """Handle fan-related settings."""
+        if (
+            'f_rate' in settings
+            and self.values['mode'] in self.HVAC_MODE_TO_FAN_SPEED_ATTR_NAME
+        ):
+            fan_param = self.HVAC_MODE_TO_FAN_SPEED_ATTR_NAME[self.values['mode']]
+            fan_value = None
 
-                if fan_value:
-                    requests.append(
-                        DaikinAttribute(
-                            fan_param,
-                            fan_value,
-                            ["e_1002", "e_3001"],
-                            "/dsiot/edge/adr_0100.dgc_status",
-                        )
+            # Try both formats - the internal one and the user-friendly one
+            for key, value in self.FAN_MODE_MAP.items():
+                if value == settings['f_rate'] or key == settings['f_rate']:
+                    fan_value = key
+                    break
+
+            if fan_value:
+                requests.append(
+                    DaikinAttribute(
+                        fan_param,
+                        fan_value,
+                        ["e_1002", "e_3001"],
+                        "/dsiot/edge/adr_0100.dgc_status",
                     )
-
-            # Set swing mode if applicable
-            if (
-                'f_dir' in settings
-                and self.values['mode'] in self.HVAC_MODE_TO_SWING_ATTR_NAMES
-            ):
-                vertical_attr_name, horizontal_attr_name = (
-                    self.HVAC_MODE_TO_SWING_ATTR_NAMES[self.values['mode']]
                 )
 
-                if settings['f_dir'] in ('off', 'horizontal'):
-                    # Turn off vertical swing
-                    requests.append(
-                        DaikinAttribute(
-                            vertical_attr_name,
-                            self.TURN_OFF_SWING_AXIS,
-                            ["e_1002", "e_3001"],
-                            "/dsiot/edge/adr_0100.dgc_status",
-                        )
-                    )
-                else:
-                    # Turn on vertical swing
-                    requests.append(
-                        DaikinAttribute(
-                            vertical_attr_name,
-                            self.TURN_ON_SWING_AXIS,
-                            ["e_1002", "e_3001"],
-                            "/dsiot/edge/adr_0100.dgc_status",
-                        )
-                    )
+    def _handle_swing_setting(self, settings, requests):
+        """Handle swing-related settings."""
+        if (
+            'f_dir' in settings
+            and self.values['mode'] in self.HVAC_MODE_TO_SWING_ATTR_NAMES
+        ):
+            vertical_attr_name, horizontal_attr_name = (
+                self.HVAC_MODE_TO_SWING_ATTR_NAMES[self.values['mode']]
+            )
 
-                if settings['f_dir'] in ('off', 'vertical'):
-                    # Turn off horizontal swing
-                    requests.append(
-                        DaikinAttribute(
-                            horizontal_attr_name,
-                            self.TURN_OFF_SWING_AXIS,
-                            ["e_1002", "e_3001"],
-                            "/dsiot/edge/adr_0100.dgc_status",
-                        )
+            if settings['f_dir'] in ('off', 'horizontal'):
+                # Turn off vertical swing
+                requests.append(
+                    DaikinAttribute(
+                        vertical_attr_name,
+                        self.TURN_OFF_SWING_AXIS,
+                        ["e_1002", "e_3001"],
+                        "/dsiot/edge/adr_0100.dgc_status",
                     )
-                else:
-                    # Turn on horizontal swing
-                    requests.append(
-                        DaikinAttribute(
-                            horizontal_attr_name,
-                            self.TURN_ON_SWING_AXIS,
-                            ["e_1002", "e_3001"],
-                            "/dsiot/edge/adr_0100.dgc_status",
-                        )
+                )
+            else:
+                # Turn on vertical swing
+                requests.append(
+                    DaikinAttribute(
+                        vertical_attr_name,
+                        self.TURN_ON_SWING_AXIS,
+                        ["e_1002", "e_3001"],
+                        "/dsiot/edge/adr_0100.dgc_status",
                     )
+                )
+
+            if settings['f_dir'] in ('off', 'vertical'):
+                # Turn off horizontal swing
+                requests.append(
+                    DaikinAttribute(
+                        horizontal_attr_name,
+                        self.TURN_OFF_SWING_AXIS,
+                        ["e_1002", "e_3001"],
+                        "/dsiot/edge/adr_0100.dgc_status",
+                    )
+                )
+            else:
+                # Turn on horizontal swing
+                requests.append(
+                    DaikinAttribute(
+                        horizontal_attr_name,
+                        self.TURN_ON_SWING_AXIS,
+                        ["e_1002", "e_3001"],
+                        "/dsiot/edge/adr_0100.dgc_status",
+                    )
+                )
+
+    async def set(self, settings):
+        """Set settings on Daikin device."""
+        await self._update_settings(settings)
+        requests = []
+
+        # Handle different types of settings
+        self._handle_power_setting(settings, requests)
+        self._handle_temperature_setting(settings, requests)
+        self._handle_fan_setting(settings, requests)
+        self._handle_swing_setting(settings, requests)
 
         if requests:
             request_payload = DaikinRequest(requests).serialize()
