@@ -124,7 +124,7 @@ async def test_single_device(device_info):
                 if test_choice in ('1', '5') and orig_temp and orig_temp != '--':
                     curr_temp = float(orig_temp)
                     new_temp = str(curr_temp + 0.5)
-                    print(f"\nTesting temperature control:")
+                    print("\nTesting temperature control:")
                     print(f"Setting temperature from {curr_temp} to {new_temp}...")
                     await device.set({"stemp": new_temp})
                     print(f"New temperature: {device.values._data.get('stemp')}")
