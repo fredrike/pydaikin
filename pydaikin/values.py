@@ -6,6 +6,7 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class ApplianceValues(MutableMapping):
     """Appliance's values dict container keeping track of which values have been actually useful."""
 
