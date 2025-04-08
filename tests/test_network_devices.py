@@ -3,7 +3,6 @@ import asyncio
 import ipaddress
 import socket
 import sys
-import time
 from concurrent.futures import ThreadPoolExecutor
 
 from pydaikin.discovery import get_devices
@@ -133,7 +132,7 @@ async def main():
             
             # Use ThreadPoolExecutor for parallel port scanning
             live_hosts = []
-            with ThreadPoolExecutor(max_workers=50) as executor:
+            with ThreadPoolExecutor(max_workers=50):
                 # Check common Daikin ports: 80 (default), 30050 (BRP devices)
                 for port in [80, 30050]:
                     for i, ip in enumerate(hosts):
@@ -149,7 +148,7 @@ async def main():
                                 if device_id not in live_hosts:
                                     live_hosts.append(device_id)
                                     print(f"Found device at: {device_id}")
-                        except:
+                        except Exception:
                             pass
                         # Show progress
                         if i % 20 == 0 and i > 0:

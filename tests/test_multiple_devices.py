@@ -1,10 +1,6 @@
 import logging
 import asyncio
-import pytest
-import json
-import aiohttp
 from aiohttp import web
-from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
 
 from pydaikin.factory import DaikinFactory
 from pydaikin.daikin_brp069 import DaikinBRP069

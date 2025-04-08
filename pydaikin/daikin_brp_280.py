@@ -2,8 +2,7 @@
 import logging
 import json
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List, Any, Tuple
-from urllib.parse import quote
+from typing import Optional, Dict, List, Any
 
 from aiohttp import ClientSession
 
@@ -254,8 +253,9 @@ class DaikinBRP280(Appliance):
             if not response or 'responses' not in response:
                 raise DaikinException("Invalid response from device")
         except Exception as e:
-            _LOGGER.error(f"Error communicating with device: {e}")
-            raise DaikinException(f"Failed to communicate with device: {e}")
+            _LOGGER.error("Error communicating with device: %s", e)
+            # Don't use from e here as it breaks the discovery flow
+            raise DaikinException("Failed to communicate with device: {}".format(e))
         
         # Extract basic info
         try:
@@ -381,7 +381,7 @@ class DaikinBRP280(Appliance):
                 pass
                 
         except DaikinException as e:
-            _LOGGER.error(f"Error extracting values: {e}")
+            _LOGGER.error("Error extracting values: %s", e)
             raise
             
     async def _get_resource(self, path: str, params: Optional[Dict] = None):
@@ -404,7 +404,7 @@ class DaikinBRP280(Appliance):
                     response.raise_for_status()
                     return await response.json()
         except Exception as e:
-            _LOGGER.debug(f"Error in _get_resource: {e}")
+            _LOGGER.debug("Error in _get_resource: %s", e)
             raise
                 
     async def _update_settings(self, settings):
@@ -566,3 +566,7 @@ class DaikinBRP280(Appliance):
     async def set_streamer(self, mode):
         """Set streamer mode. Not supported in this firmware."""
         _LOGGER.warning("Streamer mode not supported in firmware 2.8.0")
+        
+    async def set_zone(self, zone_id, key, value):
+        """Set zone status. Not supported in this firmware."""
+        _LOGGER.warning("Zone control not supported in firmware 2.8.0")

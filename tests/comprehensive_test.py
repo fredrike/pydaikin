@@ -1,6 +1,5 @@
 import logging
 import asyncio
-import time
 from pydaikin.factory import DaikinFactory
 
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')

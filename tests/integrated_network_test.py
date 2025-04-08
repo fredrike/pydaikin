@@ -3,7 +3,6 @@ import asyncio
 import ipaddress
 import socket
 import sys
-import time
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import unquote
 
@@ -35,7 +34,6 @@ async def test_single_device(device_info):
         mac = "Unknown"
         name = "Unknown"
         port = None
-        device_type = ''
         adp_kind = ''
     
     # Clean up URL encoded names
@@ -58,12 +56,12 @@ async def test_single_device(device_info):
         for device_name, device_key in DEVICE_KEYS.items():
             if device_name in name:
                 key = device_key
-                print(f"Using pre-defined authentication key: {key}")
+                print("Using pre-defined authentication key: {}".format(key))
                 break
         
         # If no pre-defined key, prompt the user
         if not key:
-            key_input = input(f"Enter authentication key for {name} (or press Enter to skip): ")
+            key_input = input("Enter authentication key for {} (or press Enter to skip): ".format(name))
             if key_input.strip():
                 key = key_input
             else:
@@ -72,7 +70,7 @@ async def test_single_device(device_info):
     try:
         # Try to create device with factory
         if key:
-            print(f"Connecting with authentication key...")
+            print("Connecting with authentication key...")
             device = await DaikinFactory(device_id, key=key)
         else:
             device = await DaikinFactory(device_id)
@@ -181,7 +179,7 @@ async def test_single_device(device_info):
                     # Test fan mode if available
                     print("Setting mode to 'fan'...")
                     await device.set({"mode": "fan"})
-                    print(f"New mode: {device.values._data.get('mode')}")
+                    print("New mode: {}".format(device.values._data.get('mode')))
                     
                     # Restore original mode
                     await asyncio.sleep(2)
@@ -211,7 +209,7 @@ async def test_single_device(device_info):
                         if test_dir:
                             print(f"Setting direction to: {test_dir}...")
                             await device.set({"f_dir": test_dir})
-                            print(f"New direction: {device.values._data.get('f_dir')}")
+                            print("New direction: {}".format(device.values._data.get('f_dir')))
                             
                             # Restore original direction
                             await asyncio.sleep(2)
@@ -269,7 +267,7 @@ async def test_single_device(device_info):
                 key = input("Enter authentication key: ")
                 if key.strip():
                     try:
-                        print(f"Attempting connection with key...")
+                        print("Attempting connection with key...")
                         device = await DaikinFactory(device_id, key=key)
                         print("Connection successful!")
                         
@@ -307,12 +305,12 @@ async def main():
             
             # Identify if this device might need a key
             if device.get('adp_kind') == '3' or device.get('adp_kind') == 3:
-                print(f"   ⚠️ This device likely requires an authentication key")
+                print("   ⚠️ This device likely requires an authentication key")
                 
                 # Check if we have a pre-defined key
                 for key_name, _ in DEVICE_KEYS.items():
                     if key_name in device_name:
-                        print(f"   ✓ Pre-defined key available for this device")
+                        print("   ✓ Pre-defined key available for this device")
                         break
     else:
         print("No devices discovered automatically.")
@@ -356,7 +354,7 @@ async def main():
         if ":" in ip or ipaddress.ip_address(ip.split(":")[0]):
             devices_to_test.append(ip)
         else:
-            print(f"Invalid IP address: {ip}")
+            print("Invalid IP address: {}".format(ip))
             return
     
     elif choice == "3":
@@ -385,7 +383,7 @@ async def main():
                                 if device_id not in live_hosts:
                                     live_hosts.append(device_id)
                                     print(f"Found device at: {device_id}")
-                        except:
+                        except Exception:
                             pass
                         # Show progress
                         if i % 20 == 0 and i > 0:

@@ -69,6 +69,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                     return
                 except Exception as e:
                     _LOGGER.debug("Failed to communicate with firmware 2.8.0 endpoint: %s", e)
+                    # Don't use from e here as it breaks the discovery flow
                     raise DaikinException(f"Not a firmware 2.8.0 device: {e}")
             except (HTTPNotFound, DaikinException) as err:
                 _LOGGER.debug("Not a firmware 2.8.0 device: %s", err)
@@ -80,7 +81,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 
                 # If we have a specific port from discovery, set it in the base_url
                 if device_port and device_port != 80:
-                    _LOGGER.debug(f"Using custom port {device_port} for BRP069")
+                    _LOGGER.debug("Using custom port %s for BRP069", device_port)
                     self._generated_object.base_url = f"http://{device_ip}:{device_port}"
                 
                 await self._generated_object.update_status(
@@ -94,7 +95,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 
                 # If we have a specific port from discovery, set it in the base_url
                 if device_port and device_port != 80:
-                    _LOGGER.debug(f"Using custom port {device_port} for AirBase")
+                    _LOGGER.debug("Using custom port %s for AirBase", device_port)
                     self._generated_object.base_url = f"http://{device_ip}:{device_port}"
 
         await self._generated_object.init()
@@ -120,7 +121,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
             if device_name and 'port' in device_name:
                 return device_name['ip'], int(device_name['port'])
         except Exception as e:
-            _LOGGER.debug(f"Error looking up device in discovery: {e}")
+            _LOGGER.debug("Error looking up device in discovery: %s", e)
             
         # Default: just return the IP with no port
         return device_id, None
