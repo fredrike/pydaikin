@@ -190,11 +190,17 @@ class DaikinBRP280(Appliance):
     def get_swing_state(self, data: dict) -> str:
         """Get the current swing state from response data."""
         result = 'off'  # Default return value
-        
+
         mode = self.values.get('mode', invalidate=False)
-        if mode is not None and mode != 'off' and mode in self.HVAC_MODE_TO_SWING_ATTR_NAMES:
-            vertical_attr_name, horizontal_attr_name = self.HVAC_MODE_TO_SWING_ATTR_NAMES[mode]
-            
+        if (
+            mode is not None
+            and mode != 'off'
+            and mode in self.HVAC_MODE_TO_SWING_ATTR_NAMES
+        ):
+            vertical_attr_name, horizontal_attr_name = (
+                self.HVAC_MODE_TO_SWING_ATTR_NAMES[mode]
+            )
+
             try:
                 vertical = "F" in self.find_value_by_pn(
                     data,
@@ -212,7 +218,7 @@ class DaikinBRP280(Appliance):
                     "e_3001",
                     horizontal_attr_name,
                 )
-                
+
                 if horizontal and vertical:
                     result = 'both'
                 elif horizontal:
@@ -221,7 +227,7 @@ class DaikinBRP280(Appliance):
                     result = 'vertical'
             except DaikinException:
                 pass  # Keep default 'off'
-                
+
         return result
 
     async def init(self):
@@ -469,10 +475,7 @@ class DaikinBRP280(Appliance):
 
     def _handle_temperature_setting(self, settings, requests):
         """Handle temperature-related settings."""
-        if (
-            'stemp' in settings
-            and self.values['mode'] in self.HVAC_MODE_TO_TEMP_HEX
-        ):
+        if 'stemp' in settings and self.values['mode'] in self.HVAC_MODE_TO_TEMP_HEX:
             temp_param = self.HVAC_MODE_TO_TEMP_HEX[self.values['mode']]
             temp_hex = self.temp_to_hex(float(settings['stemp']))
             requests.append(
