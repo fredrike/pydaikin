@@ -4,7 +4,6 @@ import ipaddress
 import logging
 import socket
 import sys
-from concurrent.futures import ThreadPoolExecutor
 import time
 from urllib.parse import unquote
 
@@ -69,7 +68,9 @@ async def test_single_device(device_info):
         # If no pre-defined key, prompt the user
         if not key:
             key_input = input(
-                "Enter authentication key for {} (or press Enter to skip): ".format(name)
+                "Enter authentication key for {} (or press Enter to skip): ".format(
+                    name
+                )
             )
             if key_input.strip():
                 key = key_input
@@ -222,7 +223,11 @@ async def test_single_device(device_info):
                         if test_dir:
                             print(f"Setting direction to: {test_dir}...")
                             await device.set({"f_dir": test_dir})
-                            print("New direction: {}".format(device.values._data.get('f_dir')))
+                            print(
+                                "New direction: {}".format(
+                                    device.values._data.get('f_dir')
+                                )
+                            )
 
                             # Restore original direction
                             await asyncio.sleep(2)
