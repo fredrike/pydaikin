@@ -2,7 +2,9 @@
 
 from collections.abc import MutableMapping
 from datetime import datetime, timedelta, timezone
+import logging
 
+_LOGGER = logging.getLogger(__name__)
 
 class ApplianceValues(MutableMapping):
     """Appliance's values dict container keeping track of which values have been actually useful."""
@@ -29,7 +31,8 @@ class ApplianceValues(MutableMapping):
 
     def __delitem__(self, key):
         del self._data[key]
-        del self._resource_by_key[key]
+        if key in self._resource_by_key:
+            del self._resource_by_key[key]
 
     def __iter__(self):
         return iter(self._data)
@@ -47,7 +50,7 @@ class ApplianceValues(MutableMapping):
         """Get a value and invalidate it so that the associated resource will soon be updated."""
         if key not in self._data:
             return default
-        if invalidate:
+        if invalidate and key in self._resource_by_key:
             self._last_update_by_resource.pop(self._resource_by_key[key], None)
         return self._data[key]
 

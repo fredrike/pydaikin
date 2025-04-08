@@ -16,11 +16,12 @@ Currently the following Daikin WiFi modules are supported:
 * BRP15B61 aka. AirBase (similar protocol as BRP069Axx)
 * BRP072B/Cxx (needs https access and a key)
 * SKYFi (different protocol, have a password)
+* BRP devices with firmware version 2.8.0 (different API structure) - new in version 2.16.0
 
 The integration was initially built by Yari Adan, but lately have been taken over by Fredrik Erlandsson.
 
 Here is a simple example code for connecting to a  "BRP069" style AC:
-```
+```python
 import logging, asyncio
 from pydaikin.daikin_base import Appliance
 from pydaikin.factory import DaikinFactory
@@ -33,3 +34,12 @@ async def testDaikin():
 
 asyncio.run(testDaikin())
 ```
+
+## Firmware Version 2.8.0 Support
+
+Firmware version 2.8.0 uses a different API structure compared to earlier firmware versions. The library now automatically detects the firmware version and uses the appropriate communication method. Confirmed working with:
+
+* FTKM20YVMA with firmware version 2.8.0
+* FTXM46WVMA with firmware version 2.8.0
+
+If you have a device with firmware 2.8.0 that's not working correctly, please open an issue with the device model and provide logs when using the debug mode.
