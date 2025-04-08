@@ -8,7 +8,7 @@ authors = [
   { name = "Yari Adan", email = "mustang@yadan.org" },
 ]
 name = "pydaikin"
-version = "2.15.0"
+version = "2.16.0"
 description = "Python Daikin HVAC appliances interface"
 classifiers = [
   "Programming Language :: Python :: 3",
