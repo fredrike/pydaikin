@@ -582,21 +582,25 @@ class DaikinBRP280(Appliance):
             await self.update_status()
 
 
-async def set_holiday(self, mode):
+async def set_holiday(self, _mode):
     """Set holiday mode. Not supported in this firmware."""
     _LOGGER.warning("Holiday mode not supported in firmware 2.8.0")
+    # Method intentionally does nothing as this feature is not supported
 
 
-async def set_advanced_mode(self, mode, value):
+async def set_advanced_mode(self, _mode, _value):
     """Set advanced mode. Not supported in this firmware."""
     _LOGGER.warning("Advanced mode not supported in firmware 2.8.0")
+    # Method intentionally does nothing as this feature is not supported
 
 
-async def set_streamer(self, mode):
+async def set_streamer(self, _mode):
     """Set streamer mode. Not supported in this firmware."""
     _LOGGER.warning("Streamer mode not supported in firmware 2.8.0")
+    # Method intentionally does nothing as this feature is not supported
 
 
-async def set_zone(self, zone_id, status):
+async def set_zone(self, _zone_id, _key, _value):
     """Set zone status. Not supported in this firmware."""
     _LOGGER.warning("Zone control not supported in firmware 2.8.0")
+    # Method intentionally does nothing as this feature is not supported
