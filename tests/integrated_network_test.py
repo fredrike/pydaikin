@@ -68,9 +68,8 @@ async def test_single_device(device_info):
 
         # If no pre-defined key, prompt the user
         if not key:
-            key_input = input("Enter authentication key for {} (or press Enter to skip): ".format(name))
             key_input = input(
-                f"Enter authentication key for {name} (or press Enter to skip): "
+                "Enter authentication key for {} (or press Enter to skip): ".format(name)
             )
             if key_input.strip():
                 key = key_input
@@ -194,8 +193,6 @@ async def test_single_device(device_info):
                     print("Setting mode to 'fan'...")
                     await device.set({"mode": "fan"})
                     print("New mode: {}".format(device.values._data.get('mode')))
-                    
-                    print(f"New mode: {device.values._data.get('mode')}")
 
                     # Restore original mode
                     await asyncio.sleep(2)
@@ -226,8 +223,6 @@ async def test_single_device(device_info):
                             print(f"Setting direction to: {test_dir}...")
                             await device.set({"f_dir": test_dir})
                             print("New direction: {}".format(device.values._data.get('f_dir')))
-                            
-                            print(f"New direction: {device.values._data.get('f_dir')}")
 
                             # Restore original direction
                             await asyncio.sleep(2)
