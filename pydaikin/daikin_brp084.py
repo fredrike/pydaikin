@@ -592,27 +592,33 @@ def set_streamer(self, mode):
     """Streamer mode not supported in firmware 2.8.0"""
     _LOGGER.debug("Streamer mode not supported in firmware 2.8.0")
 
+
 async def set_holiday(self, mode):
     """Set holiday mode."""
     _LOGGER.debug("Holiday mode not supported in firmware 2.8.0")
+
 
 async def set_advanced_mode(self, mode, value):
     """Set advanced mode."""
     _LOGGER.debug("Advanced mode not supported in firmware 2.8.0")
 
+
 async def set_streamer(self, mode):
     """Set streamer mode."""
     _LOGGER.debug("Streamer mode not supported in firmware 2.8.0")
+
 
 @property
 def support_away_mode(self) -> bool:
     """Set holiday mode not supported in firmware 2.8.0"""
     return False
 
+
 @property
 def support_advanced_modes(self) -> bool:
     """Advanced mode not supported in firmware 2.8.0"""
     return False
+
 
 @property
 def support_zone_count(self) -> bool:
