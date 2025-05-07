@@ -204,7 +204,7 @@ class DaikinBRP084(Appliance):
             vertical_attr_name, horizontal_attr_name = (
                 self.HVAC_MODE_TO_SWING_ATTR_NAMES[mode]
             )
-    
+
             try:
                 vertical = "F" in self.find_value_by_pn(
                     data,
@@ -222,7 +222,7 @@ class DaikinBRP084(Appliance):
                     "e_3001",
                     horizontal_attr_name,
                 )
-    
+
                 if horizontal and vertical:
                     return 'both'
                 if horizontal:
@@ -231,7 +231,7 @@ class DaikinBRP084(Appliance):
                     return 'vertical'
             except DaikinException:
                 pass  # Keep default 'off'
-    
+
         return 'off'  # Default return value
 
     async def init(self):
