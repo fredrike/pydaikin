@@ -596,11 +596,9 @@ async def set_holiday(self, mode):
     return False
 
 
-# pylint: disable=unused-argument
-async def set_advanced_mode(self, mode, value):
-    """Set advanced mode. Not supported in this firmware."""
-    _LOGGER.warning("Advanced mode not supported in firmware 2.8.0")
-    # Method intentionally does nothing as this feature is not supported
+@property
+def support_advanced_modes(self) -> bool:
+    """Advanced mode not supported in firmware 2.8.0"""
     return False
 
 
