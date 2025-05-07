@@ -169,6 +169,11 @@ class DaikinBRP084(Appliance):
         return format(int(temperature * divisor), '02x')
 
     @staticmethod
+    def hex_to_int(value: str) -> int:
+        """Convert hexadecimal string to integer."""
+        return int(value, 16)
+
+    @staticmethod
     def find_value_by_pn(data: dict, fr: str, *keys):
         """Find values in nested response data."""
         data = [x['pc'] for x in data['responses'] if x['fr'] == fr]
@@ -321,7 +326,7 @@ class DaikinBRP084(Appliance):
             # Get humidity
             try:
                 self.values['hhum'] = str(
-                    int(
+                    self.hex_to_int(
                         self.find_value_by_pn(
                             response,
                             '/dsiot/edge/adr_0100.dgc_status',
@@ -329,8 +334,7 @@ class DaikinBRP084(Appliance):
                             'e_1002',
                             'e_A00B',
                             'p_02',
-                        ),
-                        16,
+                        )
                     )
                 )
             except DaikinException:
