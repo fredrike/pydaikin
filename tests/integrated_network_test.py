@@ -6,6 +6,8 @@ import socket
 import sys
 from urllib.parse import unquote
 
+import pytest
+
 from pydaikin.discovery import get_devices
 from pydaikin.factory import DaikinFactory
 
@@ -18,6 +20,7 @@ DEVICE_KEYS = {
 }
 
 
+@pytest.mark.skip(reason="We don't require connection to real devices")
 async def test_single_device(device_info):
     """Test a single device."""
     if isinstance(device_info, dict):

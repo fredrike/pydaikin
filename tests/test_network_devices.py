@@ -5,6 +5,8 @@ import logging
 import socket
 import sys
 
+import pytest
+
 from pydaikin.discovery import get_devices
 from pydaikin.factory import DaikinFactory
 
@@ -12,6 +14,7 @@ logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
+@pytest.mark.skip(reason="We don't require connection to real devices")
 async def test_single_device(device_info):
     """Test a single device."""
     if isinstance(device_info, dict):
