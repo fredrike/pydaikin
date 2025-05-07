@@ -11,6 +11,7 @@ logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
 @pytest.mark.skip(
     reason="Test requires a physical Daikin device and is configured to not run automatically"
 )
+@pytest.mark.skip(reason="We don't require connection to real devices")
 async def test_daikin():
     print("\n=== Testing Daikin Firmware 2.8.0 Integration ===\n")
 
