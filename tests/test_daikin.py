@@ -1,11 +1,13 @@
 import asyncio
 import logging
+import pytest
 
 from pydaikin.factory import DaikinFactory
 
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
 
 
+@pytest.mark.skip(reason="Test requires a physical Daikin device and is configured to not run automatically")
 async def test_daikin():
     # Replace with your device's IP address
     device = await DaikinFactory("192.168.50.47")
@@ -31,4 +33,6 @@ async def test_daikin():
         print(f"Error setting temperature: {e}")
 
 
-asyncio.run(test_daikin())
+# Only run when explicitly called, not during automatic test discovery
+if __name__ == "__main__":
+    asyncio.run(test_daikin())
