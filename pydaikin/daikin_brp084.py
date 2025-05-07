@@ -591,6 +591,7 @@ async def set_holiday(self, mode):
     """Set holiday mode. Not supported in this firmware."""
     _LOGGER.warning("Holiday mode not supported in firmware 2.8.0")
     # Method intentionally does nothing as this feature is not supported
+    return False
 
 
 # pylint: disable=unused-argument
@@ -598,6 +599,7 @@ async def set_advanced_mode(self, mode, value):
     """Set advanced mode. Not supported in this firmware."""
     _LOGGER.warning("Advanced mode not supported in firmware 2.8.0")
     # Method intentionally does nothing as this feature is not supported
+    return False
 
 
 # pylint: disable=unused-argument
@@ -612,3 +614,4 @@ async def set_zone(self, zone_id, key, value):
     """Set zone status. Not supported in this firmware."""
     _LOGGER.warning("Zone control not supported in firmware 2.8.0")
     # Method intentionally does nothing as this feature is not supported
+    return False
