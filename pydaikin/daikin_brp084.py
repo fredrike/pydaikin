@@ -195,8 +195,6 @@ class DaikinBRP084(Appliance):
 
     def get_swing_state(self, data: dict) -> str:
         """Get the current swing state from response data."""
-        result = 'off'  # Default return value
-
         mode = self.values.get('mode', invalidate=False)
         if (
             mode is not None
@@ -206,7 +204,7 @@ class DaikinBRP084(Appliance):
             vertical_attr_name, horizontal_attr_name = (
                 self.HVAC_MODE_TO_SWING_ATTR_NAMES[mode]
             )
-
+    
             try:
                 vertical = "F" in self.find_value_by_pn(
                     data,
@@ -224,17 +222,17 @@ class DaikinBRP084(Appliance):
                     "e_3001",
                     horizontal_attr_name,
                 )
-
+    
                 if horizontal and vertical:
-                    result = 'both'
-                elif horizontal:
-                    result = 'horizontal'
-                elif vertical:
-                    result = 'vertical'
+                    return 'both'
+                if horizontal:
+                    return 'horizontal'
+                if vertical:
+                    return 'vertical'
             except DaikinException:
                 pass  # Keep default 'off'
-
-        return result
+    
+        return 'off'  # Default return value
 
     async def init(self):
         """Initialize the device and fetch initial state."""
