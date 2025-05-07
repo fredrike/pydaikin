@@ -601,10 +601,12 @@ def support_advanced_modes(self) -> bool:
     """Advanced mode not supported in firmware 2.8.0"""
     return False
 
+
 @property
 def set_streamer(self) -> bool:
     """Streamer mode not supported in firmware 2.8.0"""
     return False
+
 
 @property
 def set_zone(self) -> bool:
