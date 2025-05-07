@@ -601,17 +601,12 @@ def support_advanced_modes(self) -> bool:
     """Advanced mode not supported in firmware 2.8.0"""
     return False
 
+@property
+def set_streamer(self) -> bool:
+    """Streamer mode not supported in firmware 2.8.0"""
+    return False
 
-# pylint: disable=unused-argument
-async def set_streamer(self, mode):
-    """Set streamer mode. Not supported in this firmware."""
-    _LOGGER.warning("Streamer mode not supported in firmware 2.8.0")
-    # Method intentionally does nothing as this feature is not supported
-
-
-# pylint: disable=unused-argument
-async def set_zone(self, zone_id, key, value):
-    """Set zone status. Not supported in this firmware."""
-    _LOGGER.warning("Zone control not supported in firmware 2.8.0")
-    # Method intentionally does nothing as this feature is not supported
+@property
+def set_zone(self) -> bool:
+    """Zone not supported in firmware 2.8.0"""
     return False
