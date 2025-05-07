@@ -3,8 +3,6 @@ import logging
 
 import pytest
 
-import pytest
-
 from pydaikin.factory import DaikinFactory
 
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
