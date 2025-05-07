@@ -105,7 +105,11 @@ async def test_daikin_brp084(aresponses, client_session):
     aresponses.add(
         path_pattern="/dsiot/multireq",
         method_pattern="POST",
-        response=json.dumps(mock_response),
+        response=aresponses.Response(
+            status=200,
+            text=json.dumps(mock_response),
+            headers={"Content-Type": "application/json"},
+        ),
     )
 
     # Mock response for setting temperature
@@ -116,14 +120,22 @@ async def test_daikin_brp084(aresponses, client_session):
     aresponses.add(
         path_pattern="/dsiot/multireq",
         method_pattern="POST",
-        response=json.dumps(temp_update_response),
+        response=aresponses.Response(
+            status=200,
+            text=json.dumps(temp_update_response),
+            headers={"Content-Type": "application/json"},
+        ),
     )
 
     # Add another mock for the status update after setting
     aresponses.add(
         path_pattern="/dsiot/multireq",
         method_pattern="POST",
-        response=json.dumps(mock_response),
+        response=aresponses.Response(
+            status=200,
+            text=json.dumps(mock_response),
+            headers={"Content-Type": "application/json"},
+        ),
     )
 
     device = DaikinBRP084('ip', session=client_session)
