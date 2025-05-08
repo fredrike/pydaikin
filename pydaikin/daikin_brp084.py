@@ -588,16 +588,19 @@ class DaikinBRP084(Appliance):
             await self.update_status()
 
 
+# pylint: disable=unused-argument
 def set_streamer(self, mode):
     """Streamer mode not supported in firmware 2.8.0"""
     _LOGGER.debug("Streamer mode not supported in firmware 2.8.0")
 
 
+# pylint: disable=unused-argument
 async def set_holiday(self, mode):
     """Set holiday mode."""
     _LOGGER.debug("Holiday mode not supported in firmware 2.8.0")
 
 
+# pylint: disable=unused-argument
 async def set_advanced_mode(self, mode, value):
     """Set advanced mode."""
     _LOGGER.debug("Advanced mode not supported in firmware 2.8.0")
