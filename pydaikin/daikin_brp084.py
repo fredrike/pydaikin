@@ -153,7 +153,7 @@ class DaikinBRP084(Appliance):
             "weekly_data": [
                 "/dsiot/edge/adr_0100.i_power.week_power", "week_power", "datas"
             ],
-        }
+        },
     }
 
     TRANSLATIONS = {
@@ -224,7 +224,7 @@ class DaikinBRP084(Appliance):
             *keys: Variable length list of keys to navigate the API_PATHS dictionary.
                   For example: "temp_settings", "cool" would return the path for
                   cool mode temperature.
-        
+
         Returns:
             List of path components to use with find_value_by_pn.
 
