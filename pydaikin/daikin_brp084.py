@@ -564,165 +564,97 @@ class DaikinBRP084(Appliance):
 
         return self.values
 
+    def add_request(self, path, value):
+        """Append DaikinAttribute to requests."""
+        self.requests.append(
+            DaikinAttribute(
+                path[-1], value, path[2:4], path[0]
+            )
+        )
+
     def _handle_power_setting(self, settings, requests):
         """Handle power-related settings."""
-        if 'mode' in settings and settings['mode'] == 'off':
-            # Turn off
-            power_path = self.get_path("power")
-            requests.append(
-                DaikinAttribute(
-                    power_path[-1],  # p_01
-                    "00",
-                    power_path[2:4],  # Extract e_1002, e_A002
-                    power_path[0],  # Extract the endpoint URL
-                )
-            )
+        self.requests = requests  # Store reference to requests for add_request method
+        
+        if 'mode' not in settings:
+            return
+            
+        # Turn off/on
+        power_path = self.get_path("power")
+        self.add_request(power_path, "00" if settings['mode'] == 'off' else "01")
+        
+        if settings['mode'] == 'off':
             return
 
-        # If turning on or changing mode
-        if 'mode' in settings and settings['mode'] != 'off':
-            # Turn on
-            power_path = self.get_path("power")
-            requests.append(
-                DaikinAttribute(
-                    power_path[-1],  # p_01
-                    "01",
-                    power_path[2:4],  # Extract e_1002, e_A002
-                    power_path[0],  # Extract the endpoint URL
-                )
-            )
-
-            # Set mode
-            mode_value = self.REVERSE_MODE_MAP.get(settings['mode'])
-            if mode_value:
-                mode_path = self.get_path("mode")
-                requests.append(
-                    DaikinAttribute(
-                        mode_path[-1],  # p_01
-                        mode_value,
-                        mode_path[2:4],  # Extract e_1002, e_3001
-                        mode_path[0],  # Extract the endpoint URL
-                    )
-                )
+        # Set mode
+        mode_value = self.REVERSE_MODE_MAP.get(settings['mode'])
+        if mode_value:
+            mode_path = self.get_path("mode")
+            self.add_request(mode_path, mode_value)
 
     def _handle_temperature_setting(self, settings, requests):
         """Handle temperature-related settings."""
+        self.requests = requests  # Store reference to requests for add_request method
+        
         if (
-            'stemp' in settings
-            and self.values['mode'] in self.API_PATHS["temp_settings"]
+            'stemp' not in settings
+            or self.values['mode'] not in self.API_PATHS["temp_settings"]
         ):
-            # Extract the last element (parameter name) from the path
-            path = self.get_path("temp_settings", self.values['mode'])
-            temp_param = path[-1]  # Get the last element (p_02, p_03, etc.)
-            temp_hex = self.temp_to_hex(float(settings['stemp']))
-
-            # Extract the base path without the parameter
-            base_path = path[:-1]
-
-            requests.append(
-                DaikinAttribute(
-                    temp_param,
-                    temp_hex,
-                    base_path[2:4],  # Extract e_1002, e_3001
-                    path[0],  # Extract the endpoint URL
-                )
-            )
+            return
+            
+        path = self.get_path("temp_settings", self.values['mode'])
+        temp_hex = self.temp_to_hex(float(settings['stemp']))
+        self.add_request(path, temp_hex)
 
     def _handle_fan_setting(self, settings, requests):
         """Handle fan-related settings."""
+        self.requests = requests  # Store reference to requests for add_request method
+        
         if (
-            'f_rate' in settings
-            and self.values['mode'] in self.API_PATHS["fan_settings"]
+            'f_rate' not in settings
+            or self.values['mode'] not in self.API_PATHS["fan_settings"]
         ):
-            # Get the path for the fan setting
-            path = self.get_path("fan_settings", self.values['mode'])
-            fan_param = path[-1]  # Get the last element (parameter name)
-            fan_value = None
+            return
+            
+        path = self.get_path("fan_settings", self.values['mode'])
+        fan_value = None
 
-            # Try both formats - the internal one and the user-friendly one
-            for key, value in self.FAN_MODE_MAP.items():
-                if value == settings['f_rate'] or key == settings['f_rate']:
-                    fan_value = key
-                    break
+        # Try both formats - the internal one and the user-friendly one
+        for key, value in self.FAN_MODE_MAP.items():
+            if value == settings['f_rate'] or key == settings['f_rate']:
+                fan_value = key
+                break
 
-            if fan_value:
-                # Extract the base path without the parameter
-                base_path = path[:-1]
-
-                requests.append(
-                    DaikinAttribute(
-                        fan_param,
-                        fan_value,
-                        base_path[2:4],  # Extract e_1002, e_3001
-                        path[0],  # Extract the endpoint URL
-                    )
-                )
+        if fan_value:
+            self.add_request(path, fan_value)
 
     def _handle_swing_setting(self, settings, requests):
         """Handle swing-related settings."""
+        self.requests = requests  # Store reference to requests for add_request method
+        
         if (
-            'f_dir' in settings
-            and self.values['mode'] in self.API_PATHS["swing_settings"]
+            'f_dir' not in settings
+            or self.values['mode'] not in self.API_PATHS["swing_settings"]
         ):
-            # Get the paths for vertical and horizontal swing
-            vertical_path = self.get_path(
-                "swing_settings", self.values['mode'], "vertical"
-            )
-            horizontal_path = self.get_path(
-                "swing_settings", self.values['mode'], "horizontal"
-            )
-
-            # Extract parameter names
-            vertical_attr_name = vertical_path[-1]
-            horizontal_attr_name = horizontal_path[-1]
-
-            # Extract base paths
-            base_path = vertical_path[
-                :-1
-            ]  # Both vertical and horizontal have the same base path
-            endpoint_url = vertical_path[0]  # Both have the same endpoint URL
-
-            if settings['f_dir'] in ('off', 'horizontal'):
-                # Turn off vertical swing
-                requests.append(
-                    DaikinAttribute(
-                        vertical_attr_name,
-                        self.TURN_OFF_SWING_AXIS,
-                        base_path[2:4],  # Extract e_1002, e_3001
-                        endpoint_url,
-                    )
-                )
-            else:
-                # Turn on vertical swing
-                requests.append(
-                    DaikinAttribute(
-                        vertical_attr_name,
-                        self.TURN_ON_SWING_AXIS,
-                        base_path[2:4],  # Extract e_1002, e_3001
-                        endpoint_url,
-                    )
-                )
-
-            if settings['f_dir'] in ('off', 'vertical'):
-                # Turn off horizontal swing
-                requests.append(
-                    DaikinAttribute(
-                        horizontal_attr_name,
-                        self.TURN_OFF_SWING_AXIS,
-                        base_path[2:4],  # Extract e_1002, e_3001
-                        endpoint_url,
-                    )
-                )
-            else:
-                # Turn on horizontal swing
-                requests.append(
-                    DaikinAttribute(
-                        horizontal_attr_name,
-                        self.TURN_ON_SWING_AXIS,
-                        base_path[2:4],  # Extract e_1002, e_3001
-                        endpoint_url,
-                    )
-                )
+            return
+            
+        # Set vertical swing
+        vertical_path = self.get_path(
+            "swing_settings", self.values['mode'], "vertical"
+        )
+        self.add_request(
+            vertical_path,
+            self.TURN_OFF_SWING_AXIS if settings['f_dir'] in ('off', 'horizontal') else self.TURN_ON_SWING_AXIS
+        )
+        
+        # Set horizontal swing
+        horizontal_path = self.get_path(
+            "swing_settings", self.values['mode'], "horizontal"
+        )
+        self.add_request(
+            horizontal_path,
+            self.TURN_OFF_SWING_AXIS if settings['f_dir'] in ('off', 'vertical') else self.TURN_ON_SWING_AXIS
+        )
 
     async def set(self, settings):
         """Set settings on Daikin device."""
