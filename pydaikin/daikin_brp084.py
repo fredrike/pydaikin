@@ -588,7 +588,7 @@ class DaikinBRP084(Appliance):
             await self.update_status()
 
     # pylint: disable=unused-argument
-    def set_streamer(self, mode):
+    async def set_streamer(self, mode):
         """Streamer mode not supported in firmware 2.8.0"""
         _LOGGER.debug("Streamer mode not supported in firmware 2.8.0")
 
