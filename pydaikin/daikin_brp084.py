@@ -72,6 +72,62 @@ class DaikinRequest:
 class DaikinBRP084(Appliance):
     """Daikin class for BRP devices with firmware 2.8.0."""
 
+    # Centralized API paths for easier maintenance and better organization
+    API_PATHS = {
+        # Basic paths
+        "power": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_A002", "p_01"],
+        "mode": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_01"],
+        "indoor_temp": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_A00B", "p_01"],
+        "indoor_humidity": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_A00B", "p_02"],
+        "outdoor_temp": ["/dsiot/edge/adr_0200.dgc_status", "dgc_status", "e_1003", "e_A00D", "p_01"],
+        "mac_address": ["/dsiot/edge.adp_i", "adp_i", "mac"],
+        
+        # Mode-specific paths for temperature settings
+        "temp_settings": {
+            "cool": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_02"],
+            "hot": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_03"],
+            "auto": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_1D"],
+        },
+        
+        # Fan settings organized by mode
+        "fan_settings": {
+            "auto": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_26"],
+            "cool": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_09"],
+            "hot": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_0A"],
+            "fan": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_28"],
+        },
+        
+        # Swing settings organized by mode
+        "swing_settings": {
+            "auto": {
+                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_20"],
+                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_21"],
+            },
+            "cool": {
+                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_05"],
+                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_06"],
+            },
+            "hot": {
+                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_07"],
+                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_08"],
+            },
+            "fan": {
+                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_24"],
+                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_25"],
+            },
+            "dry": {
+                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_22"],
+                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_23"],
+            },
+        },
+        
+        # Energy data
+        "energy": {
+            "today_runtime": ["/dsiot/edge/adr_0100.i_power.week_power", "week_power", "today_runtime"],
+            "weekly_data": ["/dsiot/edge/adr_0100.i_power.week_power", "week_power", "datas"],
+        }
+    }
+
     TRANSLATIONS = {
         'mode': {
             '0300': 'auto',
@@ -122,27 +178,7 @@ class DaikinBRP084(Appliance):
         '0700': '5',
     }
 
-    # For each mode, mapping to the temperature parameter and swing parameters
-    HVAC_MODE_TO_TEMP_HEX = {
-        'cool': 'p_02',
-        'hot': 'p_03',
-        'auto': 'p_1D',
-    }
-
-    HVAC_MODE_TO_SWING_ATTR_NAMES = {
-        'auto': ('p_20', 'p_21'),
-        'cool': ('p_05', 'p_06'),
-        'hot': ('p_07', 'p_08'),
-        'fan': ('p_24', 'p_25'),
-        'dry': ('p_22', 'p_23'),
-    }
-
-    HVAC_MODE_TO_FAN_SPEED_ATTR_NAME = {
-        'auto': 'p_26',
-        'cool': 'p_09',
-        'hot': 'p_0A',
-        'fan': 'p_28',
-    }
+    # These mappings are now handled by the API_PATHS dictionary
 
     # The values for turning swing axis on/off
     TURN_OFF_SWING_AXIS = "000000"
@@ -152,6 +188,26 @@ class DaikinBRP084(Appliance):
     REVERSE_FAN_MODE_MAP = {v: k for k, v in FAN_MODE_MAP.items()}
 
     INFO_RESOURCES = []
+
+    def get_path(self, *keys):
+        """Get API path from the nested dictionary structure.
+        
+        Args:
+            *keys: Variable length list of keys to navigate the API_PATHS dictionary.
+                  For example: "temp_settings", "cool" would return the path for cool mode temperature.
+        
+        Returns:
+            List of path components to use with find_value_by_pn.
+            
+        Raises:
+            DaikinException: If the path is not found in the API_PATHS dictionary.
+        """
+        current = self.API_PATHS
+        for key in keys:
+            if key not in current:
+                raise DaikinException(f"Path key {key} not found")
+            current = current[key]
+        return current
 
     def __init__(self, device_id, session: Optional[ClientSession] = None) -> None:
         """Initialize the Daikin appliance for firmware 2.8.0."""
@@ -199,28 +255,16 @@ class DaikinBRP084(Appliance):
         if (
             mode is not None
             and mode != 'off'
-            and mode in self.HVAC_MODE_TO_SWING_ATTR_NAMES
+            and mode in self.API_PATHS["swing_settings"]
         ):
-            vertical_attr_name, horizontal_attr_name = (
-                self.HVAC_MODE_TO_SWING_ATTR_NAMES[mode]
-            )
-
             try:
                 vertical = "F" in self.find_value_by_pn(
                     data,
-                    "/dsiot/edge/adr_0100.dgc_status",
-                    "dgc_status",
-                    "e_1002",
-                    "e_3001",
-                    vertical_attr_name,
+                    *self.get_path("swing_settings", mode, "vertical")
                 )
                 horizontal = "F" in self.find_value_by_pn(
                     data,
-                    "/dsiot/edge/adr_0100.dgc_status",
-                    "dgc_status",
-                    "e_1002",
-                    "e_3001",
-                    horizontal_attr_name,
+                    *self.get_path("swing_settings", mode, "horizontal")
                 )
 
                 if horizontal and vertical:
@@ -264,18 +308,14 @@ class DaikinBRP084(Appliance):
         # Extract basic info
         try:
             # Get MAC address
-            mac = self.find_value_by_pn(response, "/dsiot/edge.adp_i", "adp_i", "mac")
+            mac = self.find_value_by_pn(response, *self.get_path("mac_address"))
             self.values['mac'] = mac
 
             # Get power state
             is_off = (
                 self.find_value_by_pn(
                     response,
-                    "/dsiot/edge/adr_0100.dgc_status",
-                    "dgc_status",
-                    "e_1002",
-                    "e_A002",
-                    "p_01",
+                    *self.get_path("power")
                 )
                 == "00"
             )
@@ -283,11 +323,7 @@ class DaikinBRP084(Appliance):
             # Get mode
             mode_value = self.find_value_by_pn(
                 response,
-                '/dsiot/edge/adr_0100.dgc_status',
-                'dgc_status',
-                'e_1002',
-                'e_3001',
-                'p_01',
+                *self.get_path("mode")
             )
 
             self.values['pow'] = "0" if is_off else "1"
@@ -298,11 +334,7 @@ class DaikinBRP084(Appliance):
                 self.hex_to_temp(
                     self.find_value_by_pn(
                         response,
-                        '/dsiot/edge/adr_0200.dgc_status',
-                        'dgc_status',
-                        'e_1003',
-                        'e_A00D',
-                        'p_01',
+                        *self.get_path("outdoor_temp")
                     )
                 )
             )
@@ -311,11 +343,7 @@ class DaikinBRP084(Appliance):
                 self.hex_to_temp(
                     self.find_value_by_pn(
                         response,
-                        '/dsiot/edge/adr_0100.dgc_status',
-                        'dgc_status',
-                        'e_1002',
-                        'e_A00B',
-                        'p_01',
+                        *self.get_path("indoor_temp")
                     ),
                     divisor=1,
                 )
@@ -327,11 +355,7 @@ class DaikinBRP084(Appliance):
                     self.hex_to_int(
                         self.find_value_by_pn(
                             response,
-                            '/dsiot/edge/adr_0100.dgc_status',
-                            'dgc_status',
-                            'e_1002',
-                            'e_A00B',
-                            'p_02',
+                            *self.get_path("indoor_humidity")
                         )
                     )
                 )
@@ -339,17 +363,12 @@ class DaikinBRP084(Appliance):
                 self.values['hhum'] = "--"
 
             # Get target temperature
-            if self.values['mode'] in self.HVAC_MODE_TO_TEMP_HEX:
-                temp_param = self.HVAC_MODE_TO_TEMP_HEX[self.values['mode']]
+            if self.values['mode'] in self.API_PATHS["temp_settings"]:
                 self.values['stemp'] = str(
                     self.hex_to_temp(
                         self.find_value_by_pn(
                             response,
-                            '/dsiot/edge/adr_0100.dgc_status',
-                            'dgc_status',
-                            'e_1002',
-                            'e_3001',
-                            temp_param,
+                            *self.get_path("temp_settings", self.values['mode'])
                         )
                     )
                 )
@@ -357,15 +376,10 @@ class DaikinBRP084(Appliance):
                 self.values['stemp'] = "--"
 
             # Get fan mode
-            if self.values['mode'] in self.HVAC_MODE_TO_FAN_SPEED_ATTR_NAME:
-                fan_param = self.HVAC_MODE_TO_FAN_SPEED_ATTR_NAME[self.values['mode']]
+            if self.values['mode'] in self.API_PATHS["fan_settings"]:
                 fan_value = self.find_value_by_pn(
                     response,
-                    "/dsiot/edge/adr_0100.dgc_status",
-                    "dgc_status",
-                    "e_1002",
-                    "e_3001",
-                    fan_param,
+                    *self.get_path("fan_settings", self.values['mode'])
                 )
                 self.values['f_rate'] = self.FAN_MODE_MAP.get(fan_value, 'auto')
             else:
@@ -378,16 +392,12 @@ class DaikinBRP084(Appliance):
             try:
                 self.values['today_runtime'] = self.find_value_by_pn(
                     response,
-                    '/dsiot/edge/adr_0100.i_power.week_power',
-                    'week_power',
-                    'today_runtime',
+                    *self.get_path("energy", "today_runtime")
                 )
 
                 energy_data = self.find_value_by_pn(
                     response,
-                    '/dsiot/edge/adr_0100.i_power.week_power',
-                    'week_power',
-                    'datas',
+                    *self.get_path("energy", "weekly_data")
                 )
                 if isinstance(energy_data, list) and len(energy_data) > 0:
                     self.values['datas'] = '/'.join(map(str, energy_data))
@@ -442,12 +452,13 @@ class DaikinBRP084(Appliance):
         """Handle power-related settings."""
         if 'mode' in settings and settings['mode'] == 'off':
             # Turn off
+            power_path = self.get_path("power")
             requests.append(
                 DaikinAttribute(
-                    "p_01",
+                    power_path[-1],  # p_01
                     "00",
-                    ["e_1002", "e_A002"],
-                    "/dsiot/edge/adr_0100.dgc_status",
+                    power_path[2:4],  # Extract e_1002, e_A002
+                    power_path[0],  # Extract the endpoint URL
                 )
             )
             return
@@ -455,38 +466,46 @@ class DaikinBRP084(Appliance):
         # If turning on or changing mode
         if 'mode' in settings and settings['mode'] != 'off':
             # Turn on
+            power_path = self.get_path("power")
             requests.append(
                 DaikinAttribute(
-                    "p_01",
+                    power_path[-1],  # p_01
                     "01",
-                    ["e_1002", "e_A002"],
-                    "/dsiot/edge/adr_0100.dgc_status",
+                    power_path[2:4],  # Extract e_1002, e_A002
+                    power_path[0],  # Extract the endpoint URL
                 )
             )
 
             # Set mode
             mode_value = self.REVERSE_MODE_MAP.get(settings['mode'])
             if mode_value:
+                mode_path = self.get_path("mode")
                 requests.append(
                     DaikinAttribute(
-                        "p_01",
+                        mode_path[-1],  # p_01
                         mode_value,
-                        ["e_1002", "e_3001"],
-                        "/dsiot/edge/adr_0100.dgc_status",
+                        mode_path[2:4],  # Extract e_1002, e_3001
+                        mode_path[0],  # Extract the endpoint URL
                     )
                 )
 
     def _handle_temperature_setting(self, settings, requests):
         """Handle temperature-related settings."""
-        if 'stemp' in settings and self.values['mode'] in self.HVAC_MODE_TO_TEMP_HEX:
-            temp_param = self.HVAC_MODE_TO_TEMP_HEX[self.values['mode']]
+        if 'stemp' in settings and self.values['mode'] in self.API_PATHS["temp_settings"]:
+            # Extract the last element (parameter name) from the path
+            path = self.get_path("temp_settings", self.values['mode'])
+            temp_param = path[-1]  # Get the last element (p_02, p_03, etc.)
             temp_hex = self.temp_to_hex(float(settings['stemp']))
+            
+            # Extract the base path without the parameter
+            base_path = path[:-1]
+            
             requests.append(
                 DaikinAttribute(
                     temp_param,
                     temp_hex,
-                    ["e_1002", "e_3001"],
-                    "/dsiot/edge/adr_0100.dgc_status",
+                    base_path[2:4],  # Extract e_1002, e_3001
+                    path[0],  # Extract the endpoint URL
                 )
             )
 
@@ -494,9 +513,11 @@ class DaikinBRP084(Appliance):
         """Handle fan-related settings."""
         if (
             'f_rate' in settings
-            and self.values['mode'] in self.HVAC_MODE_TO_FAN_SPEED_ATTR_NAME
+            and self.values['mode'] in self.API_PATHS["fan_settings"]
         ):
-            fan_param = self.HVAC_MODE_TO_FAN_SPEED_ATTR_NAME[self.values['mode']]
+            # Get the path for the fan setting
+            path = self.get_path("fan_settings", self.values['mode'])
+            fan_param = path[-1]  # Get the last element (parameter name)
             fan_value = None
 
             # Try both formats - the internal one and the user-friendly one
@@ -506,12 +527,15 @@ class DaikinBRP084(Appliance):
                     break
 
             if fan_value:
+                # Extract the base path without the parameter
+                base_path = path[:-1]
+                
                 requests.append(
                     DaikinAttribute(
                         fan_param,
                         fan_value,
-                        ["e_1002", "e_3001"],
-                        "/dsiot/edge/adr_0100.dgc_status",
+                        base_path[2:4],  # Extract e_1002, e_3001
+                        path[0],  # Extract the endpoint URL
                     )
                 )
 
@@ -519,11 +543,19 @@ class DaikinBRP084(Appliance):
         """Handle swing-related settings."""
         if (
             'f_dir' in settings
-            and self.values['mode'] in self.HVAC_MODE_TO_SWING_ATTR_NAMES
+            and self.values['mode'] in self.API_PATHS["swing_settings"]
         ):
-            vertical_attr_name, horizontal_attr_name = (
-                self.HVAC_MODE_TO_SWING_ATTR_NAMES[self.values['mode']]
-            )
+            # Get the paths for vertical and horizontal swing
+            vertical_path = self.get_path("swing_settings", self.values['mode'], "vertical")
+            horizontal_path = self.get_path("swing_settings", self.values['mode'], "horizontal")
+            
+            # Extract parameter names
+            vertical_attr_name = vertical_path[-1]
+            horizontal_attr_name = horizontal_path[-1]
+            
+            # Extract base paths
+            base_path = vertical_path[:-1]  # Both vertical and horizontal have the same base path
+            endpoint_url = vertical_path[0]  # Both have the same endpoint URL
 
             if settings['f_dir'] in ('off', 'horizontal'):
                 # Turn off vertical swing
@@ -531,8 +563,8 @@ class DaikinBRP084(Appliance):
                     DaikinAttribute(
                         vertical_attr_name,
                         self.TURN_OFF_SWING_AXIS,
-                        ["e_1002", "e_3001"],
-                        "/dsiot/edge/adr_0100.dgc_status",
+                        base_path[2:4],  # Extract e_1002, e_3001
+                        endpoint_url,
                     )
                 )
             else:
@@ -541,8 +573,8 @@ class DaikinBRP084(Appliance):
                     DaikinAttribute(
                         vertical_attr_name,
                         self.TURN_ON_SWING_AXIS,
-                        ["e_1002", "e_3001"],
-                        "/dsiot/edge/adr_0100.dgc_status",
+                        base_path[2:4],  # Extract e_1002, e_3001
+                        endpoint_url,
                     )
                 )
 
@@ -552,8 +584,8 @@ class DaikinBRP084(Appliance):
                     DaikinAttribute(
                         horizontal_attr_name,
                         self.TURN_OFF_SWING_AXIS,
-                        ["e_1002", "e_3001"],
-                        "/dsiot/edge/adr_0100.dgc_status",
+                        base_path[2:4],  # Extract e_1002, e_3001
+                        endpoint_url,
                     )
                 )
             else:
@@ -562,8 +594,8 @@ class DaikinBRP084(Appliance):
                     DaikinAttribute(
                         horizontal_attr_name,
                         self.TURN_ON_SWING_AXIS,
-                        ["e_1002", "e_3001"],
-                        "/dsiot/edge/adr_0100.dgc_status",
+                        base_path[2:4],  # Extract e_1002, e_3001
+                        endpoint_url,
                     )
                 )
 
