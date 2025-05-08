@@ -75,85 +75,193 @@ class DaikinBRP084(Appliance):
     # Centralized API paths for easier maintenance and better organization
     API_PATHS = {
         # Basic paths
-        "power": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_A002", "p_01"],
+        "power": [
+            "/dsiot/edge/adr_0100.dgc_status",
+            "dgc_status",
+            "e_1002",
+            "e_A002",
+            "p_01",
+        ],
         "mode": [
-            "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_01"
+            "/dsiot/edge/adr_0100.dgc_status",
+            "dgc_status",
+            "e_1002",
+            "e_3001",
+            "p_01",
         ],
         "indoor_temp": [
-            "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_A00B", "p_01"
+            "/dsiot/edge/adr_0100.dgc_status",
+            "dgc_status",
+            "e_1002",
+            "e_A00B",
+            "p_01",
         ],
         "indoor_humidity": [
-            "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_A00B", "p_02"
+            "/dsiot/edge/adr_0100.dgc_status",
+            "dgc_status",
+            "e_1002",
+            "e_A00B",
+            "p_02",
         ],
         "outdoor_temp": [
-            "/dsiot/edge/adr_0200.dgc_status", "dgc_status", "e_1003", "e_A00D", "p_01"
+            "/dsiot/edge/adr_0200.dgc_status",
+            "dgc_status",
+            "e_1003",
+            "e_A00D",
+            "p_01",
         ],
         "mac_address": ["/dsiot/edge.adp_i", "adp_i", "mac"],
         # Mode-specific paths for temperature settings
         "temp_settings": {
-            "cool": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_02"],
-            "heat": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_03"],
-            "auto": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_1D"],
+            "cool": [
+                "/dsiot/edge/adr_0100.dgc_status",
+                "dgc_status",
+                "e_1002",
+                "e_3001",
+                "p_02",
+            ],
+            "heat": [
+                "/dsiot/edge/adr_0100.dgc_status",
+                "dgc_status",
+                "e_1002",
+                "e_3001",
+                "p_03",
+            ],
+            "auto": [
+                "/dsiot/edge/adr_0100.dgc_status",
+                "dgc_status",
+                "e_1002",
+                "e_3001",
+                "p_1D",
+            ],
         },
         # Fan settings organized by mode
         "fan_settings": {
-            "auto": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_26"],
-            "cool": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_09"],
-            "heat": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_0A"],
-            "fan": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_28"],
+            "auto": [
+                "/dsiot/edge/adr_0100.dgc_status",
+                "dgc_status",
+                "e_1002",
+                "e_3001",
+                "p_26",
+            ],
+            "cool": [
+                "/dsiot/edge/adr_0100.dgc_status",
+                "dgc_status",
+                "e_1002",
+                "e_3001",
+                "p_09",
+            ],
+            "heat": [
+                "/dsiot/edge/adr_0100.dgc_status",
+                "dgc_status",
+                "e_1002",
+                "e_3001",
+                "p_0A",
+            ],
+            "fan": [
+                "/dsiot/edge/adr_0100.dgc_status",
+                "dgc_status",
+                "e_1002",
+                "e_3001",
+                "p_28",
+            ],
         },
         # Swing settings organized by mode
         "swing_settings": {
             "auto": {
                 "vertical": [
-                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_20"
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_20",
                 ],
                 "horizontal": [
-                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_21"
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_21",
                 ],
             },
             "cool": {
                 "vertical": [
-                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_05"
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_05",
                 ],
                 "horizontal": [
-                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_06"
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_06",
                 ],
             },
             "heat": {
                 "vertical": [
-                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_07"
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_07",
                 ],
                 "horizontal": [
-                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_08"
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_08",
                 ],
             },
             "fan": {
                 "vertical": [
-                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_24"
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_24",
                 ],
                 "horizontal": [
-                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_25"
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_25",
                 ],
             },
             "dry": {
                 "vertical": [
-                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_22"
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_22",
                 ],
                 "horizontal": [
-                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_23"
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_23",
                 ],
             },
         },
         # Energy data
         "energy": {
             "today_runtime": [
-                "/dsiot/edge/adr_0100.i_power.week_power", "week_power", "today_runtime"
+                "/dsiot/edge/adr_0100.i_power.week_power",
+                "week_power",
+                "today_runtime",
             ],
             "weekly_data": [
-                "/dsiot/edge/adr_0100.i_power.week_power", "week_power", "datas"
+                "/dsiot/edge/adr_0100.i_power.week_power",
+                "week_power",
+                "datas",
             ],
-        }
+        },
     }
 
     TRANSLATIONS = {
@@ -224,7 +332,7 @@ class DaikinBRP084(Appliance):
             *keys: Variable length list of keys to navigate the API_PATHS dictionary.
                   For example: "temp_settings", "cool" would return the path for
                   cool mode temperature.
-        
+
         Returns:
             List of path components to use with find_value_by_pn.
 
