@@ -575,7 +575,9 @@ class DaikinBRP084(Appliance):
 
         # Turn off/on
         power_path = self.get_path("power")
-        self.add_request(requests, power_path, "00" if settings['mode'] == 'off' else "01")
+        self.add_request(
+            requests, power_path, "00" if settings['mode'] == 'off' else "01"
+        )
 
         if settings['mode'] == 'off':
             return

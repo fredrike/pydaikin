@@ -350,21 +350,21 @@ async def test_add_request_direct(client_session):
     assert requests[0].value == "01"
     assert requests[0].path == ["e_1002", "e_A002"]
     assert requests[0].to == "/dsiot/edge/adr_0100.dgc_status"
-    
+
     # Test adding a mode request
     mode_path = device.get_path("mode")
     device.add_request(requests, mode_path, "0200")  # Cool mode
-    
+
     assert len(requests) == 2
     assert requests[1].name == "p_01"
     assert requests[1].value == "0200"
     assert requests[1].path == ["e_1002", "e_3001"]
     assert requests[1].to == "/dsiot/edge/adr_0100.dgc_status"
-    
+
     # Test adding a temperature request
     temp_path = device.get_path("temp_settings", "cool")
     device.add_request(requests, temp_path, "32")  # 25°C
-    
+
     assert len(requests) == 3
     assert requests[2].name == "p_02"
     assert requests[2].value == "32"
