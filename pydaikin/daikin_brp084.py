@@ -76,16 +76,24 @@ class DaikinBRP084(Appliance):
     API_PATHS = {
         # Basic paths
         "power": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_A002", "p_01"],
-        "mode": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_01"],
-        "indoor_temp": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_A00B", "p_01"],
-        "indoor_humidity": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_A00B", "p_02"],
-        "outdoor_temp": ["/dsiot/edge/adr_0200.dgc_status", "dgc_status", "e_1003", "e_A00D", "p_01"],
+        "mode": [
+            "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_01"
+        ],
+        "indoor_temp": [
+            "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_A00B", "p_01"
+        ],
+        "indoor_humidity": [
+            "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_A00B", "p_02"
+        ],
+        "outdoor_temp": [
+            "/dsiot/edge/adr_0200.dgc_status", "dgc_status", "e_1003", "e_A00D", "p_01"
+        ],
         "mac_address": ["/dsiot/edge.adp_i", "adp_i", "mac"],
         
         # Mode-specific paths for temperature settings
         "temp_settings": {
             "cool": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_02"],
-            "hot": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_03"],
+            "heat": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_03"],
             "auto": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_1D"],
         },
         
@@ -93,38 +101,62 @@ class DaikinBRP084(Appliance):
         "fan_settings": {
             "auto": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_26"],
             "cool": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_09"],
-            "hot": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_0A"],
+            "heat": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_0A"],
             "fan": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_28"],
         },
         
         # Swing settings organized by mode
         "swing_settings": {
             "auto": {
-                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_20"],
-                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_21"],
+                "vertical": [
+                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_20"
+                ],
+                "horizontal": [
+                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_21"
+                ],
             },
             "cool": {
-                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_05"],
-                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_06"],
+                "vertical": [
+                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_05"
+                ],
+                "horizontal": [
+                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_06"
+                ],
             },
-            "hot": {
-                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_07"],
-                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_08"],
+            "heat": {
+                "vertical": [
+                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_07"
+                ],
+                "horizontal": [
+                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_08"
+                ],
             },
             "fan": {
-                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_24"],
-                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_25"],
+                "vertical": [
+                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_24"
+                ],
+                "horizontal": [
+                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_25"
+                ],
             },
             "dry": {
-                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_22"],
-                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_23"],
+                "vertical": [
+                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_22"
+                ],
+                "horizontal": [
+                    "/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_23"
+                ],
             },
         },
         
         # Energy data
         "energy": {
-            "today_runtime": ["/dsiot/edge/adr_0100.i_power.week_power", "week_power", "today_runtime"],
-            "weekly_data": ["/dsiot/edge/adr_0100.i_power.week_power", "week_power", "datas"],
+            "today_runtime": [
+                "/dsiot/edge/adr_0100.i_power.week_power", "week_power", "today_runtime"
+            ],
+            "weekly_data": [
+                "/dsiot/edge/adr_0100.i_power.week_power", "week_power", "datas"
+            ],
         }
     }
 
@@ -132,7 +164,7 @@ class DaikinBRP084(Appliance):
         'mode': {
             '0300': 'auto',
             '0200': 'cool',
-            '0100': 'hot',
+            '0100': 'heat',
             '0000': 'fan',
             '0500': 'dry',
             '00': 'off',
@@ -163,7 +195,7 @@ class DaikinBRP084(Appliance):
     MODE_MAP = {
         '0300': 'auto',
         '0200': 'cool',
-        '0100': 'hot',
+        '0100': 'heat',
         '0000': 'fan',
         '0500': 'dry',
     }
@@ -194,7 +226,8 @@ class DaikinBRP084(Appliance):
         
         Args:
             *keys: Variable length list of keys to navigate the API_PATHS dictionary.
-                  For example: "temp_settings", "cool" would return the path for cool mode temperature.
+                  For example: "temp_settings", "cool" would return the path for
+                  cool mode temperature.
         
         Returns:
             List of path components to use with find_value_by_pn.
