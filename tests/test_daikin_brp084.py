@@ -294,7 +294,6 @@ async def test_add_request_method(aresponses, client_session):
 
     # Test power on and mode setting
     requests = []
-    device.requests = requests
     device._handle_power_setting({'mode': 'cool'}, requests)
     assert len(requests) == 2
     assert requests[0].name == "p_01"
@@ -304,7 +303,6 @@ async def test_add_request_method(aresponses, client_session):
 
     # Test temperature setting
     requests = []
-    device.requests = requests
     device._handle_temperature_setting({'stemp': '25.0'}, requests)
     assert len(requests) == 1
     assert requests[0].name == "p_02"  # Cool mode temp parameter
@@ -312,7 +310,6 @@ async def test_add_request_method(aresponses, client_session):
 
     # Test fan setting
     requests = []
-    device.requests = requests
     device._handle_fan_setting({'f_rate': 'auto'}, requests)
     assert len(requests) == 1
     assert requests[0].name == "p_09"  # Cool mode fan parameter
@@ -320,7 +317,6 @@ async def test_add_request_method(aresponses, client_session):
 
     # Test swing setting
     requests = []
-    device.requests = requests
     device._handle_swing_setting({'f_dir': 'both'}, requests)
     assert len(requests) == 2
     assert requests[0].name == "p_05"  # Vertical swing parameter for cool mode
@@ -343,34 +339,34 @@ async def test_add_request_direct(client_session):
     device = DaikinBRP084('ip', session=client_session)
 
     # Initialize requests list
-    device.requests = []
+    requests = []
 
     # Test adding a power request
     power_path = device.get_path("power")
-    device.add_request(power_path, "01")  # Power on
+    device.add_request(requests, power_path, "01")  # Power on
 
-    assert len(device.requests) == 1
-    assert device.requests[0].name == "p_01"
-    assert device.requests[0].value == "01"
-    assert device.requests[0].path == ["e_1002", "e_A002"]
-    assert device.requests[0].to == "/dsiot/edge/adr_0100.dgc_status"
-
+    assert len(requests) == 1
+    assert requests[0].name == "p_01"
+    assert requests[0].value == "01"
+    assert requests[0].path == ["e_1002", "e_A002"]
+    assert requests[0].to == "/dsiot/edge/adr_0100.dgc_status"
+    
     # Test adding a mode request
     mode_path = device.get_path("mode")
-    device.add_request(mode_path, "0200")  # Cool mode
-
-    assert len(device.requests) == 2
-    assert device.requests[1].name == "p_01"
-    assert device.requests[1].value == "0200"
-    assert device.requests[1].path == ["e_1002", "e_3001"]
-    assert device.requests[1].to == "/dsiot/edge/adr_0100.dgc_status"
-
+    device.add_request(requests, mode_path, "0200")  # Cool mode
+    
+    assert len(requests) == 2
+    assert requests[1].name == "p_01"
+    assert requests[1].value == "0200"
+    assert requests[1].path == ["e_1002", "e_3001"]
+    assert requests[1].to == "/dsiot/edge/adr_0100.dgc_status"
+    
     # Test adding a temperature request
     temp_path = device.get_path("temp_settings", "cool")
-    device.add_request(temp_path, "32")  # 25°C
-
-    assert len(device.requests) == 3
-    assert device.requests[2].name == "p_02"
-    assert device.requests[2].value == "32"
-    assert device.requests[2].path == ["e_1002", "e_3001"]
-    assert device.requests[2].to == "/dsiot/edge/adr_0100.dgc_status"
+    device.add_request(requests, temp_path, "32")  # 25°C
+    
+    assert len(requests) == 3
+    assert requests[2].name == "p_02"
+    assert requests[2].value == "32"
+    assert requests[2].path == ["e_1002", "e_3001"]
+    assert requests[2].to == "/dsiot/edge/adr_0100.dgc_status"
