@@ -75,57 +75,193 @@ class DaikinBRP084(Appliance):
     # Centralized API paths for easier maintenance and better organization
     API_PATHS = {
         # Basic paths
-        "power": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_A002", "p_01"],
-        "mode": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_01"],
-        "indoor_temp": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_A00B", "p_01"],
-        "indoor_humidity": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_A00B", "p_02"],
-        "outdoor_temp": ["/dsiot/edge/adr_0200.dgc_status", "dgc_status", "e_1003", "e_A00D", "p_01"],
+        "power": [
+            "/dsiot/edge/adr_0100.dgc_status",
+            "dgc_status",
+            "e_1002",
+            "e_A002",
+            "p_01",
+        ],
+        "mode": [
+            "/dsiot/edge/adr_0100.dgc_status",
+            "dgc_status",
+            "e_1002",
+            "e_3001",
+            "p_01",
+        ],
+        "indoor_temp": [
+            "/dsiot/edge/adr_0100.dgc_status",
+            "dgc_status",
+            "e_1002",
+            "e_A00B",
+            "p_01",
+        ],
+        "indoor_humidity": [
+            "/dsiot/edge/adr_0100.dgc_status",
+            "dgc_status",
+            "e_1002",
+            "e_A00B",
+            "p_02",
+        ],
+        "outdoor_temp": [
+            "/dsiot/edge/adr_0200.dgc_status",
+            "dgc_status",
+            "e_1003",
+            "e_A00D",
+            "p_01",
+        ],
         "mac_address": ["/dsiot/edge.adp_i", "adp_i", "mac"],
-        
         # Mode-specific paths for temperature settings
         "temp_settings": {
-            "cool": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_02"],
-            "hot": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_03"],
-            "auto": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_1D"],
+            "cool": [
+                "/dsiot/edge/adr_0100.dgc_status",
+                "dgc_status",
+                "e_1002",
+                "e_3001",
+                "p_02",
+            ],
+            "hot": [
+                "/dsiot/edge/adr_0100.dgc_status",
+                "dgc_status",
+                "e_1002",
+                "e_3001",
+                "p_03",
+            ],
+            "auto": [
+                "/dsiot/edge/adr_0100.dgc_status",
+                "dgc_status",
+                "e_1002",
+                "e_3001",
+                "p_1D",
+            ],
         },
-        
         # Fan settings organized by mode
         "fan_settings": {
-            "auto": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_26"],
-            "cool": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_09"],
-            "hot": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_0A"],
-            "fan": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_28"],
+            "auto": [
+                "/dsiot/edge/adr_0100.dgc_status",
+                "dgc_status",
+                "e_1002",
+                "e_3001",
+                "p_26",
+            ],
+            "cool": [
+                "/dsiot/edge/adr_0100.dgc_status",
+                "dgc_status",
+                "e_1002",
+                "e_3001",
+                "p_09",
+            ],
+            "hot": [
+                "/dsiot/edge/adr_0100.dgc_status",
+                "dgc_status",
+                "e_1002",
+                "e_3001",
+                "p_0A",
+            ],
+            "fan": [
+                "/dsiot/edge/adr_0100.dgc_status",
+                "dgc_status",
+                "e_1002",
+                "e_3001",
+                "p_28",
+            ],
         },
-        
         # Swing settings organized by mode
         "swing_settings": {
             "auto": {
-                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_20"],
-                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_21"],
+                "vertical": [
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_20",
+                ],
+                "horizontal": [
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_21",
+                ],
             },
             "cool": {
-                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_05"],
-                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_06"],
+                "vertical": [
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_05",
+                ],
+                "horizontal": [
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_06",
+                ],
             },
             "hot": {
-                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_07"],
-                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_08"],
+                "vertical": [
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_07",
+                ],
+                "horizontal": [
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_08",
+                ],
             },
             "fan": {
-                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_24"],
-                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_25"],
+                "vertical": [
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_24",
+                ],
+                "horizontal": [
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_25",
+                ],
             },
             "dry": {
-                "vertical": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_22"],
-                "horizontal": ["/dsiot/edge/adr_0100.dgc_status", "dgc_status", "e_1002", "e_3001", "p_23"],
+                "vertical": [
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_22",
+                ],
+                "horizontal": [
+                    "/dsiot/edge/adr_0100.dgc_status",
+                    "dgc_status",
+                    "e_1002",
+                    "e_3001",
+                    "p_23",
+                ],
             },
         },
-        
         # Energy data
         "energy": {
-            "today_runtime": ["/dsiot/edge/adr_0100.i_power.week_power", "week_power", "today_runtime"],
-            "weekly_data": ["/dsiot/edge/adr_0100.i_power.week_power", "week_power", "datas"],
-        }
+            "today_runtime": [
+                "/dsiot/edge/adr_0100.i_power.week_power",
+                "week_power",
+                "today_runtime",
+            ],
+            "weekly_data": [
+                "/dsiot/edge/adr_0100.i_power.week_power",
+                "week_power",
+                "datas",
+            ],
+        },
     }
 
     TRANSLATIONS = {
@@ -191,14 +327,14 @@ class DaikinBRP084(Appliance):
 
     def get_path(self, *keys):
         """Get API path from the nested dictionary structure.
-        
+
         Args:
             *keys: Variable length list of keys to navigate the API_PATHS dictionary.
                   For example: "temp_settings", "cool" would return the path for cool mode temperature.
-        
+
         Returns:
             List of path components to use with find_value_by_pn.
-            
+
         Raises:
             DaikinException: If the path is not found in the API_PATHS dictionary.
         """
@@ -259,12 +395,10 @@ class DaikinBRP084(Appliance):
         ):
             try:
                 vertical = "F" in self.find_value_by_pn(
-                    data,
-                    *self.get_path("swing_settings", mode, "vertical")
+                    data, *self.get_path("swing_settings", mode, "vertical")
                 )
                 horizontal = "F" in self.find_value_by_pn(
-                    data,
-                    *self.get_path("swing_settings", mode, "horizontal")
+                    data, *self.get_path("swing_settings", mode, "horizontal")
                 )
 
                 if horizontal and vertical:
@@ -312,19 +446,10 @@ class DaikinBRP084(Appliance):
             self.values['mac'] = mac
 
             # Get power state
-            is_off = (
-                self.find_value_by_pn(
-                    response,
-                    *self.get_path("power")
-                )
-                == "00"
-            )
+            is_off = self.find_value_by_pn(response, *self.get_path("power")) == "00"
 
             # Get mode
-            mode_value = self.find_value_by_pn(
-                response,
-                *self.get_path("mode")
-            )
+            mode_value = self.find_value_by_pn(response, *self.get_path("mode"))
 
             self.values['pow'] = "0" if is_off else "1"
             self.values['mode'] = 'off' if is_off else self.MODE_MAP[mode_value]
@@ -332,19 +457,13 @@ class DaikinBRP084(Appliance):
             # Get temperatures
             self.values['otemp'] = str(
                 self.hex_to_temp(
-                    self.find_value_by_pn(
-                        response,
-                        *self.get_path("outdoor_temp")
-                    )
+                    self.find_value_by_pn(response, *self.get_path("outdoor_temp"))
                 )
             )
 
             self.values['htemp'] = str(
                 self.hex_to_temp(
-                    self.find_value_by_pn(
-                        response,
-                        *self.get_path("indoor_temp")
-                    ),
+                    self.find_value_by_pn(response, *self.get_path("indoor_temp")),
                     divisor=1,
                 )
             )
@@ -354,8 +473,7 @@ class DaikinBRP084(Appliance):
                 self.values['hhum'] = str(
                     self.hex_to_int(
                         self.find_value_by_pn(
-                            response,
-                            *self.get_path("indoor_humidity")
+                            response, *self.get_path("indoor_humidity")
                         )
                     )
                 )
@@ -368,7 +486,7 @@ class DaikinBRP084(Appliance):
                     self.hex_to_temp(
                         self.find_value_by_pn(
                             response,
-                            *self.get_path("temp_settings", self.values['mode'])
+                            *self.get_path("temp_settings", self.values['mode']),
                         )
                     )
                 )
@@ -378,8 +496,7 @@ class DaikinBRP084(Appliance):
             # Get fan mode
             if self.values['mode'] in self.API_PATHS["fan_settings"]:
                 fan_value = self.find_value_by_pn(
-                    response,
-                    *self.get_path("fan_settings", self.values['mode'])
+                    response, *self.get_path("fan_settings", self.values['mode'])
                 )
                 self.values['f_rate'] = self.FAN_MODE_MAP.get(fan_value, 'auto')
             else:
@@ -391,13 +508,11 @@ class DaikinBRP084(Appliance):
             # Get energy data
             try:
                 self.values['today_runtime'] = self.find_value_by_pn(
-                    response,
-                    *self.get_path("energy", "today_runtime")
+                    response, *self.get_path("energy", "today_runtime")
                 )
 
                 energy_data = self.find_value_by_pn(
-                    response,
-                    *self.get_path("energy", "weekly_data")
+                    response, *self.get_path("energy", "weekly_data")
                 )
                 if isinstance(energy_data, list) and len(energy_data) > 0:
                     self.values['datas'] = '/'.join(map(str, energy_data))
@@ -491,15 +606,18 @@ class DaikinBRP084(Appliance):
 
     def _handle_temperature_setting(self, settings, requests):
         """Handle temperature-related settings."""
-        if 'stemp' in settings and self.values['mode'] in self.API_PATHS["temp_settings"]:
+        if (
+            'stemp' in settings
+            and self.values['mode'] in self.API_PATHS["temp_settings"]
+        ):
             # Extract the last element (parameter name) from the path
             path = self.get_path("temp_settings", self.values['mode'])
             temp_param = path[-1]  # Get the last element (p_02, p_03, etc.)
             temp_hex = self.temp_to_hex(float(settings['stemp']))
-            
+
             # Extract the base path without the parameter
             base_path = path[:-1]
-            
+
             requests.append(
                 DaikinAttribute(
                     temp_param,
@@ -529,7 +647,7 @@ class DaikinBRP084(Appliance):
             if fan_value:
                 # Extract the base path without the parameter
                 base_path = path[:-1]
-                
+
                 requests.append(
                     DaikinAttribute(
                         fan_param,
@@ -546,15 +664,21 @@ class DaikinBRP084(Appliance):
             and self.values['mode'] in self.API_PATHS["swing_settings"]
         ):
             # Get the paths for vertical and horizontal swing
-            vertical_path = self.get_path("swing_settings", self.values['mode'], "vertical")
-            horizontal_path = self.get_path("swing_settings", self.values['mode'], "horizontal")
-            
+            vertical_path = self.get_path(
+                "swing_settings", self.values['mode'], "vertical"
+            )
+            horizontal_path = self.get_path(
+                "swing_settings", self.values['mode'], "horizontal"
+            )
+
             # Extract parameter names
             vertical_attr_name = vertical_path[-1]
             horizontal_attr_name = horizontal_path[-1]
-            
+
             # Extract base paths
-            base_path = vertical_path[:-1]  # Both vertical and horizontal have the same base path
+            base_path = vertical_path[
+                :-1
+            ]  # Both vertical and horizontal have the same base path
             endpoint_url = vertical_path[0]  # Both have the same endpoint URL
 
             if settings['f_dir'] in ('off', 'horizontal'):
