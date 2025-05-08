@@ -178,9 +178,18 @@ async def test_add_request_method(aresponses, client_session):
                                     "pch": [
                                         {"pn": "p_01", "pv": "0200"},  # Mode (COOL)
                                         {"pn": "p_02", "pv": "32"},  # Cool temp (25°C)
-                                        {"pn": "p_09", "pv": "0A00"},  # Cool fan speed (AUTO)
-                                        {"pn": "p_05", "pv": "000000"},  # Vertical swing OFF
-                                        {"pn": "p_06", "pv": "000000"},  # Horizontal swing OFF
+                                        {
+                                            "pn": "p_09",
+                                            "pv": "0A00",
+                                        },  # Cool fan speed (AUTO)
+                                        {
+                                            "pn": "p_05",
+                                            "pv": "000000",
+                                        },  # Vertical swing OFF
+                                        {
+                                            "pn": "p_06",
+                                            "pv": "000000",
+                                        },  # Horizontal swing OFF
                                     ],
                                 },
                                 {
@@ -260,7 +269,7 @@ async def test_add_request_method(aresponses, client_session):
             headers={"Content-Type": "application/json"},
         ),
     )
-    
+
     # Add mock for the status update after setting
     aresponses.add(
         path_pattern="/dsiot/multireq",
@@ -320,12 +329,9 @@ async def test_add_request_method(aresponses, client_session):
     assert requests[1].value == device.TURN_ON_SWING_AXIS
 
     # Test the full set method with multiple settings
-    await device.set({
-        'mode': 'cool',
-        'stemp': '26.0',
-        'f_rate': 'auto',
-        'f_dir': 'both'
-    })
+    await device.set(
+        {'mode': 'cool', 'stemp': '26.0', 'f_rate': 'auto', 'f_dir': 'both'}
+    )
 
     aresponses.assert_all_requests_matched()
     aresponses.assert_no_unused_routes()
@@ -335,34 +341,34 @@ async def test_add_request_method(aresponses, client_session):
 async def test_add_request_direct(client_session):
     """Test the add_request method directly."""
     device = DaikinBRP084('ip', session=client_session)
-    
+
     # Initialize requests list
     device.requests = []
-    
+
     # Test adding a power request
     power_path = device.get_path("power")
     device.add_request(power_path, "01")  # Power on
-    
+
     assert len(device.requests) == 1
     assert device.requests[0].name == "p_01"
     assert device.requests[0].value == "01"
     assert device.requests[0].path == ["e_1002", "e_A002"]
     assert device.requests[0].to == "/dsiot/edge/adr_0100.dgc_status"
-    
+
     # Test adding a mode request
     mode_path = device.get_path("mode")
     device.add_request(mode_path, "0200")  # Cool mode
-    
+
     assert len(device.requests) == 2
     assert device.requests[1].name == "p_01"
     assert device.requests[1].value == "0200"
     assert device.requests[1].path == ["e_1002", "e_3001"]
     assert device.requests[1].to == "/dsiot/edge/adr_0100.dgc_status"
-    
+
     # Test adding a temperature request
     temp_path = device.get_path("temp_settings", "cool")
     device.add_request(temp_path, "32")  # 25°C
-    
+
     assert len(device.requests) == 3
     assert device.requests[2].name == "p_02"
     assert device.requests[2].value == "32"

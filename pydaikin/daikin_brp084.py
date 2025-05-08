@@ -566,23 +566,19 @@ class DaikinBRP084(Appliance):
 
     def add_request(self, path, value):
         """Append DaikinAttribute to requests."""
-        self.requests.append(
-            DaikinAttribute(
-                path[-1], value, path[2:4], path[0]
-            )
-        )
+        self.requests.append(DaikinAttribute(path[-1], value, path[2:4], path[0]))
 
     def _handle_power_setting(self, settings, requests):
         """Handle power-related settings."""
         self.requests = requests  # Store reference to requests for add_request method
-        
+
         if 'mode' not in settings:
             return
-            
+
         # Turn off/on
         power_path = self.get_path("power")
         self.add_request(power_path, "00" if settings['mode'] == 'off' else "01")
-        
+
         if settings['mode'] == 'off':
             return
 
@@ -595,13 +591,13 @@ class DaikinBRP084(Appliance):
     def _handle_temperature_setting(self, settings, requests):
         """Handle temperature-related settings."""
         self.requests = requests  # Store reference to requests for add_request method
-        
+
         if (
             'stemp' not in settings
             or self.values['mode'] not in self.API_PATHS["temp_settings"]
         ):
             return
-            
+
         path = self.get_path("temp_settings", self.values['mode'])
         temp_hex = self.temp_to_hex(float(settings['stemp']))
         self.add_request(path, temp_hex)
@@ -609,13 +605,13 @@ class DaikinBRP084(Appliance):
     def _handle_fan_setting(self, settings, requests):
         """Handle fan-related settings."""
         self.requests = requests  # Store reference to requests for add_request method
-        
+
         if (
             'f_rate' not in settings
             or self.values['mode'] not in self.API_PATHS["fan_settings"]
         ):
             return
-            
+
         path = self.get_path("fan_settings", self.values['mode'])
         fan_value = None
 
@@ -631,29 +627,35 @@ class DaikinBRP084(Appliance):
     def _handle_swing_setting(self, settings, requests):
         """Handle swing-related settings."""
         self.requests = requests  # Store reference to requests for add_request method
-        
+
         if (
             'f_dir' not in settings
             or self.values['mode'] not in self.API_PATHS["swing_settings"]
         ):
             return
-            
+
         # Set vertical swing
-        vertical_path = self.get_path(
-            "swing_settings", self.values['mode'], "vertical"
-        )
+        vertical_path = self.get_path("swing_settings", self.values['mode'], "vertical")
         self.add_request(
             vertical_path,
-            self.TURN_OFF_SWING_AXIS if settings['f_dir'] in ('off', 'horizontal') else self.TURN_ON_SWING_AXIS
+            (
+                self.TURN_OFF_SWING_AXIS
+                if settings['f_dir'] in ('off', 'horizontal')
+                else self.TURN_ON_SWING_AXIS
+            ),
         )
-        
+
         # Set horizontal swing
         horizontal_path = self.get_path(
             "swing_settings", self.values['mode'], "horizontal"
         )
         self.add_request(
             horizontal_path,
-            self.TURN_OFF_SWING_AXIS if settings['f_dir'] in ('off', 'vertical') else self.TURN_ON_SWING_AXIS
+            (
+                self.TURN_OFF_SWING_AXIS
+                if settings['f_dir'] in ('off', 'vertical')
+                else self.TURN_ON_SWING_AXIS
+            ),
         )
 
     async def set(self, settings):
