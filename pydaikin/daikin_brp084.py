@@ -437,7 +437,7 @@ class DaikinBRP084(Appliance):
             if not response or 'responses' not in response:
                 raise DaikinException("Invalid response from device")
         except Exception as e:
-            _LOGGER.error("Error communicating with device: %s", e)
+            _LOGGER.info("Error communicating with device: %s", e)
             raise DaikinException(f"Failed to communicate with device: {e}") from e
 
         # Extract basic info
