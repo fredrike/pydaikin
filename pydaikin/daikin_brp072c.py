@@ -34,8 +34,7 @@ class DaikinBRP072C(DaikinBRP069):
             if ssl_context
             else ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
         )
-        # SSL_OP_LEGACY_SERVER_CONNECT, https://github.com/python/cpython/issues/89051
-        self.ssl_context.options |= 0x4
+        self.ssl_context.options |= ssl.OP_LEGACY_SERVER_CONNECT
         self.ssl_context.check_hostname = False
         self.ssl_context.verify_mode = ssl.CERT_NONE
         self.base_url = f"https://{self.device_ip}"
