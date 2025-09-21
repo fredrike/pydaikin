@@ -329,7 +329,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     @property
     def support_humidity(self) -> bool:
         """Return True if the device has humidity sensor."""
-        return False
+        return self.humidity is not None
 
     @property
     def support_advanced_modes(self) -> bool:

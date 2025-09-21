@@ -281,8 +281,3 @@ class DaikinBRP069(Appliance):
             await self._get_resource('common/get_datetime', {"cur": ""})
         except Exception as exc:  # pylint: disable=broad-except
             _LOGGER.error('Raised "%s" while trying to auto-set internal clock', exc)
-
-    @property
-    def support_humidity(self):
-        """Return True if the device has humidity sensor."""
-        return self.humidity is not None
