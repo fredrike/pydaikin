@@ -54,10 +54,10 @@ class DaikinSkyFi(Appliance):
     MAX_CONCURRENT_REQUESTS = 1
 
     def __init__(
-            self,
-            device_id: str,
-            session: ClientSession | None,
-            password: str,
+        self,
+        device_id: str,
+        session: ClientSession | None,
+        password: str,
     ) -> None:
         """Init the pydaikin appliance, representing one Daikin SkyFi device."""
         super().__init__(device_id, session)
