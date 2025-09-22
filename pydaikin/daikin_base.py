@@ -263,21 +263,14 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
             data.append(f'en_filter_sign={int(self.filter_dirty)}')
         if self.support_energy_consumption:
             data.append(
-                f'total_today={self.energy_consumption(ATTR_TOTAL, TIME_TODAY):.01f}kWh'
+                f'total_today={(self.energy_consumption(ATTR_TOTAL, TIME_TODAY) or 0):.01f}kWh'
             )
-            try:
-                data.append(
-                    f'cool_today={self.energy_consumption(ATTR_COOL, TIME_TODAY):.01f}kWh'
-                )
-            except TypeError:
-                #data.append('cool_today=0')
-                pass
-            try:
-                data.append(
-                    f'heat_today={self.energy_consumption(ATTR_HEAT, TIME_TODAY):.01f}kWh'
-                )
-            except TypeError:
-                pass
+            data.append(
+                f'cool_today={(self.energy_consumption(ATTR_COOL, TIME_TODAY) or 0):.01f}kWh'
+            )
+            data.append(
+                f'heat_today={(self.energy_consumption(ATTR_HEAT, TIME_TODAY) or 0):.01f}kWh'
+            )
             data.append(f'total_power={self.current_total_power_consumption:.02f}kW')
             data.append(f'cool_energy={self.last_hour_cool_energy_consumption:.01f}kW')
             data.append(f'heat_energy={self.last_hour_heat_energy_consumption:.01f}kW')
