@@ -1,6 +1,7 @@
 """Verify that init() calls the expected set of endpoints for firmware 2.8.0 devices."""
 
 import json
+from unittest.mock import MagicMock
 
 from aiohttp import ClientSession
 import pytest
@@ -35,7 +36,7 @@ async def test_daikin_brp084(aresponses, client_session):
                                     "pn": "e_3001",
                                     "pch": [
                                         {"pn": "p_01", "pv": "0200"},  # Mode (COOL)
-                                        {"pn": "p_02", "pv": "32"},  # Cool temp (25°C)
+                                        {"pn": "p_02", "pv": "32"},  # Cool temp (25?C)
                                         {
                                             "pn": "p_09",
                                             "pv": "0A00",
@@ -53,7 +54,7 @@ async def test_daikin_brp084(aresponses, client_session):
                                 {
                                     "pn": "e_A00B",
                                     "pch": [
-                                        {"pn": "p_01", "pv": "18"},  # Room temp (24°C)
+                                        {"pn": "p_01", "pv": "18"},  # Room temp (24?C)
                                         {"pn": "p_02", "pv": "3c"},  # Humidity (60%)
                                     ],
                                 },
@@ -75,7 +76,7 @@ async def test_daikin_brp084(aresponses, client_session):
                                     "pn": "e_A00D",
                                     "pch": [
                                         {"pn": "p_01", "pv": "22"}
-                                    ],  # Outside temp (17°C)
+                                    ],  # Outside temp (17?C)
                                 }
                             ],
                         }
@@ -177,7 +178,7 @@ async def test_add_request_method(aresponses, client_session):
                                     "pn": "e_3001",
                                     "pch": [
                                         {"pn": "p_01", "pv": "0200"},  # Mode (COOL)
-                                        {"pn": "p_02", "pv": "32"},  # Cool temp (25°C)
+                                        {"pn": "p_02", "pv": "32"},  # Cool temp (25?C)
                                         {
                                             "pn": "p_09",
                                             "pv": "0A00",
@@ -195,7 +196,7 @@ async def test_add_request_method(aresponses, client_session):
                                 {
                                     "pn": "e_A00B",
                                     "pch": [
-                                        {"pn": "p_01", "pv": "18"},  # Room temp (24°C)
+                                        {"pn": "p_01", "pv": "18"},  # Room temp (24?C)
                                         {"pn": "p_02", "pv": "3c"},  # Humidity (60%)
                                     ],
                                 },
@@ -217,7 +218,7 @@ async def test_add_request_method(aresponses, client_session):
                                     "pn": "e_A00D",
                                     "pch": [
                                         {"pn": "p_01", "pv": "22"}
-                                    ],  # Outside temp (17°C)
+                                    ],  # Outside temp (17?C)
                                 }
                             ],
                         }
@@ -306,7 +307,7 @@ async def test_add_request_method(aresponses, client_session):
     device._handle_temperature_setting({'stemp': '25.0'}, requests)
     assert len(requests) == 1
     assert requests[0].name == "p_02"  # Cool mode temp parameter
-    assert requests[0].value == "32"  # 25°C in hex
+    assert requests[0].value == "32"  # 25?C in hex
 
     # Test fan setting
     requests = []
@@ -363,10 +364,50 @@ async def test_add_request_direct(client_session):
 
     # Test adding a temperature request
     temp_path = device.get_path("temp_settings", "cool")
-    device.add_request(requests, temp_path, "32")  # 25°C
+    device.add_request(requests, temp_path, "32")  # 25?C
 
     assert len(requests) == 3
     assert requests[2].name == "p_02"
     assert requests[2].value == "32"
     assert requests[2].path == ["e_1002", "e_3001"]
     assert requests[2].to == "/dsiot/edge/adr_0100.dgc_status"
+
+
+@pytest.mark.parametrize(
+    'values, expected',
+    [
+        ({'hhum': '60'}, 60.0),
+        ({'hhum': '25.5'}, 25.5),
+        ({'hhum': '-'}, None),
+        ({'hhum': '--'}, None),
+        ({}, None),
+        ({'hhum': None}, None),
+        ({'hhum': 'invalid'}, None),
+    ],
+)
+def test_humidity(values, expected):
+    """Test the humidity property for DaikinBRP084."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values.update(values)
+    assert device.humidity == expected
+
+
+@pytest.mark.parametrize(
+    'values, expected',
+    [
+        ({'hhum': '60'}, True),
+        ({'hhum': '25.5'}, True),
+        ({'hhum': '-'}, False),
+        ({'hhum': '--'}, False),
+        ({}, False),
+        ({'hhum': None}, False),
+        ({'hhum': 'invalid'}, False),
+    ],
+)
+def test_support_humidity(values, expected):
+    """Test the support_humidity property for DaikinBRP084."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values.update(values)
+    assert device.support_humidity is expected

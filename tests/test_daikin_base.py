@@ -1,5 +1,8 @@
+from unittest.mock import MagicMock
+
 import pytest
 
+from pydaikin.daikin_brp069 import DaikinBRP069
 from pydaikin.response import parse_response
 
 
@@ -45,3 +48,43 @@ from pydaikin.response import parse_response
 )
 def test_parse_response(body: str, values: dict):
     assert parse_response(body) == values
+
+
+@pytest.mark.parametrize(
+    'values, expected',
+    [
+        ({'hhum': '50'}, 50.0),
+        ({'hhum': '25.5'}, 25.5),
+        ({'hhum': '-'}, None),
+        ({'hhum': '--'}, None),
+        ({}, None),
+        ({'hhum': None}, None),
+        ({'hhum': 'invalid'}, None),
+    ],
+)
+def test_humidity(values, expected):
+    """Test the humidity property."""
+    mock_session = MagicMock()
+    device = DaikinBRP069('127.0.0.1', session=mock_session)
+    device.values.update(values)
+    assert device.humidity == expected
+
+
+@pytest.mark.parametrize(
+    'values, expected',
+    [
+        ({'hhum': '50'}, True),  # humidity is supported
+        ({'hhum': '25.5'}, True),  # humidity is supported (float value)
+        ({'hhum': '-'}, False),  # humidity is not supported (non-numeric)
+        ({'hhum': '--'}, False),  # humidity is not supported (non-numeric)
+        ({}, False),  # 'hhum' key not present
+        ({'hhum': None}, False),  # value is None
+        ({'hhum': 'invalid'}, False),  # ValueError on float conversion
+    ],
+)
+def test_support_humidity(values, expected):
+    """Test the support_humidity property."""
+    mock_session = MagicMock()
+    device = DaikinBRP069('127.0.0.1', session=mock_session)
+    device.values.update(values)
+    assert device.support_humidity is expected
