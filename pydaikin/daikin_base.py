@@ -33,7 +33,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
  # pylint: disable-next=too-many-public-methods,too-many-instance-attributes
- class Appliance(DaikinPowerMixin):
+class Appliance(DaikinPowerMixin):
     """Daikin main appliance class."""
 
     base_url: str
