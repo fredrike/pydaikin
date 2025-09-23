@@ -22,17 +22,25 @@ The integration was initially built by Yari Adan, but lately have been taken ove
 
 Here is a simple example code for connecting to a  "BRP069" style AC:
 ```python
-import logging, asyncio
+import asyncio
+import logging
+
+import aiohttp
 from pydaikin.daikin_base import Appliance
 from pydaikin.factory import DaikinFactory
 
-logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
+HOST = "10.1.1.21"
 
-async def testDaikin():
-    device: Appliance = await DaikinFactory("10.0.0.1")
-    device.show_sensors()
+logging.basicConfig(level=logging.INFO)
+_LOGGER = logging.getLogger(__name__)
 
-asyncio.run(testDaikin())
+async def main():
+    async with await DaikinFactory(HOST) as device:
+        await device.update_status()
+        device.show_sensors()
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ## Firmware Version 2.8.0 Support
