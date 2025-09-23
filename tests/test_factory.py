@@ -20,6 +20,7 @@ class DummyValues(dict):
         # Ignore any keyword arguments like 'invalidate'
         return super().get(key, default)
 
+
 @pytest.mark.asyncio
 async def test_factory_with_password(monkeypatch):
     monkeypatch.setattr(
