@@ -1,6 +1,7 @@
 import pytest
 
 from pydaikin.daikin_airbase import DaikinAirBase
+from pydaikin.daikin_base import Appliance
 from pydaikin.daikin_brp069 import DaikinBRP069
 from pydaikin.daikin_brp072c import DaikinBRP072C
 from pydaikin.daikin_brp084 import DaikinBRP084
@@ -60,7 +61,7 @@ async def test_factory_brp084(monkeypatch):
         for resource in resources or ["common/basic_info"]:
             self.values.update_by_resource(resource, {"mode": "cool"})
 
-    monkeypatch.setattr(DaikinBRP084, "update_status", dummy_update_status)
+    monkeypatch.setattr(Appliance, "update_status", dummy_update_status)
 
     async def dummy_get_resource(self, path, params=None, resources=None):
         return {"mode": "cool"}
