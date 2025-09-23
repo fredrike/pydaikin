@@ -72,13 +72,13 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
             try:
                 _LOGGER.debug("Trying connection to BRP069")
                 self._generated_object = DaikinBRP069(device_ip, session)
-    
+
                 # If we have a specific port from discovery, set it in the base_url
                 if device_port and device_port != 80:
                     _LOGGER.debug("Using custom port %s for BRP069", device_port)
                     self._generated_object.base_url = (
                         f"http://{device_ip}:{device_port}"
-                    )    
+                    )
                 await self._generated_object.update_status(
                     self._generated_object.HTTP_RESOURCES[:1]
                 )
@@ -95,9 +95,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
             # If we have a specific port from discovery, set it in the base_url
             if device_port and device_port != 80:
                 _LOGGER.debug("Using custom port %s for AirBase", device_port)
-                self._generated_object.base_url = (
-                    f"http://{device_ip}:{device_port}"
-                )
+                self._generated_object.base_url = f"http://{device_ip}:{device_port}"
 
         await self._generated_object.init()
         if not self._generated_object.values.get("mode"):

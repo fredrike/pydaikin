@@ -119,7 +119,11 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
     async def aclose(self):
         """Clean up resources (close session if owned)."""
-        if getattr(self, "_own_session", False) and self.session and not self.session.closed:
+        if (
+            getattr(self, "_own_session", False)
+            and self.session
+            and not self.session.closed
+        ):
             await self.session.close()
 
     async def __aenter__(self) -> Self:
