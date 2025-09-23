@@ -36,7 +36,7 @@ async def test_daikin_brp084(aresponses, client_session):
                                     "pn": "e_3001",
                                     "pch": [
                                         {"pn": "p_01", "pv": "0200"},  # Mode (COOL)
-                                        {"pn": "p_02", "pv": "32"},  # Cool temp (25?C)
+                                        {"pn": "p_02", "pv": "32"},  # Cool temp (25°C)
                                         {
                                             "pn": "p_09",
                                             "pv": "0A00",
@@ -54,7 +54,7 @@ async def test_daikin_brp084(aresponses, client_session):
                                 {
                                     "pn": "e_A00B",
                                     "pch": [
-                                        {"pn": "p_01", "pv": "18"},  # Room temp (24?C)
+                                        {"pn": "p_01", "pv": "18"},  # Room temp (24°C)
                                         {"pn": "p_02", "pv": "3c"},  # Humidity (60%)
                                     ],
                                 },
@@ -76,7 +76,7 @@ async def test_daikin_brp084(aresponses, client_session):
                                     "pn": "e_A00D",
                                     "pch": [
                                         {"pn": "p_01", "pv": "22"}
-                                    ],  # Outside temp (17?C)
+                                    ],  # Outside temp (17°C)
                                 }
                             ],
                         }
@@ -178,7 +178,7 @@ async def test_add_request_method(aresponses, client_session):
                                     "pn": "e_3001",
                                     "pch": [
                                         {"pn": "p_01", "pv": "0200"},  # Mode (COOL)
-                                        {"pn": "p_02", "pv": "32"},  # Cool temp (25?C)
+                                        {"pn": "p_02", "pv": "32"},  # Cool temp (25°C)
                                         {
                                             "pn": "p_09",
                                             "pv": "0A00",
@@ -196,7 +196,7 @@ async def test_add_request_method(aresponses, client_session):
                                 {
                                     "pn": "e_A00B",
                                     "pch": [
-                                        {"pn": "p_01", "pv": "18"},  # Room temp (24?C)
+                                        {"pn": "p_01", "pv": "18"},  # Room temp (24°C)
                                         {"pn": "p_02", "pv": "3c"},  # Humidity (60%)
                                     ],
                                 },
@@ -218,7 +218,7 @@ async def test_add_request_method(aresponses, client_session):
                                     "pn": "e_A00D",
                                     "pch": [
                                         {"pn": "p_01", "pv": "22"}
-                                    ],  # Outside temp (17?C)
+                                    ],  # Outside temp (17°C)
                                 }
                             ],
                         }
@@ -307,7 +307,7 @@ async def test_add_request_method(aresponses, client_session):
     device._handle_temperature_setting({'stemp': '25.0'}, requests)
     assert len(requests) == 1
     assert requests[0].name == "p_02"  # Cool mode temp parameter
-    assert requests[0].value == "32"  # 25?C in hex
+    assert requests[0].value == "32"  # 25°C in hex
 
     # Test fan setting
     requests = []
@@ -364,7 +364,7 @@ async def test_add_request_direct(client_session):
 
     # Test adding a temperature request
     temp_path = device.get_path("temp_settings", "cool")
-    device.add_request(requests, temp_path, "32")  # 25?C
+    device.add_request(requests, temp_path, "32")  # 25°C
 
     assert len(requests) == 3
     assert requests[2].name == "p_02"
