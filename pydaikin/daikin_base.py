@@ -40,13 +40,9 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     ssl_context: Optional[SSLContext] = None
 
     TRANSLATIONS = {}
-
     VALUES_TRANSLATION = {}
-
     VALUES_SUMMARY = []
-
     INFO_RESOURCES = []
-
     MAX_CONCURRENT_REQUESTS = 4
 
     @classmethod
@@ -104,7 +100,12 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     def __init__(self, device_id, session: Optional[ClientSession] = None) -> None:
         """Init the pydaikin appliance, representing one Daikin device."""
         self.values = ApplianceValues()
-        self.session = session if session is not None else ClientSession()
+        if session:
+            self.session = session
+            self._own_session = False
+        else:
+            self.session = ClientSession()
+            self._own_session = True
         self.headers: dict = {}
         self._energy_consumption_history = defaultdict(list)
         if session:
@@ -115,6 +116,17 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         self.base_url = f"http://{self.device_ip}"
 
         self.request_semaphore = asyncio.Semaphore(value=self.MAX_CONCURRENT_REQUESTS)
+
+    async def aclose(self):
+        """Clean up resources (close session if owned)."""
+        if getattr(self, "_own_session", False) and self.session and not self.session.closed:
+            await self.session.close()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.aclose()
 
     def __getitem__(self, name):
         """Return values from self.value."""
