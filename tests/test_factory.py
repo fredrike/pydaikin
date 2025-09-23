@@ -16,6 +16,7 @@ class DummyValues(dict):
     def update_by_resource(self, resource, data):
         self[resource] = data
 
+
 @pytest.mark.asyncio
 async def test_factory_with_password(monkeypatch):
     monkeypatch.setattr(
