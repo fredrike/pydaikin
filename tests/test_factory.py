@@ -13,6 +13,8 @@ class DummyValues(dict):
     def should_resource_be_updated(self, resource):
         return True
 
+    def update_by_resource(self, resource, data):
+        self[resource] = data
 
 @pytest.mark.asyncio
 async def test_factory_with_password(monkeypatch):
