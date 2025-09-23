@@ -75,10 +75,12 @@ async def test_factory_brp069(monkeypatch):
 
     async def dummy_update_status(self, resources=None):
         self.values = DummyValues({"mode": "heat"})
+
     monkeypatch.setattr(DaikinBRP069, "update_status", dummy_update_status)
 
     async def dummy_init(self):
         self.values = DummyValues({"mode": "heat"})
+
     monkeypatch.setattr(DaikinBRP069, "init", dummy_init)
     device = await DaikinFactory("192.168.1.2")
     assert isinstance(device, DaikinBRP069)
