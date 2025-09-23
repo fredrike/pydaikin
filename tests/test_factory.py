@@ -1,6 +1,10 @@
 import pytest
 
+
+from pydaikin.daikin_airbase import DaikinAirBase
+from pydaikin.daikin_brp069 import DaikinBRP069
 from pydaikin.daikin_brp072c import DaikinBRP072C
+from pydaikin.daikin_brp084 import DaikinBRP084
 from pydaikin.daikin_skyfi import DaikinSkyFi
 from pydaikin.exceptions import DaikinException
 from pydaikin.factory import DaikinFactory
