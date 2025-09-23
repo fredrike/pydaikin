@@ -2,6 +2,7 @@
 
 from asyncio import sleep
 import logging
+from typing import Optional
 from urllib.parse import unquote
 
 from aiohttp import ClientSession
@@ -95,6 +96,16 @@ class DaikinSkyFi(Appliance):
     def support_swing_mode(self):
         """Return True if the device support setting swing_mode."""
         return False
+
+    @property
+    def support_humidity(self) -> bool:
+        """Return False as SkyFi devices do not have a humidity sensor."""
+        return False
+
+    @property
+    def humidity(self) -> Optional[float]:
+        """Return None as SkyFi devices do not have a humidity sensor."""
+        return None
 
     @staticmethod
     def parse_response(response_body):

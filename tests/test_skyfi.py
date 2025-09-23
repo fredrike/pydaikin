@@ -1,5 +1,7 @@
 """Verify that init() calls the expected set of endpoints for each Daikin device."""
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from pydaikin.daikin_skyfi import DaikinSkyFi
@@ -86,3 +88,21 @@ async def test_daikinSkiFi(aresponses, client_session):
         response="opmode=0&units=.&settemp=20.0&fanspeed=3&fanflags=1&acmode=8&tonact=0&toffact=0&prog=0&time=23:36&day=6&roomtemp=23&outsidetemp=0&louvre=1&zone=128&flt=0&test=0&errdata=146&sensors=1",
     )
     await device.set_zone(0, "zone_onoff", 1)
+
+
+def test_humidity_not_supported():
+    """Test that the humidity property is always None for DaikinSkyFi."""
+    mock_session = MagicMock()
+    device = DaikinSkyFi('127.0.0.1', session=mock_session, password='dummy_password')
+    # Add a dummy value to ensure it's not being read from the base class
+    device.values.update({'hhum': '50'})
+    assert device.humidity is None
+
+
+def test_support_humidity_not_supported():
+    """Test that support_humidity is always False for DaikinSkyFi."""
+    mock_session = MagicMock()
+    device = DaikinSkyFi('127.0.0.1', session=mock_session, password='dummy_password')
+    # Add a dummy value to ensure it's not being read from the base class
+    device.values.update({'hhum': '50'})
+    assert device.support_humidity is False

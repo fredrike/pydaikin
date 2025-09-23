@@ -1,6 +1,7 @@
 """Verify that init() calls the expected set of endpoints for firmware 2.8.0 devices."""
 
 import json
+from unittest.mock import MagicMock
 
 from aiohttp import ClientSession
 import pytest
@@ -370,3 +371,43 @@ async def test_add_request_direct(client_session):
     assert requests[2].value == "32"
     assert requests[2].path == ["e_1002", "e_3001"]
     assert requests[2].to == "/dsiot/edge/adr_0100.dgc_status"
+
+
+@pytest.mark.parametrize(
+    'values, expected',
+    [
+        ({'hhum': '60'}, 60.0),
+        ({'hhum': '25.5'}, 25.5),
+        ({'hhum': '-'}, None),
+        ({'hhum': '--'}, None),
+        ({}, None),
+        ({'hhum': None}, None),
+        ({'hhum': 'invalid'}, None),
+    ],
+)
+def test_humidity(values, expected):
+    """Test the humidity property for DaikinBRP084."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values.update(values)
+    assert device.humidity == expected
+
+
+@pytest.mark.parametrize(
+    'values, expected',
+    [
+        ({'hhum': '60'}, True),
+        ({'hhum': '25.5'}, True),
+        ({'hhum': '-'}, False),
+        ({'hhum': '--'}, False),
+        ({}, False),
+        ({'hhum': None}, False),
+        ({'hhum': 'invalid'}, False),
+    ],
+)
+def test_support_humidity(values, expected):
+    """Test the support_humidity property for DaikinBRP084."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values.update(values)
+    assert device.support_humidity is expected
