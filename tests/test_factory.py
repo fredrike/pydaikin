@@ -53,9 +53,13 @@ async def test_factory_with_key(monkeypatch):
 async def test_factory_brp084(monkeypatch):
     monkeypatch.setattr(DaikinBRP084, "__init__", lambda self, ip, session: None)
 
-    async def dummy_update_status(self):
+    # Patch update_status to set self.values and call update_by_resource
+    async def dummy_update_status(self, resources=None):
         self.values = DummyValues({"mode": "cool"})
-
+        # Simulate what the real update_status would do
+        for resource in (resources or ["common/basic_info"]):
+            self.values.update_by_resource(resource, {"mode": "cool"})
+    
     monkeypatch.setattr(DaikinBRP084, "update_status", dummy_update_status)
 
     async def dummy_get_resource(self, path, params=None, resources=None):
