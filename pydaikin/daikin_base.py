@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import socket
 from ssl import SSLContext
-from typing import Optional
+from typing import Optional, Self
 from urllib.parse import unquote
 
 from aiohttp import ClientSession
@@ -122,7 +122,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         if getattr(self, "_own_session", False) and self.session and not self.session.closed:
             await self.session.close()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
