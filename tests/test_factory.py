@@ -107,6 +107,16 @@ async def test_factory_airbase(monkeypatch):
     )
     monkeypatch.setattr(DaikinAirBase, "__init__", lambda self, ip, session: None)
 
+    async def dummy_update_status(self, resources=None):
+        self.values = DummyValues({"mode": "fan"})
+    
+    monkeypatch.setattr(DaikinAirBase, "update_status", dummy_update_status)
+    
+    async def dummy_get_resource(self, path, params=None, resources=None):
+        return {"mode": "fan"}
+    
+    monkeypatch.setattr(DaikinAirBase, "_get_resource", dummy_get_resource)
+
     async def dummy_init(self):
         self.values = DummyValues({"mode": "fan"})
 
