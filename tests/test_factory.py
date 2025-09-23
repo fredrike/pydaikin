@@ -5,78 +5,59 @@ from pydaikin.daikin_skyfi import DaikinSkyFi
 from pydaikin.exceptions import DaikinException
 from pydaikin.factory import DaikinFactory
 
+class DummyValues(dict):
+    def should_resource_be_updated(self, resource):
+        return True
 
 @pytest.mark.asyncio
 async def test_factory_with_password(monkeypatch):
-    monkeypatch.setattr(
-        "pydaikin.daikin_skyfi.DaikinSkyFi.__init__",
-        lambda self, ip, session, password: None,
-    )
+    # Patch DaikinSkyFi.__init__ and .init method and .values property
+    monkeypatch.setattr(DaikinSkyFi, "__init__", lambda self, ip, session, password: None)
+    async def dummy_init(self): self.values = DummyValues({"mode": "dummy"})
+    monkeypatch.setattr(DaikinSkyFi, "init", dummy_init)
     device = await DaikinFactory("192.168.1.2", password="testpw")
     assert isinstance(device, DaikinSkyFi)
-
+    assert "mode" in device.values
 
 @pytest.mark.asyncio
 async def test_factory_with_key(monkeypatch):
-    monkeypatch.setattr(
-        "pydaikin.daikin_brp072c.DaikinBRP072C.__init__",
-        lambda self, ip, session, key, uuid, ssl_context: None,
-    )
+    monkeypatch.setattr(DaikinBRP072C, "__init__", lambda self, ip, session, key, uuid, ssl_context: None)
+    async def dummy_init(self): self.values = DummyValues({"mode": "dummy"})
+    monkeypatch.setattr(DaikinBRP072C, "init", dummy_init)
     device = await DaikinFactory("192.168.1.2", key="testkey", uuid="uuid")
     assert isinstance(device, DaikinBRP072C)
-
+    assert "mode" in device.values
 
 @pytest.mark.asyncio
 async def test_factory_brp084(monkeypatch):
-    class DummyBRP084:
-        def __init__(self, ip, session):
-            pass
-
-        async def update_status(self):
-            pass
-
-        values = {"mode": "cool"}
-
-    monkeypatch.setattr("pydaikin.daikin_brp084.DaikinBRP084", DummyBRP084)
+    monkeypatch.setattr(DaikinBRP084, "__init__", lambda self, ip, session: None)
+    async def dummy_update_status(self): self.values = DummyValues({"mode": "cool"})
+    monkeypatch.setattr(DaikinBRP084, "update_status", dummy_update_status)
+    async def dummy_init(self): self.values = DummyValues({"mode": "cool"})
+    monkeypatch.setattr(DaikinBRP084, "init", dummy_init)
     device = await DaikinFactory("192.168.1.2")
-    assert isinstance(device, DummyBRP084)
-
+    assert isinstance(device, DaikinBRP084)
+    assert "mode" in device.values
 
 @pytest.mark.asyncio
 async def test_factory_brp069(monkeypatch):
-    class DummyBRP069:
-        def __init__(self, ip, session):
-            pass
-
-        values = {"mode": "heat"}
-
-    monkeypatch.setattr("pydaikin.daikin_brp069.DaikinBRP069", DummyBRP069)
-    # Patch BRP084 to fail
-    monkeypatch.setattr(
-        "pydaikin.daikin_brp084.DaikinBRP084.__init__",
-        lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")),
-    )
+    # Patch BRP084 to raise so factory falls through to BRP069
+    monkeypatch.setattr(DaikinBRP084, "__init__", lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")))
+    monkeypatch.setattr(DaikinBRP069, "__init__", lambda self, ip, session: None)
+    async def dummy_init(self): self.values = DummyValues({"mode": "heat"})
+    monkeypatch.setattr(DaikinBRP069, "init", dummy_init)
     device = await DaikinFactory("192.168.1.2")
-    assert isinstance(device, DummyBRP069)
-
+    assert isinstance(device, DaikinBRP069)
+    assert "mode" in device.values
 
 @pytest.mark.asyncio
 async def test_factory_airbase(monkeypatch):
-    class DummyAirBase:
-        def __init__(self, ip, session):
-            pass
-
-        values = {"mode": "fan"}
-
-    # Patch BRP084 and BRP069 to fail
-    monkeypatch.setattr(
-        "pydaikin.daikin_brp084.DaikinBRP084.__init__",
-        lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")),
-    )
-    monkeypatch.setattr(
-        "pydaikin.daikin_brp069.DaikinBRP069.__init__",
-        lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")),
-    )
-    monkeypatch.setattr("pydaikin.daikin_airbase.DaikinAirBase", DummyAirBase)
+    # Patch BRP084 and BRP069 to raise so factory falls through to AirBase
+    monkeypatch.setattr(DaikinBRP084, "__init__", lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")))
+    monkeypatch.setattr(DaikinBRP069, "__init__", lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")))
+    monkeypatch.setattr(DaikinAirBase, "__init__", lambda self, ip, session: None)
+    async def dummy_init(self): self.values = DummyValues({"mode": "fan"})
+    monkeypatch.setattr(DaikinAirBase, "init", dummy_init)
     device = await DaikinFactory("192.168.1.2")
-    assert isinstance(device, DummyAirBase)
+    assert isinstance(device, DaikinAirBase)
+    assert "mode" in device.values
