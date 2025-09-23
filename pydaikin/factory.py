@@ -42,76 +42,64 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
 
         # Check if this is a device with optional port from discovery
         device_ip, device_port = self._extract_ip_port(device_id)
+        obj = None
 
-        if password is not None:
-            self._generated_object = DaikinSkyFi(device_ip, session, password)
-        elif key is not None:
-            self._generated_object = DaikinBRP072C(
+        if password:
+            obj = DaikinSkyFi(device_ip, session, password)
+        elif key:
+            obj = DaikinBRP072C(
                 device_ip,
                 session,
                 key=key,
                 uuid=kwargs.get('uuid'),
                 ssl_context=kwargs.get('ssl_context'),
             )
-        else:  # special case for BRP069, AirBase, and BRP firmware 2.8.0
-            # First try to check if it's firmware 2.8.0
+        # Try BRP084, firmware 2.8.0
+        if not obj:
             try:
-                _LOGGER.debug("Trying connection to firmware 2.8.0")
-                self._generated_object = DaikinBRP084(device_ip, session)
-                try:
-                    await self._generated_object.update_status()
-                    # If we get here, it's likely a 2.8.0 device
-                    _LOGGER.info("Successfully connected to firmware 2.8.0 device")
-                    # Initialize mode to "off" if we couldn't read it
-                    if not self._generated_object.values.get("mode", invalidate=False):
-                        self._generated_object.values["mode"] = "off"
-                        self._generated_object.values["pow"] = "0"
-                    return
-                except Exception as e:
-                    _LOGGER.debug(
-                        "Failed to communicate with firmware 2.8.0 endpoint: %s", e
-                    )
-                    # Use from e to properly chain exceptions
-                    raise DaikinException(f"Not a firmware 2.8.0 device: {e}") from e
+                _LOGGER.debug("Trying connection to BRP084 firmware 2.8.0")
+                obj = DaikinBRP084(device_ip, session)
+                await obj.update_status()
+                # Initialize mode to "off" if we couldn't read it
+                if not obj.values.get("mode", invalidate=False):
+                    obj.values["mode"] = "off"
+                    obj.values["pow"] = "0"
             except (HTTPNotFound, DaikinException) as err:
-                _LOGGER.debug("Not a firmware 2.8.0 device: %s", err)
-
-            # Try BRP069
+                _LOGGER.debug("Not a BRP084 firmware 2.8.0 device: %s", err)
+                obj = None
+        # Try BRP069
+        if not obj:
             try:
                 _LOGGER.debug("Trying connection to BRP069")
-                self._generated_object = DaikinBRP069(device_ip, session)
+                obj = DaikinBRP069(device_ip, session)
 
                 # If we have a specific port from discovery, set it in the base_url
                 if device_port and device_port != 80:
                     _LOGGER.debug("Using custom port %s for BRP069", device_port)
-                    self._generated_object.base_url = (
-                        f"http://{device_ip}:{device_port}"
-                    )
-
-                await self._generated_object.update_status(
-                    self._generated_object.HTTP_RESOURCES[:1]
-                )
-                if not self._generated_object.values:
+                    obj.base_url = f"http://{device_ip}:{device_port}"
+                await obj.update_status(obj.HTTP_RESOURCES[:1])
+                if not obj.values:
                     raise DaikinException("Empty Values.")
             except (HTTPNotFound, DaikinException) as err:
-                _LOGGER.debug("Falling back to AirBase: %s", err)
-                self._generated_object = DaikinAirBase(device_ip, session)
+                _LOGGER.debug("Not a BRP069 device: %s", err)
+                obj = None
+        # Try AirBase
+        if not obj:
+            _LOGGER.debug("Trying connection to AirBase")
+            obj = DaikinAirBase(device_ip, session)
 
-                # If we have a specific port from discovery, set it in the base_url
-                if device_port and device_port != 80:
-                    _LOGGER.debug("Using custom port %s for AirBase", device_port)
-                    self._generated_object.base_url = (
-                        f"http://{device_ip}:{device_port}"
-                    )
+            # If we have a specific port from discovery, set it in the base_url
+            if device_port and device_port != 80:
+                _LOGGER.debug("Using custom port %s for AirBase", device_port)
+                obj.base_url = f"http://{device_ip}:{device_port}"
 
-        await self._generated_object.init()
-
-        if not self._generated_object.values.get("mode"):
+        await obj.init()
+        if not obj.values.get("mode"):
             raise DaikinException(
                 f"Error creating device, {device_id} is not supported."
             )
-
-        _LOGGER.debug("Daikin generated object: %s", self._generated_object)
+        _LOGGER.debug("Daikin generated object: %s", type(obj))
+        self._generated_object = obj
 
     @staticmethod
     def _extract_ip_port(device_id: str) -> Tuple[str, Optional[int]]:
