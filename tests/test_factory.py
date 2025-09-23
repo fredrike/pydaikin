@@ -16,6 +16,9 @@ class DummyValues(dict):
     def update_by_resource(self, resource, data):
         self[resource] = data
 
+    def get(self, key, default=None, **kwargs):
+        # Ignore any keyword arguments like 'invalidate'
+        return super().get(key, default)
 
 @pytest.mark.asyncio
 async def test_factory_with_password(monkeypatch):
@@ -59,13 +62,8 @@ async def test_factory_brp084(monkeypatch):
 
     monkeypatch.setattr(DaikinBRP084, "update_status", dummy_update_status)
 
-    async def dummy_get_resource(self, path, params=None, resources=None):
-        return {"mode": "cool"}
-
-    monkeypatch.setattr(DaikinBRP084, "_get_resource", dummy_get_resource)
-
     async def dummy_init(self):
-        self.values = DummyValues({"mode": "cool"})
+        self.values = DummyValues({"mode": False})
 
     monkeypatch.setattr(DaikinBRP084, "init", dummy_init)
     device = await DaikinFactory("192.168.1.2")
