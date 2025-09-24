@@ -59,12 +59,12 @@ async def test_factory_brp084(monkeypatch):
 
     # Patch update_status to set self.values and call update_by_resource
     async def dummy_update_status(self, resources=None):
-        self.values = DummyValues({"mode": "cool"})
+        self.values = DummyValues({"mode": False})
 
     monkeypatch.setattr(DaikinBRP084, "update_status", dummy_update_status)
 
     async def dummy_init(self):
-        self.values = DummyValues({"mode": False})
+        self.values = DummyValues({"mode": "cool"})
 
     monkeypatch.setattr(DaikinBRP084, "init", dummy_init)
     device = await DaikinFactory("192.168.1.2")
