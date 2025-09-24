@@ -77,7 +77,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 if device_port and device_port != 80:
                     _LOGGER.debug("Using custom port %s for BRP069", device_port)
                     obj.base_url = f"http://{device_ip}:{device_port}"
-                await obj.update_status(self._generated_object.HTTP_RESOURCES[:1])
+                await obj.update_status(obj.HTTP_RESOURCES[:1])
                 if not obj.values:
                     raise DaikinException("Empty Values.")
             except (HTTPNotFound, DaikinException) as err:
