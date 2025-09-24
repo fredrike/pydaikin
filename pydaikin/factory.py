@@ -22,7 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 class DaikinFactory:  # pylint: disable=too-few-public-methods
     "Factory object generating instantiated instances of Appliance"
 
-    _generated_object: Appliance
+    _generated_object: Appliance | None
 
     async def __new__(cls, *a, **kw):  # pylint: disable=invalid-overridden-method
         "Return not itself, but the Appliance instanced by __init__"
@@ -42,6 +42,8 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
 
         # Check if this is a device with optional port from discovery
         device_ip, device_port = self._extract_ip_port(device_id)
+
+        self._generated_object = None
 
         if password:
             self._generated_object = DaikinSkyFi(device_ip, session, password)
@@ -68,7 +70,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 _LOGGER.debug("Not a BRP084 firmware 2.8.0 device: %s", err)
                 self._generated_object = None
         # Try BRP069
-        elif not getattr(self, "_generated_object"):
+        elif not self._generated_object:
             try:
                 _LOGGER.debug("Trying connection to BRP069")
                 self._generated_object = DaikinBRP069(device_ip, session)
@@ -88,7 +90,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 _LOGGER.debug("Not a BRP069 device: %s", err)
                 self._generated_object = None
         # Try AirBase
-        elif not getattr(self, "_generated_object"):
+        elif not self._generated_object:
             _LOGGER.debug("Trying connection to AirBase")
             self._generated_object = DaikinAirBase(device_ip, session)
 
