@@ -22,7 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 class DaikinFactory:  # pylint: disable=too-few-public-methods
     "Factory object generating instantiated instances of Appliance"
 
-    _generated_object: Appliance | None
+    _generated_object: Appliance
 
     async def __new__(cls, *a, **kw):  # pylint: disable=invalid-overridden-method
         "Return not itself, but the Appliance instanced by __init__"
@@ -42,13 +42,12 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
 
         # Check if this is a device with optional port from discovery
         device_ip, device_port = self._extract_ip_port(device_id)
-
-        self._generated_object = None
+        obj = None
 
         if password:
-            self._generated_object = DaikinSkyFi(device_ip, session, password)
+            obj = DaikinSkyFi(device_ip, session, password)
         elif key:
-            self._generated_object = DaikinBRP072C(
+            obj = DaikinBRP072C(
                 device_ip,
                 session,
                 key=key,
@@ -56,55 +55,55 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 ssl_context=kwargs.get('ssl_context'),
             )
         # Try BRP084, firmware 2.8.0
-        elif self._generated_object is None:
+        if not obj:
             try:
                 _LOGGER.debug("Trying connection to BRP084 firmware 2.8.0")
-                self._generated_object = DaikinBRP084(device_ip, session)
-                await self._generated_object.update_status()
-                _LOGGER.info("Successfully connected to firmware 2.8.0 device")
+                obj = DaikinBRP084(device_ip, session)
+                await obj.update_status()
                 # Initialize mode to "off" if we couldn't read it
-                if not self._generated_object.values.get("mode", invalidate=False):
-                    self._generated_object.values["mode"] = "off"
-                    self._generated_object.values["pow"] = "0"
+                if not obj.values.get("mode", invalidate=False):
+                    obj.values["mode"] = "off"
+                    obj.values["pow"] = "0"
             except (HTTPNotFound, DaikinException) as err:
                 _LOGGER.debug("Not a BRP084 firmware 2.8.0 device: %s", err)
-                self._generated_object = None
+                obj = None
         # Try BRP069
-        elif self._generated_object is None:
+        if not obj:
             try:
                 _LOGGER.debug("Trying connection to BRP069")
-                self._generated_object = DaikinBRP069(device_ip, session)
+                obj = DaikinBRP069(device_ip, session)
 
                 # If we have a specific port from discovery, set it in the base_url
                 if device_port and device_port != 80:
                     _LOGGER.debug("Using custom port %s for BRP069", device_port)
-                    self._generated_object.base_url = (
+                    obj.base_url = (
                         f"http://{device_ip}:{device_port}"
                     )
-                await self._generated_object.update_status(
+                await obj.update_status(
                     self._generated_object.HTTP_RESOURCES[:1]
                 )
-                if not self._generated_object.values:
+                if not obj.values:
                     raise DaikinException("Empty Values.")
             except (HTTPNotFound, DaikinException) as err:
                 _LOGGER.debug("Not a BRP069 device: %s", err)
-                self._generated_object = None
+                obj = None
         # Try AirBase
-        elif self._generated_object is None:
+        if not obj:
             _LOGGER.debug("Trying connection to AirBase")
-            self._generated_object = DaikinAirBase(device_ip, session)
+            obj = DaikinAirBase(device_ip, session)
 
             # If we have a specific port from discovery, set it in the base_url
             if device_port and device_port != 80:
                 _LOGGER.debug("Using custom port %s for AirBase", device_port)
-                self._generated_object.base_url = f"http://{device_ip}:{device_port}"
-
-        await self._generated_object.init()
-        if not self._generated_object.values.get("mode"):
+                obj.base_url = f"http://{device_ip}:{device_port}"
+        if obj:
+            await self._generated_object.init()
+        if not obj or not obj.values.get("mode"):
             raise DaikinException(
                 f"Error creating device, {device_id} is not supported."
             )
-        _LOGGER.debug("Daikin generated object: %s", type(self._generated_object))
+        _LOGGER.debug("Daikin generated object: %s", type(obj))
+        self._generated_object = obj
 
     @staticmethod
     def _extract_ip_port(device_id: str) -> Tuple[str, Optional[int]]:
