@@ -54,7 +54,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 ssl_context=kwargs.get('ssl_context'),
             )
         # Try BRP084, firmware 2.8.0
-        elif not self._generated_object:
+        else:
             try:
                 _LOGGER.debug("Trying connection to BRP084 firmware 2.8.0")
                 self._generated_object = DaikinBRP084(device_ip, session)
@@ -68,7 +68,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 _LOGGER.debug("Not a BRP084 firmware 2.8.0 device: %s", err)
                 self._generated_object = None
         # Try BRP069
-        elif not self._generated_object:
+        elif not self.getattr("_generated_object"):
             try:
                 _LOGGER.debug("Trying connection to BRP069")
                 self._generated_object = DaikinBRP069(device_ip, session)
@@ -88,7 +88,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 _LOGGER.debug("Not a BRP069 device: %s", err)
                 self._generated_object = None
         # Try AirBase
-        elif not self._generated_object:
+        elif not self.getattr("_generated_object"):
             _LOGGER.debug("Trying connection to AirBase")
             self._generated_object = DaikinAirBase(device_ip, session)
 
