@@ -92,9 +92,9 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
             if device_port and device_port != 80:
                 _LOGGER.debug("Using custom port %s for AirBase", device_port)
                 obj.base_url = f"http://{device_ip}:{device_port}"
-        if obj:
-            await self._generated_object.init()
-        if not obj or not obj.values.get("mode"):
+
+        await obj.init()
+        if not obj.values.get("mode"):
             raise DaikinException(
                 f"Error creating device, {device_id} is not supported."
             )
