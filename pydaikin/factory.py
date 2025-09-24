@@ -56,7 +56,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 ssl_context=kwargs.get('ssl_context'),
             )
         # Try BRP084, firmware 2.8.0
-        else:
+        elif self._generated_object is None:
             try:
                 _LOGGER.debug("Trying connection to BRP084 firmware 2.8.0")
                 self._generated_object = DaikinBRP084(device_ip, session)
