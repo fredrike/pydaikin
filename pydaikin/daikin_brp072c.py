@@ -41,7 +41,7 @@ class DaikinBRP072C(DaikinBRP069):
         try:
             self.ssl_context.set_ciphers("DEFAULT:@SECLEVEL=0")
         except Exception:
-            pass # Some things won't support SECLEVEL
+            pass  # Some things won't support SECLEVEL
         self.base_url = f"https://{self.device_ip}"
 
     async def init(self):
