@@ -324,7 +324,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
     @property
     def support_outside_temperature(self) -> bool:
         """Return True if the device is not an AirBase unit."""
-        return self.outside_temperature is not None
+        return "otemp" in self.values
 
     @property
     def support_humidity(self) -> bool:
