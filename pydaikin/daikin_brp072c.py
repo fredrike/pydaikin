@@ -37,6 +37,13 @@ class DaikinBRP072C(DaikinBRP069):
         self.ssl_context.options |= ssl.OP_LEGACY_SERVER_CONNECT
         self.ssl_context.check_hostname = False
         self.ssl_context.verify_mode = ssl.CERT_NONE
+        # Fixes SSL WRONG_SIGNATURE_TYPE error
+        try:
+            self.ssl_context.set_ciphers("DEFAULT:@SECLEVEL=0")
+        except ssl.SSLError:
+            # Some things won't support SECLEVEL, and the cipher setting then
+            # shouldn't matter
+            pass
         self.base_url = f"https://{self.device_ip}"
 
     async def init(self):
