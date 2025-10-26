@@ -73,36 +73,19 @@ class DaikinBRP084(Appliance):
     """Daikin class for BRP devices with firmware 2.8.0."""
 
     # Centralized API paths for easier maintenance and better organization
+    E_1002_PATH = [
+        "/dsiot/edge/adr_0100.dgc_status",
+        "dgc_status",
+        "e_1002",
+    ]
+    E_1002_E_3001_PATH = E_1002_PATH + ["e_3001"]
+
     API_PATHS = {
         # Basic paths
-        "power": [
-            "/dsiot/edge/adr_0100.dgc_status",
-            "dgc_status",
-            "e_1002",
-            "e_A002",
-            "p_01",
-        ],
-        "mode": [
-            "/dsiot/edge/adr_0100.dgc_status",
-            "dgc_status",
-            "e_1002",
-            "e_3001",
-            "p_01",
-        ],
-        "indoor_temp": [
-            "/dsiot/edge/adr_0100.dgc_status",
-            "dgc_status",
-            "e_1002",
-            "e_A00B",
-            "p_01",
-        ],
-        "indoor_humidity": [
-            "/dsiot/edge/adr_0100.dgc_status",
-            "dgc_status",
-            "e_1002",
-            "e_A00B",
-            "p_02",
-        ],
+        "power": E_1002_PATH + ["e_A002", "p_01"],
+        "mode": E_1002_PATH + ["e_3001", "p_01"],
+        "indoor_temp": E_1002_PATH + ["e_A00B", "p_01"],
+        "indoor_humidity": E_1002_PATH + ["e_A00B", "p_02"],
         "outdoor_temp": [
             "/dsiot/edge/adr_0200.dgc_status",
             "dgc_status",
@@ -113,140 +96,38 @@ class DaikinBRP084(Appliance):
         "mac_address": ["/dsiot/edge.adp_i", "adp_i", "mac"],
         # Mode-specific paths for temperature settings
         "temp_settings": {
-            "cool": [
-                "/dsiot/edge/adr_0100.dgc_status",
-                "dgc_status",
-                "e_1002",
-                "e_3001",
-                "p_02",
-            ],
-            "heat": [
-                "/dsiot/edge/adr_0100.dgc_status",
-                "dgc_status",
-                "e_1002",
-                "e_3001",
-                "p_03",
-            ],
-            "auto": [
-                "/dsiot/edge/adr_0100.dgc_status",
-                "dgc_status",
-                "e_1002",
-                "e_3001",
-                "p_1D",
-            ],
+            "cool": E_1002_E_3001_PATH + ["p_02"],
+            "heat": E_1002_E_3001_PATH + ["p_03"],
+            "auto": E_1002_E_3001_PATH + ["p_1D"],
         },
         # Fan settings organized by mode
         "fan_settings": {
-            "auto": [
-                "/dsiot/edge/adr_0100.dgc_status",
-                "dgc_status",
-                "e_1002",
-                "e_3001",
-                "p_26",
-            ],
-            "cool": [
-                "/dsiot/edge/adr_0100.dgc_status",
-                "dgc_status",
-                "e_1002",
-                "e_3001",
-                "p_09",
-            ],
-            "heat": [
-                "/dsiot/edge/adr_0100.dgc_status",
-                "dgc_status",
-                "e_1002",
-                "e_3001",
-                "p_0A",
-            ],
-            "fan": [
-                "/dsiot/edge/adr_0100.dgc_status",
-                "dgc_status",
-                "e_1002",
-                "e_3001",
-                "p_28",
-            ],
+            "auto": E_1002_E_3001_PATH + ["p_26"],
+            "cool": E_1002_E_3001_PATH + ["p_09"],
+            "heat": E_1002_E_3001_PATH + ["p_0A"],
+            "fan": E_1002_E_3001_PATH + ["p_28"],
         },
         # Swing settings organized by mode
         "swing_settings": {
             "auto": {
-                "vertical": [
-                    "/dsiot/edge/adr_0100.dgc_status",
-                    "dgc_status",
-                    "e_1002",
-                    "e_3001",
-                    "p_20",
-                ],
-                "horizontal": [
-                    "/dsiot/edge/adr_0100.dgc_status",
-                    "dgc_status",
-                    "e_1002",
-                    "e_3001",
-                    "p_21",
-                ],
+                "vertical": E_1002_E_3001_PATH + ["p_20"],
+                "horizontal": E_1002_E_3001_PATH + ["p_21"],
             },
             "cool": {
-                "vertical": [
-                    "/dsiot/edge/adr_0100.dgc_status",
-                    "dgc_status",
-                    "e_1002",
-                    "e_3001",
-                    "p_05",
-                ],
-                "horizontal": [
-                    "/dsiot/edge/adr_0100.dgc_status",
-                    "dgc_status",
-                    "e_1002",
-                    "e_3001",
-                    "p_06",
-                ],
+                "vertical": E_1002_E_3001_PATH + ["p_05"],
+                "horizontal": E_1002_E_3001_PATH + ["p_06"],
             },
             "heat": {
-                "vertical": [
-                    "/dsiot/edge/adr_0100.dgc_status",
-                    "dgc_status",
-                    "e_1002",
-                    "e_3001",
-                    "p_07",
-                ],
-                "horizontal": [
-                    "/dsiot/edge/adr_0100.dgc_status",
-                    "dgc_status",
-                    "e_1002",
-                    "e_3001",
-                    "p_08",
-                ],
+                "vertical": E_1002_E_3001_PATH + ["p_07"],
+                "horizontal": E_1002_E_3001_PATH + ["p_08"],
             },
             "fan": {
-                "vertical": [
-                    "/dsiot/edge/adr_0100.dgc_status",
-                    "dgc_status",
-                    "e_1002",
-                    "e_3001",
-                    "p_24",
-                ],
-                "horizontal": [
-                    "/dsiot/edge/adr_0100.dgc_status",
-                    "dgc_status",
-                    "e_1002",
-                    "e_3001",
-                    "p_25",
-                ],
+                "vertical": E_1002_E_3001_PATH + ["p_24"],
+                "horizontal": E_1002_E_3001_PATH + ["p_25"],
             },
             "dry": {
-                "vertical": [
-                    "/dsiot/edge/adr_0100.dgc_status",
-                    "dgc_status",
-                    "e_1002",
-                    "e_3001",
-                    "p_22",
-                ],
-                "horizontal": [
-                    "/dsiot/edge/adr_0100.dgc_status",
-                    "dgc_status",
-                    "e_1002",
-                    "e_3001",
-                    "p_23",
-                ],
+                "vertical": E_1002_E_3001_PATH + ["p_22"],
+                "horizontal": E_1002_E_3001_PATH + ["p_23"],
             },
         },
         # Energy data
