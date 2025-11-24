@@ -22,7 +22,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.current_version }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - uses: actions/setup-python@v6
       with:
         python-version-file: 'pyproject.toml' # Read python version from a file pyproject.toml
@@ -53,7 +53,7 @@ jobs:
       version: ${{ needs.bump_version.outputs.version }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         ref: ${{ needs.bump_version.outputs.version }}
     - uses: actions/setup-python@v6
