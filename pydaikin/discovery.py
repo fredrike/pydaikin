@@ -103,7 +103,11 @@ def get_name(name):
     try:
         devices = discovery.poll(name)
     except (PermissionError) as e:
-        _LOGGER.warning("Error when attempting to discover port, continuing using default port. Error details: %s", e)
+        _LOGGER.warning(
+            """Error when attempting to discover port, continuing using default port.
+            Error details: %s""",
+            e,
+        )
         return None
 
     ret = None
