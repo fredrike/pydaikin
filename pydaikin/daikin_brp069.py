@@ -64,20 +64,35 @@ class DaikinBRP069(Appliance):
         },
     }
 
+    # HTTP endpoints fetched during init()
+    # Optimized from original 13 endpoints down to 7 by removing:
+    # - get_remote_method: 'method' already in basic_info
+    # - get_holiday: 'en_hol' already in basic_info
+    # - get_target: returns 'target=0', value never used anywhere
+    # - get_datetime: already called separately by auto_set_clock() during init
+    # Optional endpoints (get_price, get_notify) can be enabled via fetch_optional=True
     HTTP_RESOURCES = [
         'common/basic_info',
-        'common/get_remote_method',
         'aircon/get_sensor_info',
         'aircon/get_model_info',
         'aircon/get_control_info',
-        'aircon/get_target',
-        'aircon/get_price',
-        'common/get_holiday',
-        'common/get_notify',
         'aircon/get_day_power_ex',
         'aircon/get_week_power',
         'aircon/get_year_power',
-        'common/get_datetime',
+    ]
+
+    # Optional endpoints - disabled by default for performance
+    # Enable via fetch_optional=True in constructor
+    OPTIONAL_RESOURCES = [
+        'aircon/get_price',  # Electricity pricing info
+        'common/get_notify',  # Auto-off timer settings
+    ]
+
+    # Static resources that never change - fetch once and cache forever
+    # These contain hardware capabilities, MAC address, firmware version, etc.
+    STATIC_RESOURCES = [
+        'common/basic_info',
+        'aircon/get_model_info',
     ]
 
     INFO_RESOURCES = [
@@ -143,10 +158,70 @@ class DaikinBRP069(Appliance):
     async def init(self):
         """Init status."""
         await self.auto_set_clock()
+
+        # Build resource list (include optional if requested)
+        resources = list(self.HTTP_RESOURCES)
+        if self._fetch_optional:
+            resources.extend(self.OPTIONAL_RESOURCES)
+
         if self.values:
-            await self.update_status(self.HTTP_RESOURCES[1:])
+            # Skip basic_info if we already have values
+            await self.update_status(resources[1:])
         else:
-            await self.update_status(self.HTTP_RESOURCES)
+            await self.update_status(resources)
+
+    def __init__(self, device_id, session=None, *, fetch_optional=False):
+        """Initialize BRP069.
+
+        Args:
+            device_id: IP address or hostname of the Daikin device
+            session: aiohttp ClientSession to use for requests
+            fetch_optional: If True, also fetch optional endpoints (get_price, get_notify)
+        """
+        super().__init__(device_id, session)
+        self._fetch_optional = fetch_optional
+
+    async def update_status(self, resources=None, *, force_refresh=False):
+        """Update status with smart caching.
+
+        Caching strategy:
+        - Static resources (basic_info, model_info): fetch once, cache forever
+        - Everything else: normal TTL-based caching from parent class
+
+        Args:
+            resources: List of resources to fetch. If None, uses get_info_resources()
+            force_refresh: If True, bypass TTL caching for dynamic resources
+                          (static resources are still cached - they never change)
+        """
+        if resources is None:
+            resources = self.get_info_resources()
+
+        resources_to_fetch = []
+
+        for resource in resources:
+            # Static resources: cache forever (until HA restart)
+            # Use invalidate=False to avoid marking resource as stale during check
+            if resource in self.STATIC_RESOURCES:
+                if resource == 'common/basic_info' and self.values.get(
+                    'mac', invalidate=False
+                ):
+                    _LOGGER.debug("Skipping cached static resource: %s", resource)
+                    continue
+                if resource == 'aircon/get_model_info' and self.values.get(
+                    'model', invalidate=False
+                ):
+                    _LOGGER.debug("Skipping cached static resource: %s", resource)
+                    continue
+
+            resources_to_fetch.append(resource)
+
+        if force_refresh:
+            # Bypass TTL caching - clear last update times for resources we want to fetch
+            for resource in resources_to_fetch:
+                self.values._last_update_by_resource.pop(resource, None)
+
+        # Call parent's update_status with filtered resources
+        await super().update_status(resources_to_fetch)
 
     def get_info_resources(self):
         """Returns info_resources"""

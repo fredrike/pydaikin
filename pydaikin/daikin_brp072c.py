@@ -20,10 +20,11 @@ class DaikinBRP072C(DaikinBRP069):
         key=None,
         uuid=None,
         ssl_context=None,
+        fetch_optional=False,
     ) -> None:
         """Init the pydaikin appliance, representing one Daikin AirBase
         (BRP15B61) device."""
-        super().__init__(device_id, session)
+        super().__init__(device_id, session, fetch_optional=fetch_optional)
         self._key = key
         if uuid is None:
             uuid = uuid3(NAMESPACE_OID, 'pydaikin')
