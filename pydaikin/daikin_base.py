@@ -32,7 +32,9 @@ from .values import ApplianceValues
 _LOGGER = logging.getLogger(__name__)
 
 
-class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
+class Appliance(
+    DaikinPowerMixin
+):  # pylint: disable=too-many-public-methods,too-many-instance-attributes
     """Daikin main appliance class."""
 
     base_url: str

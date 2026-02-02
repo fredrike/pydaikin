@@ -218,7 +218,7 @@ class DaikinBRP069(Appliance):
         if force_refresh:
             # Bypass TTL caching - clear last update times for resources we want to fetch
             for resource in resources_to_fetch:
-                self.values._last_update_by_resource.pop(resource, None)
+                self.values.invalidate_resource(resource)
 
         # Call parent's update_status with filtered resources
         await super().update_status(resources_to_fetch)
