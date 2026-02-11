@@ -1,6 +1,6 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-from aiohttp import ClientError, ClientSession
+from aiohttp import ClientSession
 import pytest
 
 from pydaikin.daikin_airbase import DaikinAirBase
