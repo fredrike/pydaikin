@@ -70,6 +70,10 @@ class ApplianceValues(MutableMapping):
         }
         return resource not in self._last_update_by_resource
 
+    def invalidate_resource(self, resource: str) -> None:
+        """Mark a resource as needing update, bypassing TTL cache."""
+        self._last_update_by_resource.pop(resource, None)
+
     def update_by_resource(self, resource: str, data: dict):
         """Update the values and keep track of which resource provided them."""
         self._data.update(data)
