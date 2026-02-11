@@ -9,7 +9,7 @@ from ssl import SSLContext
 from typing import Optional
 from urllib.parse import unquote
 
-from aiohttp import ClientSession
+from aiohttp import ClientSession, ClientTimeout
 from aiohttp.client_exceptions import (
     ClientOSError,
     ClientResponseError,
@@ -32,7 +32,9 @@ from .values import ApplianceValues
 _LOGGER = logging.getLogger(__name__)
 
 
-class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
+class Appliance(
+    DaikinPowerMixin
+):  # pylint: disable=too-many-public-methods,too-many-instance-attributes
     """Daikin main appliance class."""
 
     base_url: str
@@ -115,6 +117,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         self.base_url = f"http://{self.device_ip}"
 
         self.request_semaphore = asyncio.Semaphore(value=self.MAX_CONCURRENT_REQUESTS)
+        # Request coalescing: track in-flight requests to avoid duplicate calls
+        self._pending_requests: dict[str, asyncio.Task] = {}
 
     def __getitem__(self, name):
         """Return values from self.value."""
@@ -126,6 +130,34 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         """Init status."""
         # Re-defined in all sub-classes
         raise NotImplementedError
+
+    # HTTP timeout for requests (prevents indefinite hangs on slow ACs)
+    HTTP_TIMEOUT = ClientTimeout(total=30)
+
+    async def _get_resource(self, path: str, params: Optional[dict] = None):
+        """Make the http request with coalescing for duplicate in-flight requests."""
+        if params is None:
+            params = {}
+
+        # Request coalescing: if same request is in-flight, await it instead
+        # Only coalesce GET requests without params (read operations)
+        cache_key = path if not params else None
+
+        if cache_key and cache_key in self._pending_requests:
+            _LOGGER.debug("Coalescing request for %s (already in-flight)", path)
+            return await self._pending_requests[cache_key]
+
+        # Create task for the actual HTTP request
+        task = asyncio.create_task(self._do_get_resource(path, params))
+
+        if cache_key:
+            self._pending_requests[cache_key] = task
+
+        try:
+            return await task
+        finally:
+            if cache_key:
+                self._pending_requests.pop(cache_key, None)
 
     @retry(
         reraise=True,
@@ -140,11 +172,8 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
         ),
         before_sleep=before_sleep_log(_LOGGER, logging.DEBUG),
     )
-    async def _get_resource(self, path: str, params: Optional[dict] = None):
-        """Make the http request."""
-        if params is None:
-            params = {}
-
+    async def _do_get_resource(self, path: str, params: dict):
+        """Make the actual http request with retry logic."""
         _LOGGER.debug(
             "Calling: %s/%s %s [%s]",
             self.base_url,
@@ -155,12 +184,20 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
         # cannot manage session on outer async with or this will close the session
         # passed to pydaikin (homeassistant for instance)
+        _LOGGER.debug(
+            "Waiting for semaphore (max=%s) for %s/%s",
+            self.MAX_CONCURRENT_REQUESTS,
+            self.device_ip,
+            path,
+        )
         async with self.request_semaphore:
+            _LOGGER.debug("Acquired semaphore for %s/%s", self.device_ip, path)
             async with self.session.get(
                 f'{self.base_url}/{path}',
                 params=params,
                 headers=self.headers,
                 ssl=self.ssl_context,
+                timeout=self.HTTP_TIMEOUT,
             ) as response:
                 if response.status == 403:
                     raise HTTPForbidden(reason=f"HTTP 403 Forbidden for {response.url}")
@@ -177,7 +214,9 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
                         response.url,
                     )
                 response.raise_for_status()
-                return self.parse_response(await response.text())
+                result = self.parse_response(await response.text())
+                _LOGGER.debug("Released semaphore for %s/%s", self.device_ip, path)
+                return result
 
     async def update_status(self, resources=None):
         """Update status from resources."""
