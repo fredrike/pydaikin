@@ -46,3 +46,9 @@ Firmware version 2.8.0 uses a different API structure compared to earlier firmwa
 * FTXA50C2V1BW with firmware version 2.8.0
 
 If you have a device with firmware 2.8.0 that's not working correctly, please open an issue with the device model and provide logs when using the debug mode.
+
+## Unsupported devices
+
+At this moment, following firmware-devices combination aren't supported:
+
+* BRP069C4x with firmware version 2.0.0
