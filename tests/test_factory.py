@@ -1,16 +1,16 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from aiohttp import ClientError, ClientSession
 import pytest
-from aiohttp import ClientSession
-from unittest.mock import MagicMock, AsyncMock, patch
 
 from pydaikin.daikin_airbase import DaikinAirBase
+from pydaikin.daikin_base import Appliance
 from pydaikin.daikin_brp069 import DaikinBRP069
 from pydaikin.daikin_brp072c import DaikinBRP072C
 from pydaikin.daikin_brp084 import DaikinBRP084
 from pydaikin.daikin_skyfi import DaikinSkyFi
-from pydaikin.daikin_base import Appliance
 from pydaikin.exceptions import DaikinException
 from pydaikin.factory import DaikinFactory
-from aiohttp import ClientError
 
 
 class DummyValues(dict):
@@ -137,7 +137,7 @@ async def test_factory_brp069_with_custom_port(monkeypatch):
         self.values = DummyValues({"mode": "cool"})
 
     monkeypatch.setattr(DaikinBRP069, "init", dummy_init)
-    
+
     # Test with port in device_id (IP:port format)
     device = await DaikinFactory("192.168.1.2:30050")
     assert isinstance(device, DaikinBRP069)
@@ -164,7 +164,7 @@ async def test_factory_brp069_empty_values_fallback(monkeypatch):
         self.values = DummyValues({"mode": "fan"})
 
     monkeypatch.setattr(DaikinAirBase, "init", dummy_init)
-    
+
     device = await DaikinFactory("192.168.1.2")
     assert isinstance(device, DaikinAirBase)
 
@@ -222,7 +222,7 @@ async def test_factory_airbase_with_custom_port(monkeypatch):
         self.values = DummyValues({"mode": "dry"})
 
     monkeypatch.setattr(DaikinAirBase, "init", dummy_init)
-    
+
     device = await DaikinFactory("192.168.1.2:9999")
     assert isinstance(device, DaikinAirBase)
     assert device.base_url == "http://192.168.1.2:9999"
@@ -248,7 +248,7 @@ async def test_factory_no_mode_error(monkeypatch):
         self.values = DummyValues({})
 
     monkeypatch.setattr(DaikinAirBase, "init", dummy_init)
-    
+
     with pytest.raises(DaikinException, match="not supported"):
         await DaikinFactory("192.168.1.2")
 
@@ -265,14 +265,14 @@ async def test_appliance_context_manager():
         close_called = True
 
     session.close = AsyncMock(side_effect=mock_close)
-    
+
     # Test __aenter__ and __aexit__
     appliance = Appliance("192.168.1.1", session=None)
-    
+
     # Simulate context manager usage
-    async with await (appliance.__aenter__()) as device:
+    async with await appliance.__aenter__() as device:
         assert device is appliance
-    
+
     # aclose should be called in __aexit__
     await appliance.__aexit__(None, None, None)
 
@@ -297,13 +297,13 @@ async def test_appliance_aclose_with_owned_session():
     """Test aclose() closes session only if owned."""
     # Create appliance without session (owns the session)
     appliance = Appliance("192.168.1.1", session=None)
-    
+
     # Mock the session's close method
     appliance.session.close = AsyncMock()
     appliance.session.closed = False
-    
+
     await appliance.aclose()
-    
+
     # Should have called close since we own the session
     appliance.session.close.assert_called_once()
 
@@ -313,12 +313,12 @@ async def test_appliance_aclose_with_external_session():
     """Test aclose() does NOT close external session."""
     session = AsyncMock(spec=ClientSession)
     session.closed = False
-    
+
     # Create appliance with external session
     appliance = Appliance("192.168.1.1", session=session)
-    
+
     await appliance.aclose()
-    
+
     # Should NOT have called close on external session
     session.close.assert_not_called()
 
@@ -329,8 +329,8 @@ async def test_appliance_aclose_already_closed():
     appliance = Appliance("192.168.1.1", session=None)
     appliance.session.closed = True
     appliance.session.close = AsyncMock()
-    
+
     await appliance.aclose()
-    
+
     # Should not attempt to close an already closed session
     appliance.session.close.assert_not_called()
