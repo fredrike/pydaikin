@@ -95,27 +95,19 @@ jobs:
         inputs: >-
           ./dist/*.tar.gz
           ./dist/*.whl
-    - name: Create GitHub Release
+    - name: Create GitHub Release and upload artifacts and signatures
       env:
         GITHUB_TOKEN: ${{ github.token }}
         CURRENT_VERSION: ${{ needs.build.outputs.version }}
+      # Create and upload to GitHub Release using the `gh` CLI.
+      # `dist/` contains the built packages, and the
+      # sigstore-produced signatures and certificates.
       run: >-
         gh release create
         "$CURRENT_VERSION"
         --repo '${{ github.repository }}'
         --generate-notes
-    - name: Upload artifact signatures to GitHub Release
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-        CURRENT_VERSION: ${{ needs.build.outputs.version }}
-      # Upload to GitHub Release using the `gh` CLI.
-      # `dist/` contains the built packages, and the
-      # sigstore-produced signatures and certificates.
-      run: >-
-        gh release upload
-        "$CURRENT_VERSION"
         dist/**
-        --repo '${{ github.repository }}'
     
   publish-to-pypi:
     name: Publish Python 🐍 distribution 📦 to PyPI
