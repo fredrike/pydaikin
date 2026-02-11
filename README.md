@@ -49,6 +49,6 @@ If you have a device with firmware 2.8.0 that's not working correctly, please op
 
 ## Unsupported devices
 
-At this moment, those firmware <> devices combination aren't supported:
+At this moment, following firmware-devices combination aren't supported:
 
 * BRP069C4x with firmware version 2.0.0
