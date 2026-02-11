@@ -22,17 +22,25 @@ The integration was initially built by Yari Adan, but lately have been taken ove
 
 Here is a simple example code for connecting to a  "BRP069" style AC:
 ```python
-import logging, asyncio
+import asyncio
+import logging
+
+import aiohttp
 from pydaikin.daikin_base import Appliance
 from pydaikin.factory import DaikinFactory
 
-logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
+HOST = "10.1.1.21"
 
-async def testDaikin():
-    device: Appliance = await DaikinFactory("10.0.0.1")
-    device.show_sensors()
+logging.basicConfig(level=logging.INFO)
+_LOGGER = logging.getLogger(__name__)
 
-asyncio.run(testDaikin())
+async def main():
+    async with await DaikinFactory(HOST) as device:
+        await device.update_status()
+        device.show_sensors()
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ## Firmware Version 2.8.0 Support
@@ -46,9 +54,3 @@ Firmware version 2.8.0 uses a different API structure compared to earlier firmwa
 * FTXA50C2V1BW with firmware version 2.8.0
 
 If you have a device with firmware 2.8.0 that's not working correctly, please open an issue with the device model and provide logs when using the debug mode.
-
-## Unsupported devices
-
-At this moment, following firmware-devices combination aren't supported:
-
-* BRP069C4x with firmware version 2.0.0

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import socket
 from ssl import SSLContext
-from typing import Optional
+from typing import Optional, Self
 from urllib.parse import unquote
 
 from aiohttp import ClientSession, ClientTimeout
@@ -32,9 +32,8 @@ from .values import ApplianceValues
 _LOGGER = logging.getLogger(__name__)
 
 
-class Appliance(
-    DaikinPowerMixin
-):  # pylint: disable=too-many-public-methods,too-many-instance-attributes
+# pylint: disable-next=too-many-public-methods,too-many-instance-attributes
+class Appliance(DaikinPowerMixin):
     """Daikin main appliance class."""
 
     base_url: str
@@ -42,13 +41,9 @@ class Appliance(
     ssl_context: Optional[SSLContext] = None
 
     TRANSLATIONS = {}
-
     VALUES_TRANSLATION = {}
-
     VALUES_SUMMARY = []
-
     INFO_RESOURCES = []
-
     MAX_CONCURRENT_REQUESTS = 4
 
     @classmethod
@@ -106,7 +101,12 @@ class Appliance(
     def __init__(self, device_id, session: Optional[ClientSession] = None) -> None:
         """Init the pydaikin appliance, representing one Daikin device."""
         self.values = ApplianceValues()
-        self.session = session if session is not None else ClientSession()
+        if session:
+            self.session = session
+            self._own_session = False
+        else:
+            self.session = ClientSession()
+            self._own_session = True
         self.headers: dict = {}
         self._energy_consumption_history = defaultdict(list)
         if session:
@@ -119,6 +119,21 @@ class Appliance(
         self.request_semaphore = asyncio.Semaphore(value=self.MAX_CONCURRENT_REQUESTS)
         # Request coalescing: track in-flight requests to avoid duplicate calls
         self._pending_requests: dict[str, asyncio.Task] = {}
+
+    async def aclose(self):
+        """Clean up resources (close session if owned)."""
+        if (
+            getattr(self, "_own_session", False)
+            and self.session
+            and not self.session.closed
+        ):
+            await self.session.close()
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.aclose()
 
     def __getitem__(self, name):
         """Return values from self.value."""
