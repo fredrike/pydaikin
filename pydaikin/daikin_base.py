@@ -218,7 +218,7 @@ class Appliance(DaikinPowerMixin):  # pylint: disable=too-many-public-methods
 
         for key in keys:
             if key in self.values:
-                (k, val) = self.represent(key)
+                k, val = self.represent(key)
                 print(f"{k : >20}: {val}")
 
     def log_sensors(self, file):
