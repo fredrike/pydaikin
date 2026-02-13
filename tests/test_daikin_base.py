@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from pydaikin.daikin_airbase import DaikinAirBase
 from pydaikin.daikin_brp069 import DaikinBRP069
 from pydaikin.response import parse_response
 
@@ -88,3 +89,39 @@ def test_support_humidity(values, expected):
     device = DaikinBRP069('127.0.0.1', session=mock_session)
     device.values.update(values)
     assert device.support_humidity is expected
+
+
+@pytest.mark.parametrize(
+    'values, expected',
+    [
+        ({'otemp': '40'}, True),  # outside temperature is supported
+        ({'otemp': '25.5'}, True),  # outside temperature is supported (float value)
+        ({'otemp': '-6.9'}, True),  # outside temperature is supported (negative value)
+        ({'otemp': '-'}, False),  # outside temperature is not supported (non-numeric)
+        ({}, False),  # 'otemp' key not present
+    ],
+)
+def test_AirBase_support_outside_temperature(values, expected):
+    """Test the support_outside_temperature property."""
+    mock_session = MagicMock()
+    device = DaikinAirBase('127.0.0.1', session=mock_session)
+    device.values.update(values)
+    assert device.support_outside_temperature is expected
+
+
+@pytest.mark.parametrize(
+    'values, expected',
+    [
+        ({'otemp': '40'}, 40.0),
+        ({'otemp': '25.5'}, 25.5),
+        ({'otemp': '-6.9'}, -6.9),
+        ({'otemp': '-'}, None),
+        ({}, None),  # 'otemp' key not present
+    ],
+)
+def test_AirBase_outside_temperature(values, expected):
+    """Test the outside_temperature property."""
+    mock_session = MagicMock()
+    device = DaikinAirBase('127.0.0.1', session=mock_session)
+    device.values.update(values)
+    assert device.outside_temperature == expected
