@@ -31,7 +31,7 @@ async def test_daikinAirBase(aresponses, client_session):
     aresponses.add(
         path_pattern="/skyfi/aircon/get_model_info",
         method_pattern="GET",
-        response="ret=OK,model=0000,type=N,pv=3.20,cpv=3,cpv_minor=20,mid=NA,humd=0,s_humd=0,acled=0,land=0,elec=1,temp=1,temp_rng=0,m_dtct=1,ac_dst=--,disp_dry=0,dmnd=1,en_scdltmr=1,en_frate=1,en_fdir=1,s_fdir=3,en_rtemp_a=0,en_spmode=7,en_ipw_sep=1,en_mompow=0,hmlmt_l=10.0",
+        response="ret=OK,model=NOTSUPPORT,type=N,pv=3.20,cpv=3,cpv_minor=20,mid=NA,humd=0,s_humd=0,acled=0,land=0,elec=1,temp=1,temp_rng=0,m_dtct=1,ac_dst=--,disp_dry=0,dmnd=1,en_scdltmr=1,en_frate=1,en_fdir=1,s_fdir=3,en_rtemp_a=0,en_spmode=7,en_ipw_sep=1,en_mompow=0,hmlmt_l=10.0",
     )
     aresponses.add(
         path_pattern="/skyfi/aircon/get_sensor_info",
@@ -53,8 +53,10 @@ async def test_daikinAirBase(aresponses, client_session):
 
     assert device['mode'] == '0'
     assert device.represent('mode') == ('mode', 'fan')
+    assert device['model'] == 'Airbase BRP15B61'
     assert device.support_away_mode is False
     assert device.support_fan_rate is True
+    assert device.fan_rate == ['Auto', 'Low', 'Mid', 'High', 'Low/Auto', 'Mid/Auto', 'High/Auto']
     assert device.represent('f_rate')[1].title() == 'High'
     assert device.support_swing_mode is False
     assert device.inside_temperature == 25.0
@@ -71,7 +73,40 @@ async def test_daikinAirBase(aresponses, client_session):
         ('Zone 8', '0', 0),
     ]
 
-    # test setting fan mode
+    # test setting fan to mid
+    fan_mode = 'Mid'
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_control_info",
+        method_pattern="GET",
+        response="ret=OK,pow=1,mode=0,adv=,stemp=25.0,shum=50,f_rate=A,f_dir=0,f_auto=0",
+    )
+    aresponses.add(
+        path_pattern="/skyfi/aircon/set_control_info",
+        method_pattern="GET",
+        response="ret=OK,f_airside=0,f_auto=0,f_dir=0,f_rate=3,lpw=,mode=2,pow=1,shum=50,stemp=M",
+    )
+    await device.set({'fan rate': fan_mode})
+    aresponses.assert_all_requests_matched()
+    assert device.represent('fan rate')[1].title() == fan_mode
+
+    # test setting fan to low/auto
+    fan_mode = 'Low/Auto'
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_control_info",
+        method_pattern="GET",
+        response="ret=OK,pow=1,mode=0,adv=,stemp=25.0,shum=50,f_rate=A,f_dir=0,f_auto=0",
+    )
+    aresponses.add(
+        path_pattern="/skyfi/aircon/set_control_info",
+        method_pattern="GET",
+        response="ret=OK,f_airside=0,f_auto=1,f_dir=0,f_rate=1a,lpw=,mode=2,pow=1,shum=50,stemp=M",
+    )
+    await device.set({'fan rate': fan_mode})
+    aresponses.assert_all_requests_matched()
+    assert device.represent('fan rate')[1].title() == fan_mode
+
+    # test setting mode to cool
+    mode = 'cool'
     aresponses.add(
         path_pattern="/skyfi/aircon/get_control_info",
         method_pattern="GET",
@@ -82,11 +117,12 @@ async def test_daikinAirBase(aresponses, client_session):
         method_pattern="GET",
         response="ret=OK,f_airside=0,f_auto=1,f_dir=0,f_rate=A,lpw=,mode=2,pow=1,shum=50,stemp=M",
     )
-    await device.set({'mode': 'cool'})
+    await device.set({'mode': mode})
     aresponses.assert_all_requests_matched()
-    assert device.represent("mode") == ('mode', 'cool')
+    assert device.represent("mode") == ('mode', mode)
 
-    # test setting mode
+    # test setting mode to off
+    mode = 'off'
     aresponses.add(
         path_pattern="/skyfi/aircon/get_control_info",
         method_pattern="GET",
@@ -97,8 +133,9 @@ async def test_daikinAirBase(aresponses, client_session):
         method_pattern="GET",
         response="ret=OK,f_airside=0,f_auto=1,f_dir=0,f_rate=A,lpw=,mode=2,pow=0,shum=50,stemp=M",
     )
-    await device.set({'mode': 'off'})
+    await device.set({'mode': mode})
     aresponses.assert_all_requests_matched()
+    assert device.represent("mode") == ('mode', mode)
 
     # test setting zone
     aresponses.add(
