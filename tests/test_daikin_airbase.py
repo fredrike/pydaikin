@@ -56,7 +56,15 @@ async def test_daikinAirBase(aresponses, client_session):
     assert device['model'] == 'Airbase BRP15B61'
     assert device.support_away_mode is False
     assert device.support_fan_rate is True
-    assert device.fan_rate == ['Auto', 'Low', 'Mid', 'High', 'Low/Auto', 'Mid/Auto', 'High/Auto']
+    assert device.fan_rate == [
+        'Auto',
+        'Low',
+        'Mid',
+        'High',
+        'Low/Auto',
+        'Mid/Auto',
+        'High/Auto',
+    ]
     assert device.represent('f_rate')[1].title() == 'High'
     assert device.support_swing_mode is False
     assert device.inside_temperature == 25.0
