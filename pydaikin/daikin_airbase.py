@@ -84,6 +84,11 @@ class DaikinAirBase(DaikinBRP069):
         return False
 
     @property
+    def support_outside_temperature(self):
+        """Return True if the device reports an outside temperature."""
+        return 'otemp' in self.values and self.values['otemp'] != '-'
+
+    @property
     def support_swing_mode(self):
         """Return True if the device support setting swing_mode."""
         return False
