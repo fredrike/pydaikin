@@ -1,336 +1,459 @@
-from unittest.mock import AsyncMock, MagicMock
+"""Test the DaikinFactory for proper device type detection."""
+
+import json
 
 from aiohttp import ClientSession
 import pytest
+import pytest_asyncio
 
 from pydaikin.daikin_airbase import DaikinAirBase
-from pydaikin.daikin_base import Appliance
 from pydaikin.daikin_brp069 import DaikinBRP069
 from pydaikin.daikin_brp072c import DaikinBRP072C
 from pydaikin.daikin_brp084 import DaikinBRP084
 from pydaikin.daikin_skyfi import DaikinSkyFi
-from pydaikin.exceptions import DaikinException
 from pydaikin.factory import DaikinFactory
 
 
-class DummyValues(dict):
-    def should_resource_be_updated(self, resource):
-        return True
-
-    def update_by_resource(self, resource, data):
-        self[resource] = data
-
-    def get(self, key, default=None, **kwargs):
-        # Ignore any keyword arguments like 'invalidate'
-        return super().get(key, default)
+@pytest_asyncio.fixture
+async def client_session():
+    client_session = ClientSession()
+    yield client_session
+    await client_session.close()
 
 
 @pytest.mark.asyncio
-async def test_factory_with_password(monkeypatch):
-    monkeypatch.setattr(
-        DaikinSkyFi, "__init__", lambda self, ip, session, password: None
+async def test_factory_detects_skyfi(aresponses, client_session):
+    """Test that factory correctly detects SkyFi device when password is provided."""
+    # Mock SkyFi responses
+    aresponses.add(
+        path_pattern="/ac.cgi",
+        method_pattern="GET",
+        response="opmode=0&units=.&settemp=24.0&fanspeed=3&fanflags=1&acmode=16&tonact=0&toffact=0&prog=0&time=23:36&day=6&roomtemp=23&outsidetemp=0&louvre=1&zone=0&flt=0&test=0&errdata=146&sensors=1",
+    )
+    aresponses.add(
+        path_pattern="/zones.cgi",
+        method_pattern="GET",
+        response="opmode=0&units=.&settemp=24.0&fanspeed=3&fanflags=1&acmode=16&tonact=0&toffact=0&prog=0&time=23:36&day=6&roomtemp=23&outsidetemp=0&louvre=1&zone=0&flt=0&test=0&errdata=146&sensors=1",
     )
 
-    async def dummy_init(self):
-        self.values = DummyValues({"mode": "dummy"})
+    device = await DaikinFactory(
+        "192.168.1.100", session=client_session, password="test"
+    )
 
-    monkeypatch.setattr(DaikinSkyFi, "init", dummy_init)
-    device = await DaikinFactory("192.168.1.2", password="testpw")
     assert isinstance(device, DaikinSkyFi)
-    assert "mode" in device.values
+    # opmode=0 means device is off, which translates to mode '16' (fan mode in acmode)
+    assert device.values.get('mode', invalidate=False) == '16'
+    assert device.values.get('pow', invalidate=False) == '0'
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
 
 
 @pytest.mark.asyncio
-async def test_factory_with_key(monkeypatch):
-    monkeypatch.setattr(
-        DaikinBRP072C,
-        "__init__",
-        lambda self, ip, session, key, uuid, ssl_context: None,
+async def test_factory_detects_brp072c(aresponses, client_session):
+    """Test that factory correctly detects BRP072C device when key is provided."""
+    # Mock BRP072C registration and init responses
+    aresponses.add(
+        path_pattern="/common/register_terminal",
+        method_pattern="GET",
+        response="ret=OK",
+    )
+    aresponses.add(
+        path_pattern="/common/get_datetime",
+        method_pattern="GET",
+        response="ret=OK,sta=2,cur=2023/8/27 21:54:1,reg=eu,dst=1,zone=313",
+    )
+    aresponses.add(
+        path_pattern="/common/basic_info",
+        method_pattern="GET",
+        response="ret=OK,type=aircon,reg=eu,dst=1,ver=1_2_54,rev=203DE8C,pow=1,err=0,location=0,name=%4e%6f%74%74%65,icon=3,method=home only,port=30050,id=,pw=,lpw_flag=0,adp_kind=3,pv=3.20,cpv=3,cpv_minor=20,led=1,en_setzone=1,mac=409F38D107AC,adp_mode=run,en_hol=0,ssid1=Pinguino Curioso,radio1=-35,grp_name=,en_grp=0",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_sensor_info",
+        method_pattern="GET",
+        response="ret=OK,htemp=25.0,hhum=-,otemp=21.0,err=0,cmpfreq=40",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_model_info",
+        method_pattern="GET",
+        response="ret=OK,model=0000,type=N,pv=3.20,cpv=3,cpv_minor=20,mid=NA,humd=0,s_humd=0,acled=0,land=0,elec=1,temp=1,temp_rng=0,m_dtct=1,ac_dst=--,disp_dry=0,dmnd=1,en_scdltmr=1,en_frate=1,en_fdir=1,s_fdir=3,en_rtemp_a=0,en_spmode=7,en_ipw_sep=1,en_mompow=0,hmlmt_l=10.0",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_control_info",
+        method_pattern="GET",
+        response="ret=OK,pow=1,mode=2,adv=,stemp=M,shum=50,dt1=25.0,dt2=M,dt3=25.0,dt4=25.0,dt5=25.0,dt7=25.0,dh1=AUTO,dh2=50,dh3=0,dh4=0,dh5=0,dh7=AUTO,dhh=50,b_mode=2,b_stemp=M,b_shum=50,alert=255,f_rate=A,f_dir=0,b_f_rate=5,b_f_dir=0,dfr1=5,dfr2=5,dfr3=A,dfr4=5,dfr5=5,dfr6=3,dfr7=5,dfrh=5,dfd1=0,dfd2=0,dfd3=2,dfd4=0,dfd5=0,dfd6=2,dfd7=0,dfdh=0,dmnd_run=0,en_demand=0",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_day_power_ex",
+        method_pattern="GET",
+        response="ret=OK,curr_day_heat=0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0,prev_1day_heat=0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0,curr_day_cool=0/0/0/0/0/0/0/0/0/0/1/0/0/0/0/0/0/0/0/0/0/0/0/0,prev_1day_cool=0/1/0/1/0/1/0/1/0/2/3/2/3/1/0/0/0/0/5/1/0/1/1/0",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_week_power",
+        method_pattern="GET",
+        response="ret=OK,today_runtime=38,datas=5700/4000/6100/3900/2200/3400/400",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_year_power",
+        method_pattern="GET",
+        response="ret=OK,previous_year=7/0/1/0/1/21/57/24/2/0/0/2,this_year=4/0/0/0/1/18/40/53",
     )
 
-    async def dummy_init(self):
-        self.values = DummyValues({"mode": "dummy"})
+    device = await DaikinFactory(
+        "192.168.1.100", session=client_session, key="testkey123"
+    )
 
-    monkeypatch.setattr(DaikinBRP072C, "init", dummy_init)
-    device = await DaikinFactory("192.168.1.2", key="testkey", uuid="uuid")
     assert isinstance(device, DaikinBRP072C)
-    assert "mode" in device.values
+    assert device.values.get('mode', invalidate=False) == '2'
+    assert device.values.get('mac', invalidate=False) == '409F38D107AC'
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
 
 
 @pytest.mark.asyncio
-async def test_factory_brp084(monkeypatch):
-    monkeypatch.setattr(DaikinBRP084, "__init__", lambda self, ip, session: None)
+async def test_factory_detects_brp084_firmware_280(aresponses, client_session):
+    """Test that factory correctly detects BRP084 (firmware 2.8.0) device."""
+    # Mock firmware 2.8.0 response
+    mock_response = {
+        "responses": [
+            {
+                "fr": "/dsiot/edge/adr_0100.dgc_status",
+                "pc": {
+                    "pn": "dgc_status",
+                    "pch": [
+                        {
+                            "pn": "e_1002",
+                            "pch": [
+                                {"pn": "e_A002", "pch": [{"pn": "p_01", "pv": "01"}]},
+                                {
+                                    "pn": "e_3001",
+                                    "pch": [
+                                        {"pn": "p_01", "pv": "0200"},  # Mode (COOL)
+                                        {"pn": "p_02", "pv": "32"},  # Cool temp (25°C)
+                                        {"pn": "p_09", "pv": "0A00"},  # Cool fan speed
+                                        {
+                                            "pn": "p_05",
+                                            "pv": "000000",
+                                        },  # Vertical swing
+                                        {
+                                            "pn": "p_06",
+                                            "pv": "000000",
+                                        },  # Horizontal swing
+                                    ],
+                                },
+                                {
+                                    "pn": "e_A00B",
+                                    "pch": [
+                                        {"pn": "p_01", "pv": "18"},  # Room temp
+                                        {"pn": "p_02", "pv": "3c"},  # Humidity
+                                    ],
+                                },
+                            ],
+                        }
+                    ],
+                },
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge/adr_0200.dgc_status",
+                "pc": {
+                    "pn": "dgc_status",
+                    "pch": [
+                        {
+                            "pn": "e_1003",
+                            "pch": [
+                                {
+                                    "pn": "e_A00D",
+                                    "pch": [{"pn": "p_01", "pv": "22"}],  # Outside temp
+                                }
+                            ],
+                        }
+                    ],
+                },
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge/adr_0100.i_power.week_power",
+                "pc": {
+                    "pn": "week_power",
+                    "pch": [
+                        {"pn": "today_runtime", "pv": "120"},
+                        {"pn": "datas", "pv": [100, 200, 300, 400, 500, 600, 700]},
+                    ],
+                },
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge.adp_i",
+                "pc": {"pn": "adp_i", "pch": [{"pn": "mac", "pv": "112233445566"}]},
+                "rsc": 2000,
+            },
+        ]
+    }
 
-    # Patch update_status to set self.values and call update_by_resource
-    async def dummy_update_status(self, resources=None):
-        self.values = DummyValues({"mode": "cool"})
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(
+            status=200,
+            text=json.dumps(mock_response),
+            headers={"Content-Type": "application/json"},
+        ),
+    )
 
-    monkeypatch.setattr(DaikinBRP084, "update_status", dummy_update_status)
+    device = await DaikinFactory("192.168.1.100", session=client_session)
 
-    async def dummy_init(self):
-        self.values = DummyValues({"mode": "cool"})
-
-    monkeypatch.setattr(DaikinBRP084, "init", dummy_init)
-    device = await DaikinFactory("192.168.1.2")
     assert isinstance(device, DaikinBRP084)
-    assert "mode" in device.values
+    assert device.values.get('mode', invalidate=False) == 'cool'
+    assert device.values.get('mac', invalidate=False) == '112233445566'
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
 
 
 @pytest.mark.asyncio
-async def test_factory_brp084_initializes_mode(monkeypatch):
-    """Test that BRP084 initializes mode to 'off' if not set."""
-    monkeypatch.setattr(DaikinBRP084, "__init__", lambda self, ip, session: None)
-
-    async def dummy_update_status(self, resources=None):
-        # Mode is not set (returns False when invalidate=False)
-        self.values = DummyValues({})
-
-    monkeypatch.setattr(DaikinBRP084, "update_status", dummy_update_status)
-
-    async def dummy_init(self):
-        self.values = DummyValues({"mode": "off", "pow": "0"})
-
-    monkeypatch.setattr(DaikinBRP084, "init", dummy_init)
-    device = await DaikinFactory("192.168.1.2")
-    assert isinstance(device, DaikinBRP084)
-
-
-@pytest.mark.asyncio
-async def test_factory_brp069(monkeypatch):
-    monkeypatch.setattr(
-        DaikinBRP084,
-        "__init__",
-        lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")),
+async def test_factory_detects_brp069(aresponses, client_session):
+    """Test that factory correctly detects BRP069 device (fallback from BRP084)."""
+    # Mock 404 response for firmware 2.8.0 attempt (to force fallback)
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(status=404, text="Not Found"),
     )
-    monkeypatch.setattr(DaikinBRP069, "__init__", lambda self, ip, session: None)
 
-    async def dummy_update_status(self, resources=None):
-        self.values = DummyValues({"mode": "heat"})
+    # Mock BRP069 responses (detection phase)
+    aresponses.add(
+        path_pattern="/common/basic_info",
+        method_pattern="GET",
+        response="ret=OK,type=aircon,reg=eu,dst=1,ver=1_2_54,rev=203DE8C,pow=1,err=0,location=0,name=%4e%6f%74%74%65,icon=3,method=home only,port=30050,id=,pw=,lpw_flag=0,adp_kind=3,pv=3.20,cpv=3,cpv_minor=20,led=1,en_setzone=1,mac=409F38D107AC,adp_mode=run,en_hol=0,ssid1=Pinguino Curioso,radio1=-35,grp_name=,en_grp=0",
+    )
+    # Mock BRP069 init responses (basic_info is skipped due to caching from detection)
+    aresponses.add(
+        path_pattern="/common/get_datetime",
+        method_pattern="GET",
+        response="ret=OK,sta=2,cur=2023/8/27 21:54:1,reg=eu,dst=1,zone=313",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_sensor_info",
+        method_pattern="GET",
+        response="ret=OK,htemp=25.0,hhum=-,otemp=21.0,err=0,cmpfreq=40",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_model_info",
+        method_pattern="GET",
+        response="ret=OK,model=0000,type=N,pv=3.20,cpv=3,cpv_minor=20,mid=NA,humd=0,s_humd=0,acled=0,land=0,elec=1,temp=1,temp_rng=0,m_dtct=1,ac_dst=--,disp_dry=0,dmnd=1,en_scdltmr=1,en_frate=1,en_fdir=1,s_fdir=3,en_rtemp_a=0,en_spmode=7,en_ipw_sep=1,en_mompow=0,hmlmt_l=10.0",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_control_info",
+        method_pattern="GET",
+        response="ret=OK,pow=1,mode=2,adv=,stemp=M,shum=50,dt1=25.0,dt2=M,dt3=25.0,dt4=25.0,dt5=25.0,dt7=25.0,dh1=AUTO,dh2=50,dh3=0,dh4=0,dh5=0,dh7=AUTO,dhh=50,b_mode=2,b_stemp=M,b_shum=50,alert=255,f_rate=A,f_dir=0,b_f_rate=5,b_f_dir=0,dfr1=5,dfr2=5,dfr3=A,dfr4=5,dfr5=5,dfr6=3,dfr7=5,dfrh=5,dfd1=0,dfd2=0,dfd3=2,dfd4=0,dfd5=0,dfd6=2,dfd7=0,dfdh=0,dmnd_run=0,en_demand=0",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_day_power_ex",
+        method_pattern="GET",
+        response="ret=OK,curr_day_heat=0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0,prev_1day_heat=0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0,curr_day_cool=0/0/0/0/0/0/0/0/0/0/1/0/0/0/0/0/0/0/0/0/0/0/0/0,prev_1day_cool=0/1/0/1/0/1/0/1/0/2/3/2/3/1/0/0/0/0/5/1/0/1/1/0",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_week_power",
+        method_pattern="GET",
+        response="ret=OK,today_runtime=38,datas=5700/4000/6100/3900/2200/3400/400",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_year_power",
+        method_pattern="GET",
+        response="ret=OK,previous_year=7/0/1/0/1/21/57/24/2/0/0/2,this_year=4/0/0/0/1/18/40/53",
+    )
 
-    monkeypatch.setattr(DaikinBRP069, "update_status", dummy_update_status)
+    device = await DaikinFactory("192.168.1.100", session=client_session)
 
-    async def dummy_init(self):
-        self.values = DummyValues({"mode": "heat"})
-
-    monkeypatch.setattr(DaikinBRP069, "init", dummy_init)
-    device = await DaikinFactory("192.168.1.2")
     assert isinstance(device, DaikinBRP069)
-    assert "mode" in device.values
+    assert device.values.get('mode', invalidate=False) == '2'
+    assert device.values.get('mac', invalidate=False) == '409F38D107AC'
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
 
 
 @pytest.mark.asyncio
-async def test_factory_brp069_with_custom_port(monkeypatch):
-    """Test BRP069 detection with custom port from discovery."""
-    monkeypatch.setattr(
-        DaikinBRP084,
-        "__init__",
-        lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")),
+async def test_factory_detects_airbase(aresponses, client_session):
+    """Test that factory correctly detects AirBase device (fallback from BRP069)."""
+    # Mock 404 response for firmware 2.8.0 attempt
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(status=404, text="Not Found"),
     )
-    monkeypatch.setattr(DaikinBRP069, "__init__", lambda self, ip, session: None)
 
-    async def dummy_update_status(self, resources=None):
-        self.values = DummyValues({"mode": "cool"})
+    # Mock 404 response for BRP069 attempt (to force fallback to AirBase)
+    aresponses.add(
+        path_pattern="/common/basic_info",
+        method_pattern="GET",
+        response=aresponses.Response(status=404, text="Not Found"),
+    )
 
-    monkeypatch.setattr(DaikinBRP069, "update_status", dummy_update_status)
+    # Mock AirBase responses (uses /skyfi/ prefix)
+    aresponses.add(
+        path_pattern="/skyfi/common/get_datetime",
+        method_pattern="GET",
+        response="ret=OK,sta=2,cur=2023/8/27 21:54:1,reg=eu,dst=1,zone=313",
+    )
+    aresponses.add(
+        path_pattern="/skyfi/common/basic_info",
+        method_pattern="GET",
+        response="ret=OK,type=aircon,reg=eu,dst=1,ver=1_2_54,rev=203DE8C,pow=1,err=0,location=0,name=%4e%6f%74%74%65,icon=3,method=home only,port=30050,id=,pw=,lpw_flag=0,adp_kind=3,pv=3.20,cpv=3,cpv_minor=20,led=1,en_setzone=1,mac=409F38D107AC,adp_mode=run,en_hol=0,ssid1=Pinguino Curioso,radio1=-35,grp_name=,en_grp=0",
+    )
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_control_info",
+        method_pattern="GET",
+        response="ret=OK,pow=1,mode=2,adv=,stemp=M,shum=50,dt1=25.0,dt2=M,dt3=25.0,dt4=25.0,dt5=25.0,dt7=25.0,dh1=AUTO,dh2=50,dh3=0,dh4=0,dh5=0,dh7=AUTO,dhh=50,b_mode=2,b_stemp=M,b_shum=50,alert=255,f_rate=A,f_dir=0,b_f_rate=5,b_f_dir=0,dfr1=5,dfr2=5,dfr3=A,dfr4=5,dfr5=5,dfr6=3,dfr7=5,dfrh=5,dfd1=0,dfd2=0,dfd3=2,dfd4=0,dfd5=0,dfd6=2,dfd7=0,dfdh=0,dmnd_run=0,en_demand=0",
+    )
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_model_info",
+        method_pattern="GET",
+        response="ret=OK,model=0000,type=N,pv=3.20,cpv=3,cpv_minor=20,mid=NA,humd=0,s_humd=0,acled=0,land=0,elec=1,temp=1,temp_rng=0,m_dtct=1,ac_dst=--,disp_dry=0,dmnd=1,en_scdltmr=1,en_frate=1,en_fdir=1,s_fdir=3,en_rtemp_a=0,en_spmode=7,en_ipw_sep=1,en_mompow=0,hmlmt_l=10.0",
+    )
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_sensor_info",
+        method_pattern="GET",
+        response="ret=OK,htemp=25.0,hhum=-,otemp=21.0,err=0,cmpfreq=40",
+    )
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_zone_setting",
+        method_pattern="GET",
+        response="ret=OK",
+    )
 
-    async def dummy_init(self):
-        self.values = DummyValues({"mode": "cool"})
+    device = await DaikinFactory("192.168.1.100", session=client_session)
 
-    monkeypatch.setattr(DaikinBRP069, "init", dummy_init)
+    assert isinstance(device, DaikinAirBase)
+    assert device.values.get('mode', invalidate=False) == '2'
+    assert device.values.get('mac', invalidate=False) == '409F38D107AC'
 
-    # Test with port in device_id (IP:port format)
-    device = await DaikinFactory("192.168.1.2:30050")
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
+async def test_factory_port_extraction_from_device_id(aresponses, client_session):
+    """Test that factory correctly extracts port from device_id like '192.168.1.100:8080'."""
+    # Mock 404 for firmware 2.8.0
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(status=404, text="Not Found"),
+    )
+
+    # Mock BRP069 responses (detection phase)
+    aresponses.add(
+        path_pattern="/common/basic_info",
+        method_pattern="GET",
+        response="ret=OK,type=aircon,reg=eu,dst=1,ver=1_2_54,rev=203DE8C,pow=1,err=0,location=0,name=%4e%6f%74%74%65,icon=3,method=home only,port=30050,id=,pw=,lpw_flag=0,adp_kind=3,pv=3.20,cpv=3,cpv_minor=20,led=1,en_setzone=1,mac=409F38D107AC,adp_mode=run,en_hol=0,ssid1=Pinguino Curioso,radio1=-35,grp_name=,en_grp=0",
+    )
+    # Mock BRP069 init responses (basic_info is skipped due to caching from detection)
+    aresponses.add(
+        path_pattern="/common/get_datetime",
+        method_pattern="GET",
+        response="ret=OK,sta=2,cur=2023/8/27 21:54:1,reg=eu,dst=1,zone=313",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_sensor_info",
+        method_pattern="GET",
+        response="ret=OK,htemp=25.0,hhum=-,otemp=21.0,err=0,cmpfreq=40",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_model_info",
+        method_pattern="GET",
+        response="ret=OK,model=0000,type=N,pv=3.20,cpv=3,cpv_minor=20,mid=NA,humd=0,s_humd=0,acled=0,land=0,elec=1,temp=1,temp_rng=0,m_dtct=1,ac_dst=--,disp_dry=0,dmnd=1,en_scdltmr=1,en_frate=1,en_fdir=1,s_fdir=3,en_rtemp_a=0,en_spmode=7,en_ipw_sep=1,en_mompow=0,hmlmt_l=10.0",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_control_info",
+        method_pattern="GET",
+        response="ret=OK,pow=1,mode=2,adv=,stemp=M,shum=50,dt1=25.0,dt2=M,dt3=25.0,dt4=25.0,dt5=25.0,dt7=25.0,dh1=AUTO,dh2=50,dh3=0,dh4=0,dh5=0,dh7=AUTO,dhh=50,b_mode=2,b_stemp=M,b_shum=50,alert=255,f_rate=A,f_dir=0,b_f_rate=5,b_f_dir=0,dfr1=5,dfr2=5,dfr3=A,dfr4=5,dfr5=5,dfr6=3,dfr7=5,dfrh=5,dfd1=0,dfd2=0,dfd3=2,dfd4=0,dfd5=0,dfd6=2,dfd7=0,dfdh=0,dmnd_run=0,en_demand=0",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_day_power_ex",
+        method_pattern="GET",
+        response="ret=OK,curr_day_heat=0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0,prev_1day_heat=0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0,curr_day_cool=0/0/0/0/0/0/0/0/0/0/1/0/0/0/0/0/0/0/0/0/0/0/0/0,prev_1day_cool=0/1/0/1/0/1/0/1/0/2/3/2/3/1/0/0/0/0/5/1/0/1/1/0",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_week_power",
+        method_pattern="GET",
+        response="ret=OK,today_runtime=38,datas=5700/4000/6100/3900/2200/3400/400",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_year_power",
+        method_pattern="GET",
+        response="ret=OK,previous_year=7/0/1/0/1/21/57/24/2/0/0/2,this_year=4/0/0/0/1/18/40/53",
+    )
+
+    # Test with port in device_id
+    device = await DaikinFactory("192.168.1.100:8080", session=client_session)
+
     assert isinstance(device, DaikinBRP069)
+    assert "8080" in device.base_url
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
 
 
 @pytest.mark.asyncio
-async def test_factory_brp069_empty_values_fallback(monkeypatch):
-    """Test that empty values causes fallback to AirBase."""
-    monkeypatch.setattr(
-        DaikinBRP084,
-        "__init__",
-        lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")),
+async def test_factory_brp069_custom_port_80(aresponses, client_session):
+    """Test that factory doesn't customize URL when port is 80 (default)."""
+    # Mock 404 for firmware 2.8.0
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(status=404, text="Not Found"),
     )
-    monkeypatch.setattr(DaikinBRP069, "__init__", lambda self, ip, session: None)
 
-    async def dummy_update_status(self, resources=None):
-        # Empty values should trigger fallback
-        self.values = DummyValues({})
-
-    monkeypatch.setattr(DaikinBRP069, "update_status", dummy_update_status)
-    monkeypatch.setattr(DaikinAirBase, "__init__", lambda self, ip, session: None)
-
-    async def dummy_init(self):
-        self.values = DummyValues({"mode": "fan"})
-
-    monkeypatch.setattr(DaikinAirBase, "init", dummy_init)
-
-    device = await DaikinFactory("192.168.1.2")
-    assert isinstance(device, DaikinAirBase)
-
-
-@pytest.mark.asyncio
-async def test_factory_airbase(monkeypatch):
-    # Patch BRP084 and BRP069 to raise so factory falls through to AirBase
-    monkeypatch.setattr(
-        DaikinBRP084,
-        "__init__",
-        lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")),
+    # Mock BRP069 responses with port 80 in device_id
+    aresponses.add(
+        path_pattern="/common/basic_info",
+        method_pattern="GET",
+        response="ret=OK,type=aircon,reg=eu,dst=1,ver=1_2_54,pow=1,mode=2,mac=409F38D107AC",
     )
-    monkeypatch.setattr(
-        DaikinBRP069,
-        "__init__",
-        lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")),
+    aresponses.add(
+        path_pattern="/common/get_datetime",
+        method_pattern="GET",
+        response="ret=OK,sta=2,cur=2023/8/27 21:54:1",
     )
-    monkeypatch.setattr(DaikinAirBase, "__init__", lambda self, ip, session: None)
-
-    async def dummy_update_status(self, resources=None):
-        self.values = DummyValues({"mode": "fan"})
-
-    monkeypatch.setattr(DaikinAirBase, "update_status", dummy_update_status)
-
-    async def dummy_get_resource(self, path, params=None, resources=None):
-        return {"mode": "fan"}
-
-    monkeypatch.setattr(DaikinAirBase, "_get_resource", dummy_get_resource)
-
-    async def dummy_init(self):
-        self.values = DummyValues({"mode": "fan"})
-
-    monkeypatch.setattr(DaikinAirBase, "init", dummy_init)
-    device = await DaikinFactory("192.168.1.2")
-    assert isinstance(device, DaikinAirBase)
-    assert "mode" in device.values
-
-
-@pytest.mark.asyncio
-async def test_factory_airbase_with_custom_port(monkeypatch):
-    """Test AirBase detection with custom port."""
-    monkeypatch.setattr(
-        DaikinBRP084,
-        "__init__",
-        lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")),
+    aresponses.add(
+        path_pattern="/aircon/get_sensor_info",
+        method_pattern="GET",
+        response="ret=OK,htemp=25.0",
     )
-    monkeypatch.setattr(
-        DaikinBRP069,
-        "__init__",
-        lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")),
+    aresponses.add(
+        path_pattern="/aircon/get_model_info",
+        method_pattern="GET",
+        response="ret=OK,model=0000",
     )
-    monkeypatch.setattr(DaikinAirBase, "__init__", lambda self, ip, session: None)
-
-    async def dummy_init(self):
-        self.values = DummyValues({"mode": "dry"})
-
-    monkeypatch.setattr(DaikinAirBase, "init", dummy_init)
-
-    device = await DaikinFactory("192.168.1.2:9999")
-    assert isinstance(device, DaikinAirBase)
-    assert device.base_url == "http://192.168.1.2:9999"
-
-
-@pytest.mark.asyncio
-async def test_factory_no_mode_error(monkeypatch):
-    """Test that DaikinException is raised when device has no mode."""
-    monkeypatch.setattr(
-        DaikinBRP084,
-        "__init__",
-        lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")),
+    aresponses.add(
+        path_pattern="/aircon/get_control_info",
+        method_pattern="GET",
+        response="ret=OK,pow=1,mode=2",
     )
-    monkeypatch.setattr(
-        DaikinBRP069,
-        "__init__",
-        lambda self, ip, session: (_ for _ in ()).throw(DaikinException("fail")),
+    aresponses.add(
+        path_pattern="/aircon/get_day_power_ex",
+        method_pattern="GET",
+        response="ret=OK,curr_day_heat=0/0/0/0",
     )
-    monkeypatch.setattr(DaikinAirBase, "__init__", lambda self, ip, session: None)
+    aresponses.add(
+        path_pattern="/aircon/get_week_power",
+        method_pattern="GET",
+        response="ret=OK,today_runtime=38",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_year_power",
+        method_pattern="GET",
+        response="ret=OK,previous_year=7/0",
+    )
 
-    async def dummy_init(self):
-        # Device has no mode - should raise exception
-        self.values = DummyValues({})
+    device = await DaikinFactory("192.168.1.100:80", session=client_session)
 
-    monkeypatch.setattr(DaikinAirBase, "init", dummy_init)
+    assert isinstance(device, DaikinBRP069)
+    # Port 80 is default, should not be in URL
+    assert device.base_url == "http://192.168.1.100"
 
-    with pytest.raises(DaikinException, match="not supported"):
-        await DaikinFactory("192.168.1.2")
-
-
-@pytest.mark.asyncio
-async def test_appliance_context_manager():
-    """Test async context manager for Appliance (aclose, __aenter__, __aexit__)."""
-    session = MagicMock(spec=ClientSession)
-    session.closed = False
-    close_called = False
-
-    async def mock_close():
-        nonlocal close_called
-        close_called = True
-
-    session.close = AsyncMock(side_effect=mock_close)
-
-    # Test __aenter__ and __aexit__
-    appliance = Appliance("192.168.1.1", session=None)
-
-    # Simulate context manager usage
-    async with await appliance.__aenter__() as device:
-        assert device is appliance
-
-    # aclose should be called in __aexit__
-    await appliance.__aexit__(None, None, None)
-
-
-@pytest.mark.asyncio
-async def test_appliance_session_ownership():
-    """Test that Appliance correctly tracks session ownership."""
-    # Test with provided session (not owned)
-    session = MagicMock(spec=ClientSession)
-    appliance = Appliance("192.168.1.1", session=session)
-    assert appliance._own_session is False
-    assert appliance.session is session
-
-    # Test with no session (owned)
-    appliance2 = Appliance("192.168.1.1", session=None)
-    assert appliance2._own_session is True
-    assert isinstance(appliance2.session, ClientSession)
-
-
-@pytest.mark.asyncio
-async def test_appliance_aclose_with_owned_session():
-    """Test aclose() closes session only if owned."""
-    # Create appliance without session (owns the session)
-    appliance = Appliance("192.168.1.1", session=None)
-
-    # Mock the session's close method
-    appliance.session.close = AsyncMock()
-    appliance.session.closed = False
-
-    await appliance.aclose()
-
-    # Should have called close since we own the session
-    appliance.session.close.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_appliance_aclose_with_external_session():
-    """Test aclose() does NOT close external session."""
-    session = AsyncMock(spec=ClientSession)
-    session.closed = False
-
-    # Create appliance with external session
-    appliance = Appliance("192.168.1.1", session=session)
-
-    await appliance.aclose()
-
-    # Should NOT have called close on external session
-    session.close.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_appliance_aclose_already_closed():
-    """Test aclose() when session is already closed."""
-    appliance = Appliance("192.168.1.1", session=None)
-    appliance.session.closed = True
-    appliance.session.close = AsyncMock()
-
-    await appliance.aclose()
-
-    # Should not attempt to close an already closed session
-    appliance.session.close.assert_not_called()
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
