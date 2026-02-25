@@ -296,7 +296,9 @@ class DaikinBRP084(Appliance):
 
     async def init(self):
         """Initialize the device and fetch initial state."""
-        await self.update_status()
+        # Only update if values haven't been populated yet (e.g., by factory detection)
+        if not self.values:
+            await self.update_status()
 
     async def update_status(self, resources=None):
         """Update device status."""
