@@ -10,3 +10,5 @@ __pycache__
 venv/
 .coverage
 .vscode
+.python-version
+.DS_Store
