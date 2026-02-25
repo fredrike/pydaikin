@@ -8,19 +8,24 @@
 ![GitHub Pull Requests](https://img.shields.io/github/issues-pr/fredrike/pydaikin?logo=github)
 ![GitHub Issues](https://img.shields.io/github/issues/fredrike/pydaikin?logo=github)
 
-PyDaikin is a standalone program and a library that interface AirConditioners from Daikin.
+# PyDaikin
 
-Currently the following Daikin WiFi modules are supported:
+PyDaikin is a Python library for controlling Daikin air conditioners. It provides both a standalone command-line interface and a Python API for integrating Daikin AC control into your applications.
 
-* BRP069Axx/BRP069Bxx/BRP072Axx
-* BRP15B61 aka. AirBase (similar protocol as BRP069Axx)
-* BRP072B/Cxx (needs https access and a key)
-* BRP084 devices with firmware version 2.8.0 (different API structure)
-* SKYFi (different protocol, have a password)
+## Supported Devices
 
-The integration was initially built by Yari Adan, but lately have been taken over by Fredrik Erlandsson.
+The following Daikin WiFi modules are currently supported:
 
-Here is a simple example code for connecting to a  "BRP069" style AC:
+* **BRP069Axx/BRP069Bxx/BRP072Axx** - Standard WiFi adapters
+* **BRP15B61 (AirBase)** - Uses a similar protocol to BRP069Axx
+* **BRP072B/Cxx** - Requires HTTPS access and an authentication key
+* **BRP084** - Devices with firmware version 2.8.0 (uses a different API structure)
+* **SKYFi** - Uses a different protocol and requires a password
+
+## Quick Start
+
+Here's a simple example for connecting to a Daikin air conditioner:
+
 ```python
 import asyncio
 import logging
@@ -43,20 +48,28 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+The `DaikinFactory` automatically detects your device type and firmware version, creating the appropriate device instance.
+
 ## Firmware Version 2.8.0 Support
 
-Firmware version 2.8.0 uses a different API structure compared to earlier firmware versions. The library now automatically detects the firmware version and uses the appropriate communication method. Confirmed working with:
+Firmware version 2.8.0 introduces a different API structure compared to earlier versions. PyDaikin automatically detects and handles this firmware version.
 
-* FTKM20YVMA with firmware version 2.8.0
-* FTXM46WVMA with firmware version 2.8.0
-* FTXV80WVMA with firmware version 2.8.0
-* FTXA25C2V1BW with firmware version 2.8.0
-* FTXA50C2V1BW with firmware version 2.8.0
+**Confirmed working with:**
 
-If you have a device with firmware 2.8.0 that's not working correctly, please open an issue with the device model and provide logs when using the debug mode.
+* FTKM20YVMA
+* FTXM46WVMA
+* FTXV80WVMA
+* FTXA25C2V1BW
+* FTXA50C2V1BW
 
-## Unsupported devices
+If you have a device with firmware 2.8.0 that is not working correctly, please open an issue with your device model and debug logs.
 
-At this moment, following firmware-devices combination aren't supported:
+## Unsupported Devices
+
+The following device and firmware combinations are not currently supported:
 
 * BRP069C4x with firmware version 2.0.0
+
+## About
+
+PyDaikin was originally created by Yari Adan and is currently maintained by Fredrik Erlandsson.
