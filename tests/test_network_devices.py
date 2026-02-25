@@ -39,55 +39,55 @@ async def test_single_device(device_info):
 
     try:
         # Try to create device with factory
-        device = await DaikinFactory(device_id)
+        async with await DaikinFactory(device_id) as device:
 
-        # Print device information
-        device_class = type(device).__name__
-        print(f"Device type: {device_class}")
-        print(f"MAC: {device.values._data.get('mac', 'Unknown')}")
-        print(f"Power: {'On' if device.values._data.get('pow') == '1' else 'Off'}")
-        print(f"Mode: {device.values._data.get('mode', 'Unknown')}")
+            # Print device information
+            device_class = type(device).__name__
+            print(f"Device type: {device_class}")
+            print(f"MAC: {device.values._data.get('mac', 'Unknown')}")
+            print(f"Power: {'On' if device.values._data.get('pow') == '1' else 'Off'}")
+            print(f"Mode: {device.values._data.get('mode', 'Unknown')}")
 
-        # Print additional information
-        print("\nDevice Values:")
-        for key, value in sorted(device.values._data.items()):
-            print(f"  {key}: {value}")
+            # Print additional information
+            print("\nDevice Values:")
+            for key, value in sorted(device.values._data.items()):
+                print(f"  {key}: {value}")
 
-        print("\nDevice successfully detected and tested!")
+            print("\nDevice successfully detected and tested!")
 
-        # Test control ability
-        if device.values._data.get('pow') == '1':
-            # If on, try turning off
-            print("\nTesting control - turning device OFF...")
-            await device.set({"mode": "off"})
-            print(
-                f"Power after OFF command: {'On' if device.values._data.get('pow') == '1' else 'Off'}"
-            )
-            # Wait a moment and turn back on with previous settings
-            await asyncio.sleep(2)
-            prev_mode = device.values._data.get('mode')
-            if prev_mode and prev_mode != 'off':
-                print(f"Turning back ON to {prev_mode} mode...")
-                await device.set({"mode": prev_mode})
+            # Test control ability
+            if device.values._data.get('pow') == '1':
+                # If on, try turning off
+                print("\nTesting control - turning device OFF...")
+                await device.set({"mode": "off"})
+                print(
+                    f"Power after OFF command: {'On' if device.values._data.get('pow') == '1' else 'Off'}"
+                )
+                # Wait a moment and turn back on with previous settings
+                await asyncio.sleep(2)
+                prev_mode = device.values._data.get('mode')
+                if prev_mode and prev_mode != 'off':
+                    print(f"Turning back ON to {prev_mode} mode...")
+                    await device.set({"mode": prev_mode})
+                    print(
+                        f"Power after ON command: {'On' if device.values._data.get('pow') == '1' else 'Off'}"
+                    )
+            else:
+                # If off, try turning on to cool mode
+                print("\nTesting control - turning device ON...")
+                await device.set({"mode": "cool"})
                 print(
                     f"Power after ON command: {'On' if device.values._data.get('pow') == '1' else 'Off'}"
                 )
-        else:
-            # If off, try turning on to cool mode
-            print("\nTesting control - turning device ON...")
-            await device.set({"mode": "cool"})
-            print(
-                f"Power after ON command: {'On' if device.values._data.get('pow') == '1' else 'Off'}"
-            )
-            # Wait a moment and turn back off
-            await asyncio.sleep(2)
-            print("Turning back OFF...")
-            await device.set({"mode": "off"})
-            print(
-                f"Power after OFF command: {'On' if device.values._data.get('pow') == '1' else 'Off'}"
-            )
+                # Wait a moment and turn back off
+                await asyncio.sleep(2)
+                print("Turning back OFF...")
+                await device.set({"mode": "off"})
+                print(
+                    f"Power after OFF command: {'On' if device.values._data.get('pow') == '1' else 'Off'}"
+                )
 
-        return True, device_id, device_class
+            return True, device_id, device_class
     except Exception as e:
         print(f"Error testing device at {device_id}: {e}")
         return False, device_id, str(e)
