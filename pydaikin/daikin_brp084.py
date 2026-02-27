@@ -204,7 +204,10 @@ class DaikinBRP084(Appliance):
     REVERSE_MODE_MAP = {v: k for k, v in MODE_MAP.items()}
     REVERSE_FAN_MODE_MAP = {v: k for k, v in FAN_MODE_MAP.items()}
 
-    INFO_RESOURCES = []
+    VALUES_TRANSLATION = {}
+    VALUES_SUMMARY = []
+    # BRP084 uses custom update_status with JSON polling, not individual HTTP resources
+    INFO_RESOURCES = ['dgc_status']  # Placeholder for validation
 
     def get_path(self, *keys):
         """Get API path from the nested dictionary structure.

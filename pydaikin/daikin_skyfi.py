@@ -51,6 +51,9 @@ class DaikinSkyFi(Appliance):
         },
     }
 
+    VALUES_TRANSLATION = {}
+    VALUES_SUMMARY = []
+    INFO_RESOURCES = HTTP_RESOURCES  # Use same resources as HTTP_RESOURCES
     MAX_CONCURRENT_REQUESTS = 1
 
     def __init__(
