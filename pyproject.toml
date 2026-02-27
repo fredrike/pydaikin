@@ -61,5 +61,10 @@ select = [
 known-first-party = ["pydaikin"]
 force-sort-within-sections = true
 
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "double"
+multiline-quotes = "double"
+docstring-quotes = "double"
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"

@@ -127,6 +127,8 @@ ruff format .
 ruff check --select I --fix .
 ```
 
+**String Quote Style:** Currently, we preserve the original quote style (single or double quotes) in code. However, for **new Python files** or significant refactoring, prefer using **double quotes (`"`)** to align with Python conventions and prepare for future migration to standard string normalization. Pull requests will include an automated check that highlights single quotes in new code as a friendly reminder.
+
 **Note:** If you have pre-commit hooks installed, these checks run automatically on commit.
 
 ### Linting

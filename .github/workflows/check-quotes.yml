@@ -1,0 +1,56 @@
+name: Check String Quotes in New Code
+
+on:
+  pull_request:
+    paths:
+      - '**.py'
+
+jobs:
+  check-quotes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Need full history to compare with base branch
+      
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      
+      - name: Install ruff
+        run: pip install ruff
+      
+      - name: Get changed Python files
+        id: changed-files
+        run: |
+          # Get list of changed Python files
+          git fetch origin ${{ github.base_ref }}
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM origin/${{ github.base_ref }}...HEAD | grep '\.py$' | tr '\n' ' ' || echo "")
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No Python files changed"
+            echo "files=" >> $GITHUB_OUTPUT
+          else
+            echo "Changed Python files: $CHANGED_FILES"
+            echo "files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Check for single quotes in changed files
+        if: steps.changed-files.outputs.files != ''
+        run: |
+          echo "Checking for single quotes in changed files..."
+          echo ""
+          
+          # Run ruff with Q (flake8-quotes) rules on changed files
+          # Q000: Single quotes found but double quotes preferred
+          if ruff check --select Q --output-format=concise ${{ steps.changed-files.outputs.files }}; then
+            echo "✓ No single quotes detected in changed files"
+          else
+            echo ""
+            echo "⚠️  Found single quotes in new code. Please use double quotes (\") for new Python code."
+            echo ""
+            echo "Note: This is a reminder for new code to help with future migration to standard string normalization."
+            echo "Existing code with single quotes is grandfathered in."
+            # Exit with 0 to not fail the CI, just warn
+            exit 0
+          fi
