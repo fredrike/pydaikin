@@ -57,7 +57,7 @@ Please be respectful and considerate in all interactions. We aim to foster an op
 3. **Install development dependencies**:
    ```bash
    pip install -r requirements-test.txt
-   pip install black isort flake8 pylint
+   pip install ruff pylint
    ```
 
 ### Setting Up Pre-commit Hooks (Recommended)
@@ -80,7 +80,7 @@ Pre-commit hooks automatically check your code before each commit, ensuring code
    ```
 
 **What happens when you commit:**
-- Pre-commit automatically runs Black, isort, and flake8
+- Pre-commit automatically runs ruff (formatting, linting, and import sorting)
 - If any check fails or files are modified, the commit is aborted
 - Review the changes, stage them with `git add`, and commit again
 - This ensures all committed code meets quality standards
@@ -117,25 +117,25 @@ PyDaikin follows Python coding standards and uses automated tools to maintain co
 
 ### Formatting
 
-We use **Black** and **isort** for code formatting:
+We use **ruff** for code formatting and import sorting:
 
 ```bash
-# Format code with Black
-black . pydaikin
+# Format code with ruff
+ruff format .
 
-# Sort imports with isort
-isort setup.py bin/pydaikin pydaikin/*.py
+# Sort imports with ruff
+ruff check --select I --fix .
 ```
 
 **Note:** If you have pre-commit hooks installed, these checks run automatically on commit.
 
 ### Linting
 
-We use **flake8** and **pylint** to enforce code quality:
+We use **ruff** and **pylint** to enforce code quality:
 
 ```bash
-# Run flake8
-flake8
+# Run ruff
+ruff check
 
 # Run pylint (configured in CI)
 pylint pydaikin

@@ -45,9 +45,7 @@ class ApplianceValues(MutableMapping):
         return f"{self._data}"
 
     # --- Custom methods to use smart updates ---
-    def get(
-        self, key: str, default=None, *, invalidate: bool = True
-    ):  # pylint: disable=arguments-differ
+    def get(self, key: str, default=None, *, invalidate: bool = True):  # pylint: disable=arguments-differ
         """Get a value and invalidate it so that the associated resource will soon be updated."""
         if key not in self._data:
             return default

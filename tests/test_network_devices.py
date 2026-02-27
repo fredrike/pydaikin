@@ -40,7 +40,6 @@ async def test_single_device(device_info):
     try:
         # Try to create device with factory
         async with await DaikinFactory(device_id) as device:
-
             # Print device information
             device_class = type(device).__name__
             print(f"Device type: {device_class}")

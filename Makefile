@@ -7,15 +7,15 @@ endif
 default: check
 
 format: white
-	isort setup.py bin/pydaikin pydaikin/*.py
+	ruff check --select I --fix bin/pydaikin pydaikin/*.py
 
 white: black
 
 black:
-	black . pydaikin
+	ruff format
 
 lint: requirements.txt setup.py
-	flake8
+	ruff check
 
 check: format lint
 

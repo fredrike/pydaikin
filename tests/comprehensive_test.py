@@ -25,7 +25,6 @@ async def test_daikin_manual():
     # Replace with your device's IP address
     device_ip = "192.168.50.47"
     async with await DaikinFactory(device_ip) as device:
-
         print(f"Device type: {type(device).__name__}")
         print(f"Device IP: {device_ip}")
         print(f"Device MAC: {device.values._data.get('mac', 'unknown')}")

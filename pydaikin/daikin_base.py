@@ -219,9 +219,7 @@ class Appliance(DaikinPowerMixin):
                 # Airbase returns a 404 response on invalid urls but requires fallback
                 if response.status == 404:
                     _LOGGER.debug("HTTP 404 Not Found for %s", response.url)
-                    return (
-                        {}
-                    )  # return an empty dict to indicate successful connection but bad data
+                    return {}  # return an empty dict to indicate successful connection but bad data
                 if response.status != 200:
                     _LOGGER.debug(
                         "Unexpected HTTP status code %s for %s",
