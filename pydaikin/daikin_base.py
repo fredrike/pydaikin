@@ -271,7 +271,7 @@ class Appliance(DaikinPowerMixin):
         for key in keys:
             if key in self.values:
                 k, val = self.represent(key)
-                print(f"{k : >20}: {val}")
+                print(f"{k: >20}: {val}")
 
     def log_sensors(self, file):
         """Log sensors to a file."""
