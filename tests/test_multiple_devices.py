@@ -278,9 +278,9 @@ async def test_device_factory():
             elif device_type == "skyfi":
                 expected_class = DaikinSkyFi
 
-            assert isinstance(
-                device, expected_class
-            ), f"Expected {expected_class.__name__}, got {device_class_name}"
+            assert isinstance(device, expected_class), (
+                f"Expected {expected_class.__name__}, got {device_class_name}"
+            )
 
             # Check that we can read basic info
             print(f"Device values: {list(device.values.keys())}")
