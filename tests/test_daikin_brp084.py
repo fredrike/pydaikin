@@ -411,3 +411,192 @@ def test_support_humidity(values, expected):
     device = DaikinBRP084('127.0.0.1', session=mock_session)
     device.values.update(values)
     assert device.support_humidity is expected
+
+
+@pytest.mark.asyncio
+async def test_null_outdoor_temp(aresponses, client_session):
+    """Test that a null outdoor temperature is handled gracefully."""
+    mock_response = {
+        "responses": [
+            {
+                "fr": "/dsiot/edge/adr_0100.dgc_status",
+                "pc": {
+                    "pn": "dgc_status",
+                    "pch": [
+                        {
+                            "pn": "e_1002",
+                            "pch": [
+                                {"pn": "e_A002", "pch": [{"pn": "p_01", "pv": "01"}]},
+                                {
+                                    "pn": "e_3001",
+                                    "pch": [
+                                        {"pn": "p_01", "pv": "0200"},
+                                        {"pn": "p_02", "pv": "32"},
+                                        {"pn": "p_09", "pv": "0A00"},
+                                        {"pn": "p_05", "pv": "000000"},
+                                        {"pn": "p_06", "pv": "000000"},
+                                    ],
+                                },
+                                {
+                                    "pn": "e_A00B",
+                                    "pch": [
+                                        {"pn": "p_01", "pv": "18"},
+                                        {"pn": "p_02", "pv": "3c"},
+                                    ],
+                                },
+                            ],
+                        }
+                    ],
+                },
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge/adr_0200.dgc_status",
+                "pc": {
+                    "pn": "dgc_status",
+                    "pch": [
+                        {
+                            "pn": "e_1003",
+                            "pch": [
+                                {
+                                    "pn": "e_A00D",
+                                    "pch": [{"pn": "p_01", "pv": None}],
+                                }
+                            ],
+                        }
+                    ],
+                },
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge/adr_0100.i_power.week_power",
+                "pc": {
+                    "pn": "week_power",
+                    "pch": [
+                        {"pn": "today_runtime", "pv": "0"},
+                        {"pn": "datas", "pv": [0, 0, 0, 0, 0, 0, 0]},
+                    ],
+                },
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge.adp_i",
+                "pc": {"pn": "adp_i", "pch": [{"pn": "mac", "pv": "112233445566"}]},
+                "rsc": 2000,
+            },
+        ]
+    }
+
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(
+            status=200,
+            text=json.dumps(mock_response),
+            headers={"Content-Type": "application/json"},
+        ),
+    )
+
+    device = DaikinBRP084('ip', session=client_session)
+    await device.init()
+
+    assert device.values.get('otemp') == '--'
+    assert device.values.get('mode') == 'cool'
+    assert device.values.get('htemp') == '24.0'
+
+
+@pytest.mark.asyncio
+async def test_firmware_version_extraction(aresponses, client_session):
+    """Test that firmware version is extracted from adapter info."""
+    mock_response = {
+        "responses": [
+            {
+                "fr": "/dsiot/edge/adr_0100.dgc_status",
+                "pc": {
+                    "pn": "dgc_status",
+                    "pch": [
+                        {
+                            "pn": "e_1002",
+                            "pch": [
+                                {"pn": "e_A002", "pch": [{"pn": "p_01", "pv": "01"}]},
+                                {
+                                    "pn": "e_3001",
+                                    "pch": [
+                                        {"pn": "p_01", "pv": "0200"},
+                                        {"pn": "p_02", "pv": "32"},
+                                        {"pn": "p_09", "pv": "0A00"},
+                                        {"pn": "p_05", "pv": "000000"},
+                                        {"pn": "p_06", "pv": "000000"},
+                                    ],
+                                },
+                                {
+                                    "pn": "e_A00B",
+                                    "pch": [
+                                        {"pn": "p_01", "pv": "18"},
+                                        {"pn": "p_02", "pv": "3c"},
+                                    ],
+                                },
+                            ],
+                        }
+                    ],
+                },
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge/adr_0200.dgc_status",
+                "pc": {
+                    "pn": "dgc_status",
+                    "pch": [
+                        {
+                            "pn": "e_1003",
+                            "pch": [
+                                {
+                                    "pn": "e_A00D",
+                                    "pch": [{"pn": "p_01", "pv": "22"}],
+                                }
+                            ],
+                        }
+                    ],
+                },
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge/adr_0100.i_power.week_power",
+                "pc": {
+                    "pn": "week_power",
+                    "pch": [
+                        {"pn": "today_runtime", "pv": "120"},
+                        {"pn": "datas", "pv": [100, 200, 300, 400, 500, 600, 700]},
+                    ],
+                },
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge.adp_i",
+                "pc": {
+                    "pn": "adp_i",
+                    "pch": [
+                        {"pn": "mac", "pv": "112233445566"},
+                        {"pn": "ver", "pv": "3_12_3"},
+                    ],
+                },
+                "rsc": 2000,
+            },
+        ]
+    }
+
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(
+            status=200,
+            text=json.dumps(mock_response),
+            headers={"Content-Type": "application/json"},
+        ),
+    )
+
+    device = DaikinBRP084('ip', session=client_session)
+    await device.init()
+
+    assert device.values.get('ver') == '3_12_3'
+    assert device.values.get('mac') == '112233445566'
