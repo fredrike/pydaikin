@@ -294,6 +294,23 @@ class DaikinBRP084(Appliance):
 
         return 'off'  # Default return value
 
+    def _safe_extract(self, response: dict, *keys) -> Optional[str]:
+        """Extract a value from the response, returning None if not found."""
+        try:
+            return self.find_value_by_pn(response, *keys)
+        except DaikinException:
+            return None
+
+    def _safe_hex_temp(self, response: dict, path_key: str, divisor: int = 2) -> str:
+        """Extract a temperature value, returning '--' if missing or null."""
+        try:
+            raw = self.find_value_by_pn(response, *self.get_path(path_key))
+            if raw is not None:
+                return str(self.hex_to_temp(raw, divisor))
+        except DaikinException:
+            pass
+        return "--"
+
     async def init(self):
         """Initialize the device and fetch initial state."""
         # Only update if values haven't been populated yet (e.g., by factory detection)
@@ -325,9 +342,12 @@ class DaikinBRP084(Appliance):
 
         # Extract basic info
         try:
-            # Get MAC address
+            # Get MAC address and firmware version
             mac = self.find_value_by_pn(response, *self.get_path("mac_address"))
             self.values['mac'] = mac
+            self.values['ver'] = self._safe_extract(
+                response, "/dsiot/edge.adp_i", "adp_i", "ver"
+            )
 
             # Get power state
             is_off = self.find_value_by_pn(response, *self.get_path("power")) == "00"
@@ -339,11 +359,7 @@ class DaikinBRP084(Appliance):
             self.values['mode'] = 'off' if is_off else self.MODE_MAP[mode_value]
 
             # Get temperatures
-            self.values['otemp'] = str(
-                self.hex_to_temp(
-                    self.find_value_by_pn(response, *self.get_path("outdoor_temp"))
-                )
-            )
+            self.values['otemp'] = self._safe_hex_temp(response, "outdoor_temp")
 
             self.values['htemp'] = str(
                 self.hex_to_temp(
