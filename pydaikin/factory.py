@@ -54,6 +54,16 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 uuid=kwargs.get('uuid'),
                 ssl_context=kwargs.get('ssl_context'),
             )
+            try:
+                # Some BRP069 units also use keys to auth. 
+                # If treated as a BRP072 we won't be able to connect, 
+                # since this will force https on a unit that expects connection to port 80.
+                # We do a preliminary attempt at initialization to catch connection errors 
+                # and then fallback to the following cases.
+                await obj.init()
+            except Exception as e:
+                _LOGGER.debug(e)
+                obj = None
         # Try BRP084, firmware 2.8.0
         if not obj:
             try:
