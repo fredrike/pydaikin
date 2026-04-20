@@ -481,3 +481,108 @@ def test_today_energy_falls_back_to_total():
     device.values['datas'] = '0/0/3900/4800/6300/11900/3100'
     # curr_day_cool / curr_day_heat intentionally absent
     assert device.today_energy_consumption == 3.1  # 3100 Wh / 1000
+
+
+@pytest.mark.asyncio
+async def test_update_status_registers_energy_history(aresponses, client_session):
+    """update_status() must feed _energy_consumption_history.
+
+    Regression: BRP084 overrides update_status() entirely and for a long time
+    omitted the call to _register_energy_consumption_history() that the base
+    class performs. With an empty history, current_power_consumption() falls
+    through to its "not initialized" branch (power.py ~215-217) and returns
+    0, so HA's "Estimated power draw" sensor stayed pinned at 0 kW on every
+    BRP084 unit.
+    """
+    mock_response = {
+        "responses": [
+            {
+                "fr": "/dsiot/edge/adr_0100.dgc_status",
+                "pc": {
+                    "pn": "dgc_status",
+                    "pch": [
+                        {
+                            "pn": "e_1002",
+                            "pch": [
+                                {"pn": "e_A002", "pch": [{"pn": "p_01", "pv": "01"}]},
+                                {
+                                    "pn": "e_3001",
+                                    "pch": [
+                                        {"pn": "p_01", "pv": "0200"},
+                                        {"pn": "p_02", "pv": "32"},
+                                        {"pn": "p_09", "pv": "0A00"},
+                                        {"pn": "p_05", "pv": "000000"},
+                                        {"pn": "p_06", "pv": "000000"},
+                                    ],
+                                },
+                                {
+                                    "pn": "e_A00B",
+                                    "pch": [
+                                        {"pn": "p_01", "pv": "18"},
+                                        {"pn": "p_02", "pv": "3c"},
+                                    ],
+                                },
+                            ],
+                        }
+                    ],
+                },
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge/adr_0200.dgc_status",
+                "pc": {
+                    "pn": "dgc_status",
+                    "pch": [
+                        {
+                            "pn": "e_1003",
+                            "pch": [
+                                {
+                                    "pn": "e_A00D",
+                                    "pch": [{"pn": "p_01", "pv": "22"}],
+                                }
+                            ],
+                        }
+                    ],
+                },
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge/adr_0100.i_power.week_power",
+                "pc": {
+                    "pn": "week_power",
+                    "pch": [
+                        {"pn": "today_runtime", "pv": "120"},
+                        {"pn": "datas", "pv": [100, 200, 300, 400, 500, 600, 700]},
+                    ],
+                },
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge.adp_i",
+                "pc": {"pn": "adp_i", "pch": [{"pn": "mac", "pv": "112233445566"}]},
+                "rsc": 2000,
+            },
+        ]
+    }
+
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(
+            status=200,
+            text=json.dumps(mock_response),
+            headers={"Content-Type": "application/json"},
+        ),
+    )
+
+    device = DaikinBRP084('ip', session=client_session)
+    await device.init()
+
+    # Proof that update_status() called _register_energy_consumption_history:
+    # the history dict has at least one key with at least one state recorded.
+    # Before the fix the dict was empty and current_power_consumption
+    # unconditionally returned 0.
+    assert 'total' in device._energy_consumption_history
+    assert len(device._energy_consumption_history['total']) >= 1
+    recorded = device._energy_consumption_history['total'][0]
+    assert recorded.today == 0.7  # datas[-1] = 700 Wh / 1000 = 0.7 kWh
