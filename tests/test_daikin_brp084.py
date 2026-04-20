@@ -413,6 +413,26 @@ def test_support_humidity(values, expected):
     assert device.support_humidity is expected
 
 
+def test_handle_power_setting_empty_settings_powers_on():
+    """device.set({}) must still send a power-ON request.
+
+    Regression: HA's power switch calls `device.set({})` to turn the
+    unit ON — this works on BRP069 but previously no-op'd on BRP084
+    because `_handle_power_setting` early-returned when 'mode' was
+    missing. Clicking the power switch in HA did nothing on the wire.
+    """
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+
+    requests = []
+    device._handle_power_setting({}, requests)
+
+    assert len(requests) == 1, "empty settings should produce exactly one power-on request"
+    assert requests[0].name == "p_01"
+    assert requests[0].value == "01"  # power ON
+    assert requests[0].path == ["e_1002", "e_A002"]
+
+
 @pytest.mark.parametrize(
     'mode_in, expected_hex',
     [

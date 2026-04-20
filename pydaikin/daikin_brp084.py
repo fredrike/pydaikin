@@ -548,8 +548,18 @@ class DaikinBRP084(Appliance):
         requests.append(DaikinAttribute(path[-1], value, path[2:4], path[0]))
 
     def _handle_power_setting(self, settings, requests):
-        """Handle power-related settings."""
+        """Handle power-related settings.
+
+        Callers can:
+          - omit `mode` entirely to just flip power ON (what HA's power
+            switch does via `device.set({})` — relies on the unit resuming
+            its last mode). BRP069's driver has always worked this way.
+          - pass `mode='off'` to power off.
+          - pass any other mode to both power on and set the mode.
+        """
+        # No mode key at all → power ON (resume last mode).
         if 'mode' not in settings:
+            self.add_request(requests, self.get_path("power"), "01")
             return
 
         # Turn off/on
