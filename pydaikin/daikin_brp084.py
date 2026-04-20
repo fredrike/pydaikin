@@ -110,6 +110,10 @@ class DaikinBRP084(Appliance):
             "p_04",
         ],
         "mac_address": ["/dsiot/edge.adp_i", "adp_i", "mac"],
+        # Adapter firmware version (e.g. "3_12_3" -> "3.12.3")
+        "firmware_version": ["/dsiot/edge.adp_i", "adp_i", "ver"],
+        # Unit model code, ASCII-hex encoded in e_A001/p_0D (e.g. "43393431" -> "C941")
+        "model_code": E_1002_PATH + ["e_A001", "p_0D"],
         # Mode-specific paths for temperature settings
         "temp_settings": {
             "cool": E_1002_E_3001_PATH + ["p_02"],
@@ -456,6 +460,34 @@ class DaikinBRP084(Appliance):
                     self.values['compressor_running'] = (
                         '1' if run_flag == '01' else '0'
                     )
+            except DaikinException:
+                pass
+
+            # Device identity — firmware version (from WiFi adapter) and model
+            # code (ASCII-hex in e_A001/p_0D). entity.py in HA expects these
+            # under `ver` and `model` respectively for the DeviceInfo panel.
+            try:
+                ver = self.find_value_by_pn(
+                    response, *self.get_path("firmware_version")
+                )
+                if ver:
+                    self.values['ver'] = ver
+            except DaikinException:
+                pass
+
+            try:
+                model_hex = self.find_value_by_pn(
+                    response, *self.get_path("model_code")
+                )
+                if model_hex:
+                    try:
+                        self.values['model'] = (
+                            bytes.fromhex(model_hex)
+                            .decode('ascii', errors='replace')
+                            .strip()
+                        )
+                    except ValueError:
+                        pass
             except DaikinException:
                 pass
 
