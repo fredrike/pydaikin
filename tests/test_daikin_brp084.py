@@ -411,3 +411,73 @@ def test_support_humidity(values, expected):
     device = DaikinBRP084('127.0.0.1', session=mock_session)
     device.values.update(values)
     assert device.support_humidity is expected
+
+
+@pytest.mark.parametrize(
+    'mode_in, expected_hex',
+    [
+        ('heat', '0100'),
+        ('hot', '0100'),  # HA climate integration alias for heat
+        ('cool', '0200'),
+        ('auto', '0300'),
+        ('fan', '0000'),
+        ('dry', '0500'),
+    ],
+)
+def test_handle_power_setting_mode_alias(mode_in, expected_hex):
+    """Mode write should be sent for both canonical names and HA-style aliases.
+
+    Regression: Home Assistant's climate integration maps HVACMode.HEAT to the
+    legacy BRP069 wire string "hot". Previously, REVERSE_MODE_MAP.get("hot")
+    returned None and the mode write was silently dropped (fredrike/pydaikin#81),
+    so switching to HEAT from HA did nothing on the wire.
+    """
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+
+    requests = []
+    device._handle_power_setting({'mode': mode_in}, requests)
+
+    # Expect: one power-on write + one mode write
+    assert len(requests) == 2
+    assert requests[0].value == "01"
+    assert requests[1].name == "p_01"
+    assert requests[1].value == expected_hex
+
+
+@pytest.mark.parametrize(
+    'hex_in, expected',
+    [
+        ('3400', 52),
+        ('2C00', 44),
+        ('0000', 0),
+        ('7800', 120),
+        ('', None),
+        ('invalid', None),
+    ],
+)
+def test_hex_le_u16(hex_in, expected):
+    """Little-endian u16 decoder for compressor frequency values."""
+    assert DaikinBRP084.hex_le_u16(hex_in) == expected
+
+
+def test_compressor_frequency_stored_from_update():
+    """values['cmpfreq'] should be populated when e_2006/p_04 is present."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values['cmpfreq'] = '52'
+    assert device.compressor_frequency == 52.0
+    assert device.support_compressor_frequency is True
+
+
+def test_today_energy_falls_back_to_total():
+    """BRP084 has only `datas` (aggregate), not cool/heat split.
+
+    today_energy_consumption must fall back to today_total_energy_consumption
+    so HA energy sensors populate rather than showing 0.
+    """
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values['datas'] = '0/0/3900/4800/6300/11900/3100'
+    # curr_day_cool / curr_day_heat intentionally absent
+    assert device.today_energy_consumption == 3.1  # 3100 Wh / 1000

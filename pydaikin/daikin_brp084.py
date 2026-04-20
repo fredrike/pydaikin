@@ -93,6 +93,22 @@ class DaikinBRP084(Appliance):
             "e_A00D",
             "p_01",
         ],
+        # Outdoor unit e_2006 (discovered via setpoint-sweep probing on FTXM71):
+        # p_01 = compressor run flag, p_04 = compressor frequency (u16 LE, Hz).
+        "compressor_running": [
+            "/dsiot/edge/adr_0200.dgc_status",
+            "dgc_status",
+            "e_1003",
+            "e_2006",
+            "p_01",
+        ],
+        "compressor_frequency": [
+            "/dsiot/edge/adr_0200.dgc_status",
+            "dgc_status",
+            "e_1003",
+            "e_2006",
+            "p_04",
+        ],
         "mac_address": ["/dsiot/edge.adp_i", "adp_i", "mac"],
         # Mode-specific paths for temperature settings
         "temp_settings": {
@@ -185,6 +201,12 @@ class DaikinBRP084(Appliance):
         '0500': 'dry',
     }
 
+    # Aliases accepted from callers (e.g. Home Assistant's climate integration
+    # passes "hot" for heating, inherited from BRP069's wire protocol).
+    MODE_ALIASES = {
+        'hot': 'heat',
+    }
+
     FAN_MODE_MAP = {
         '0A00': 'auto',
         '0B00': 'quiet',
@@ -246,6 +268,16 @@ class DaikinBRP084(Appliance):
     def hex_to_int(value: str) -> int:
         """Convert hexadecimal string to integer."""
         return int(value, 16)
+
+    @staticmethod
+    def hex_le_u16(value: str) -> Optional[int]:
+        """Decode a 2-byte little-endian unsigned integer from a 4-char hex string."""
+        if not isinstance(value, str) or len(value) < 4:
+            return None
+        try:
+            return int(value[2:4] + value[0:2], 16)
+        except ValueError:
+            return None
 
     @staticmethod
     def find_value_by_pn(data: dict, fr: str, *keys):
@@ -403,6 +435,30 @@ class DaikinBRP084(Appliance):
             except DaikinException:
                 pass
 
+            # Get compressor state (outdoor unit e_2006). Present on FTXM-series;
+            # absent on units that don't expose e_2006 — in that case we leave
+            # the values unset and support_compressor_frequency stays False.
+            try:
+                freq_hex = self.find_value_by_pn(
+                    response, *self.get_path("compressor_frequency")
+                )
+                freq = self.hex_le_u16(freq_hex)
+                if freq is not None:
+                    self.values['cmpfreq'] = str(freq)
+            except DaikinException:
+                pass
+
+            try:
+                run_flag = self.find_value_by_pn(
+                    response, *self.get_path("compressor_running")
+                )
+                if run_flag is not None:
+                    self.values['compressor_running'] = (
+                        '1' if run_flag == '01' else '0'
+                    )
+            except DaikinException:
+                pass
+
         except DaikinException as e:
             _LOGGER.error("Error extracting values: %s", e)
             raise
@@ -441,7 +497,8 @@ class DaikinBRP084(Appliance):
                 self.values['pow'] = '0'
             elif key == 'mode':
                 self.values['pow'] = '1'
-                self.values['mode'] = value
+                # Normalize alias so cached mode matches what was written
+                self.values['mode'] = self.MODE_ALIASES.get(value, value)
             else:
                 self.values[key] = value
 
@@ -465,11 +522,17 @@ class DaikinBRP084(Appliance):
         if settings['mode'] == 'off':
             return
 
-        # Set mode
-        mode_value = self.REVERSE_MODE_MAP.get(settings['mode'])
+        # Set mode. Apply caller-side aliases (e.g. HA passes "hot" for heat).
+        requested_mode = self.MODE_ALIASES.get(settings['mode'], settings['mode'])
+        mode_value = self.REVERSE_MODE_MAP.get(requested_mode)
         if mode_value:
             mode_path = self.get_path("mode")
             self.add_request(requests, mode_path, mode_value)
+        else:
+            _LOGGER.warning(
+                "Unrecognized mode %r; no mode write will be sent",
+                settings['mode'],
+            )
 
     def _handle_temperature_setting(self, settings, requests):
         """Handle temperature-related settings."""
@@ -556,6 +619,17 @@ class DaikinBRP084(Appliance):
 
             # Update status after setting
             await self.update_status()
+
+    @property
+    def today_energy_consumption(self):
+        """Return today's energy consumption in kWh.
+
+        BRP084 reports only aggregate daily energy (via the `datas` array); the
+        cool/heat per-day split used by BRP069 (`curr_day_cool`/`curr_day_heat`)
+        is not available on this firmware. Fall back to the total so HA energy
+        sensors populate instead of staying at 0.
+        """
+        return super().today_energy_consumption or self.today_total_energy_consumption
 
     # pylint: disable=unused-argument
     async def set_streamer(self, mode):
