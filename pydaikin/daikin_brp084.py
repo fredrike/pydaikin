@@ -495,6 +495,13 @@ class DaikinBRP084(Appliance):
             _LOGGER.error("Error extracting values: %s", e)
             raise
 
+        # Feed the energy-consumption history buffer. The base-class
+        # Appliance.update_status() does this automatically, but BRP084
+        # overrides the method and so we must call it explicitly — otherwise
+        # current_power_consumption() never leaves its "not initialized"
+        # branch and HA's "Estimated power draw" sensor stays at 0 kW.
+        self._register_energy_consumption_history()
+
     async def _get_resource(self, path: str, params: Optional[Dict] = None):
         """Make the HTTP request to the device."""
         _LOGGER.debug(
