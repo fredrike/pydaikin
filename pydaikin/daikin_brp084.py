@@ -94,7 +94,8 @@ class DaikinBRP084(Appliance):
             "p_01",
         ],
         # Outdoor unit e_2006 (discovered via setpoint-sweep probing on FTXM71):
-        # p_01 = compressor run flag, p_04 = compressor frequency (u16 LE, Hz).
+        # p_01 = compressor run flag, p_04 = compressor frequency (u16 LE, Hz),
+        # p_0B = refrigerant temp (i16 LE / 10 °C), p_25 = heat-exchanger temp.
         "compressor_running": [
             "/dsiot/edge/adr_0200.dgc_status",
             "dgc_status",
@@ -108,6 +109,56 @@ class DaikinBRP084(Appliance):
             "e_1003",
             "e_2006",
             "p_04",
+        ],
+        "outdoor_refrigerant_temp": [
+            "/dsiot/edge/adr_0200.dgc_status",
+            "dgc_status",
+            "e_1003",
+            "e_2006",
+            "p_0B",
+        ],
+        "outdoor_hx_temp": [
+            "/dsiot/edge/adr_0200.dgc_status",
+            "dgc_status",
+            "e_1003",
+            "e_2006",
+            "p_25",
+        ],
+        # Outdoor unit other diagnostics (verified via fan-mode probe):
+        #   e_2005/p_01 = electronic expansion valve position (u16 LE, steps)
+        #   e_2008/p_01 = outdoor fan step (u16 LE)
+        "eev_position": [
+            "/dsiot/edge/adr_0200.dgc_status",
+            "dgc_status",
+            "e_1003",
+            "e_2005",
+            "p_01",
+        ],
+        "outdoor_fan_step": [
+            "/dsiot/edge/adr_0200.dgc_status",
+            "dgc_status",
+            "e_1003",
+            "e_2008",
+            "p_01",
+        ],
+        # Indoor unit e_2015_02 (discovered via fan-mode probe on FTXM71):
+        # both sensors converge with compressor off → same coil, two locations.
+        # In heat mode: p_03 (refrigerant inlet, hot gas from compressor) is
+        # 20-30°C above p_02 (refrigerant outlet, after dumping heat to room).
+        # In cool mode the relationship inverts.
+        "indoor_coil_inlet_temp": [
+            "/dsiot/edge/adr_0100.dgc_status",
+            "dgc_status",
+            "e_1002",
+            "e_2015_02",
+            "p_03",
+        ],
+        "indoor_coil_outlet_temp": [
+            "/dsiot/edge/adr_0100.dgc_status",
+            "dgc_status",
+            "e_1002",
+            "e_2015_02",
+            "p_02",
         ],
         "mac_address": ["/dsiot/edge.adp_i", "adp_i", "mac"],
         # Adapter firmware version (e.g. "3_12_3" -> "3.12.3")
@@ -280,6 +331,21 @@ class DaikinBRP084(Appliance):
             return None
         try:
             return int(value[2:4] + value[0:2], 16)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def hex_le_i16_div10(value: str) -> Optional[float]:
+        """Decode a 2-byte little-endian signed int16 / 10 from a 4-char hex string.
+
+        Used for refrigerant / heat-exchanger / coil temperatures across both
+        the indoor and outdoor units. Returns degrees Celsius.
+        """
+        if not isinstance(value, str) or len(value) < 4:
+            return None
+        try:
+            raw = int.from_bytes(bytes.fromhex(value[:4]), 'little', signed=True)
+            return raw / 10.0
         except ValueError:
             return None
 
@@ -462,6 +528,35 @@ class DaikinBRP084(Appliance):
                     )
             except DaikinException:
                 pass
+
+            # Diagnostic temperature sensors (i16 LE / 10 °C). Each wrapped in
+            # try/except so units that don't expose the entity stay quiet.
+            for values_key, path_key in (
+                ('outdoor_refrigerant_temp', 'outdoor_refrigerant_temp'),
+                ('outdoor_hx_temp',          'outdoor_hx_temp'),
+                ('indoor_coil_inlet_temp',   'indoor_coil_inlet_temp'),
+                ('indoor_coil_outlet_temp',  'indoor_coil_outlet_temp'),
+            ):
+                try:
+                    raw = self.find_value_by_pn(response, *self.get_path(path_key))
+                    decoded = self.hex_le_i16_div10(raw)
+                    if decoded is not None:
+                        self.values[values_key] = str(decoded)
+                except DaikinException:
+                    pass
+
+            # Diagnostic step values (u16 LE, raw step counts).
+            for values_key, path_key in (
+                ('eev_position',     'eev_position'),
+                ('outdoor_fan_step', 'outdoor_fan_step'),
+            ):
+                try:
+                    raw = self.find_value_by_pn(response, *self.get_path(path_key))
+                    decoded = self.hex_le_u16(raw)
+                    if decoded is not None:
+                        self.values[values_key] = str(decoded)
+                except DaikinException:
+                    pass
 
             # Device identity — firmware version (from WiFi adapter) and model
             # code (ASCII-hex in e_A001/p_0D). entity.py in HA expects these

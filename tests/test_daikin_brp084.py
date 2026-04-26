@@ -507,6 +507,29 @@ def test_hex_le_u16(hex_in, expected):
     assert DaikinBRP084.hex_le_u16(hex_in) == expected
 
 
+@pytest.mark.parametrize(
+    'hex_in, expected',
+    [
+        ('8C00', 14.0),    # outdoor refrigerant temp observed live
+        ('3200', 5.0),     # outdoor heat-exchanger temp observed live
+        ('3802', 56.8),    # indoor coil outlet, heat mode
+        ('2803', 80.8),    # indoor coil inlet, heat mode
+        ('A001', 41.6),    # indoor coil after compressor stop
+        ('FFFF', -0.1),    # signed -1 → -0.1 °C  (sub-zero defrost case)
+        ('00FF', -25.6),   # large negative — defrost edge
+        ('', None),
+        ('xy', None),
+    ],
+)
+def test_hex_le_i16_div10(hex_in, expected):
+    """Signed little-endian int16 / 10 decoder for coil/refrigerant temps."""
+    result = DaikinBRP084.hex_le_i16_div10(hex_in)
+    if expected is None:
+        assert result is None
+    else:
+        assert result == pytest.approx(expected)
+
+
 def test_compressor_frequency_stored_from_update():
     """values['cmpfreq'] should be populated when e_2006/p_04 is present."""
     mock_session = MagicMock()
