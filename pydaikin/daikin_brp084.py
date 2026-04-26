@@ -141,6 +141,20 @@ class DaikinBRP084(Appliance):
             "e_2008",
             "p_01",
         ],
+        # Indoor unit e_3003/p_0C — internal "compensated target" the firmware
+        # uses for control, computed as user setpoint + 3-4°C heating curve
+        # offset (verified via setpoint sweep: setpoint=20→23°C, p_0C=23→27°C).
+        # Encoding matches the user-facing setpoints in e_3001 (u8/2 = °C).
+        # Writable but auto-overwritten by control logic within ~10s.
+        # The gap between this and the user setpoint is the most likely cause
+        # of the "+5°C heating overshoot" Daikin owners often report.
+        "internal_heat_target": [
+            "/dsiot/edge/adr_0100.dgc_status",
+            "dgc_status",
+            "e_1002",
+            "e_3003",
+            "p_0C",
+        ],
         # Indoor unit e_2015_02 (discovered via fan-mode probe on FTXM71):
         # both sensors converge with compressor off → same coil, two locations.
         # In heat mode: p_03 (refrigerant inlet, hot gas from compressor) is
@@ -557,6 +571,19 @@ class DaikinBRP084(Appliance):
                         self.values[values_key] = str(decoded)
                 except DaikinException:
                     pass
+
+            # Internal compensated heating target (u8 / 2 = °C, same encoding
+            # as e_3001/p_03 user setpoint). See API_PATHS comment above.
+            try:
+                raw = self.find_value_by_pn(
+                    response, *self.get_path("internal_heat_target")
+                )
+                if raw and len(raw) >= 2:
+                    self.values['internal_heat_target'] = str(int(raw[:2], 16) / 2)
+            except DaikinException:
+                pass
+            except ValueError:
+                pass
 
             # Device identity — firmware version (from WiFi adapter) and model
             # code (ASCII-hex in e_A001/p_0D). entity.py in HA expects these
