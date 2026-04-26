@@ -550,19 +550,27 @@ class DaikinBRP084(Appliance):
     def _handle_power_setting(self, settings, requests):
         """Handle power-related settings.
 
-        Callers can:
-          - omit `mode` entirely to just flip power ON (what HA's power
-            switch does via `device.set({})` — relies on the unit resuming
-            its last mode). BRP069's driver has always worked this way.
-          - pass `mode='off'` to power off.
-          - pass any other mode to both power on and set the mode.
+        Mirrors BRP069's contract (see daikin_brp069.py _update_settings,
+        the `'mode' in settings or not settings → pow='1'` branch):
+          - device.set({})            → power ON (HA's toggle switch path)
+          - device.set({'mode':'off'}) → power OFF
+          - device.set({'mode': X})   → power ON + set mode X
+          - device.set({'stemp': X})  → temperature only, leave power as-is
+                                         (so changing setpoint on a powered-
+                                         off unit does NOT turn it on).
         """
-        # No mode key at all → power ON (resume last mode).
-        if 'mode' not in settings:
+        # Truly empty settings → HA's "turn on" path. Only this empty case
+        # forces a power write; other partial settings (e.g. just stemp)
+        # leave power untouched.
+        if not settings:
             self.add_request(requests, self.get_path("power"), "01")
             return
 
-        # Turn off/on
+        # Settings present but no mode key → no power write.
+        if 'mode' not in settings:
+            return
+
+        # Mode change → write power explicitly.
         power_path = self.get_path("power")
         self.add_request(
             requests, power_path, "00" if settings['mode'] == 'off' else "01"

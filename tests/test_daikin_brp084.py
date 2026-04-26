@@ -433,6 +433,32 @@ def test_handle_power_setting_empty_settings_powers_on():
     assert requests[0].path == ["e_1002", "e_A002"]
 
 
+def test_handle_power_setting_temperature_only_does_not_touch_power():
+    """device.set({'stemp': '22.0'}) must NOT send a power request.
+
+    Regression: when the empty-settings power-on fix was added, an
+    early version triggered on every call without 'mode'. That meant
+    changing the setpoint on a powered-off unit (HA's
+    async_set_temperature path) silently turned it back on — a UX
+    surprise that BRP069 never had (BRP069 sends a single combined
+    request with pow=current_pow, leaving power state unchanged).
+
+    Mirrors BRP069's contract: only set({}) or set({'mode':...})
+    write the power byte; partial setting changes leave it alone.
+    """
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+
+    requests = []
+    # Several non-mode partial settings — none should touch power
+    for partial in [{'stemp': '22.0'}, {'f_rate': 'auto'}, {'f_dir': 'off'}]:
+        device._handle_power_setting(partial, requests)
+
+    assert requests == [], (
+        f"non-mode settings should not produce power requests, got {requests!r}"
+    )
+
+
 @pytest.mark.parametrize(
     'mode_in, expected_hex',
     [
