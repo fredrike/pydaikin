@@ -8,6 +8,7 @@ from aiohttp import ClientSession
 from aiohttp.web_exceptions import HTTPNotFound
 
 from .daikin_airbase import DaikinAirBase
+from .daikin_airbase_hotwater import DaikinAirBaseHotWater
 from .daikin_base import Appliance
 from .daikin_brp069 import DaikinBRP069
 from .daikin_brp072c import DaikinBRP072C
@@ -30,12 +31,14 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
         await instance.__init__(*a, **kw)
         return instance._generated_object
 
+    # pylint: disable-next=too-many-arguments,too-many-positional-arguments,too-many-branches,too-many-statements
     async def __init__(
         self,
         device_id: str,
         session: Optional[ClientSession] = None,
         password: str = None,
         key: str = None,
+        hot_water: bool = False,
         **kwargs,
     ) -> None:
         """Factory to init the corresponding Daikin class."""
@@ -44,7 +47,11 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
         device_ip, device_port = self._extract_ip_port(device_id)
         obj = None
 
-        if password:
+        if hot_water:
+            obj = DaikinAirBaseHotWater(device_ip, session)
+            if device_port and device_port != 80:
+                obj.base_url = f"http://{device_ip}:{device_port}"
+        elif password:
             obj = DaikinSkyFi(device_ip, session, password)
         elif key:
             obj = DaikinBRP072C(
@@ -82,6 +89,24 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                     raise DaikinException("Empty Values.")
             except (HTTPNotFound, DaikinException) as err:
                 _LOGGER.debug("Not a BRP069 device: %s", err)
+                obj = None
+        # Try AirBase hot water
+        if not obj:
+            try:
+                _LOGGER.debug("Trying connection to AirBase hot water")
+                obj = DaikinAirBaseHotWater(device_ip, session)
+
+                # If we have a specific port from discovery, set it in the base_url
+                if device_port and device_port != 80:
+                    _LOGGER.debug(
+                        "Using custom port %s for AirBase hot water", device_port
+                    )
+                    obj.base_url = f"http://{device_ip}:{device_port}"
+                await obj.update_status(obj.HTTP_RESOURCES)
+                if not obj.values:
+                    raise DaikinException("Empty Values.")
+            except (HTTPNotFound, DaikinException) as err:
+                _LOGGER.debug("Not an AirBase hot water device: %s", err)
                 obj = None
         # Try AirBase
         if not obj:

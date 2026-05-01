@@ -7,6 +7,7 @@ import pytest
 import pytest_asyncio
 
 from pydaikin.daikin_airbase import DaikinAirBase
+from pydaikin.daikin_airbase_hotwater import DaikinAirBaseHotWater
 from pydaikin.daikin_brp069 import DaikinBRP069
 from pydaikin.daikin_brp072c import DaikinBRP072C
 from pydaikin.daikin_brp084 import DaikinBRP084
@@ -276,6 +277,63 @@ async def test_factory_detects_brp069(aresponses, client_session):
 
 
 @pytest.mark.asyncio
+async def test_factory_detects_airbase_hotwater(aresponses, client_session):
+    """Test that factory correctly detects AirBase hot water devices."""
+    # Mock 404 response for firmware 2.8.0 attempt
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(status=404, text="Not Found"),
+    )
+
+    # Mock 404 response for BRP069 attempt
+    aresponses.add(
+        path_pattern="/common/basic_info",
+        method_pattern="GET",
+        response=aresponses.Response(status=404, text="Not Found"),
+    )
+
+    # Mock AirBase hot water response
+    aresponses.add(
+        path_pattern="/skyfi/hotwater/get_unit_info",
+        method_pattern="GET",
+        response=(
+            "ret=OK,pow=1,boost=0,vacation=0,vacation_days=0,"
+            "temp_set=63,temp_tank=56,temp_outside=13,boil_level=0"
+        ),
+    )
+
+    device = await DaikinFactory("192.168.1.100", session=client_session)
+
+    assert isinstance(device, DaikinAirBaseHotWater)
+    assert device.values.get("mode", invalidate=False) == "auto"
+    assert device.values.get("temp_tank", invalidate=False) == "56"
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
+async def test_factory_explicit_airbase_hotwater(aresponses, client_session):
+    """Test that factory can be told to use AirBase hot water directly."""
+    aresponses.add(
+        path_pattern="/skyfi/hotwater/get_unit_info",
+        method_pattern="GET",
+        response="ret=OK,pow=1,boost=0,vacation=0,vacation_days=0,boil_level=4",
+    )
+
+    device = await DaikinFactory(
+        "192.168.1.100", session=client_session, hot_water=True
+    )
+
+    assert isinstance(device, DaikinAirBaseHotWater)
+    assert device.values.get("mode", invalidate=False) == "manual"
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
 async def test_factory_detects_airbase(aresponses, client_session):
     """Test that factory correctly detects AirBase device (fallback from BRP069)."""
     # Mock 404 response for firmware 2.8.0 attempt
@@ -288,6 +346,13 @@ async def test_factory_detects_airbase(aresponses, client_session):
     # Mock 404 response for BRP069 attempt (to force fallback to AirBase)
     aresponses.add(
         path_pattern="/common/basic_info",
+        method_pattern="GET",
+        response=aresponses.Response(status=404, text="Not Found"),
+    )
+
+    # Mock 404 response for AirBase hot water attempt
+    aresponses.add(
+        path_pattern="/skyfi/hotwater/get_unit_info",
         method_pattern="GET",
         response=aresponses.Response(status=404, text="Not Found"),
     )

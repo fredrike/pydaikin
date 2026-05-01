@@ -8,6 +8,7 @@ from contextlib import nullcontext
 from aiohttp import ClientError
 
 from pydaikin import discovery  # pylint: disable=cyclic-import
+from pydaikin.daikin_airbase_hotwater import DaikinAirBaseHotWater
 from pydaikin.daikin_brp069 import (  # noqa: E0611; pylint: disable=no-name-in-module
     DaikinBRP069 as appliance,
 )
@@ -56,6 +57,13 @@ parser.add_argument(
 
 parser.add_argument('-k', '--key', help='unit\'s key (only used by BRP072Cxx devices)')
 
+parser.add_argument(
+    '--hot-water',
+    '--airbase-hot-water',
+    action='store_true',
+    help='use the AirBase hot water API',
+)
+
 settings = parser.add_argument_group('device settings', 'Modify paramaters of a device')
 
 settings.add_argument(
@@ -93,6 +101,32 @@ settings.add_argument(
     help='Verbose level (none: critical, v: error, vv: warning, vvv: info, vvvv: debug)',
     action='count',
     default=0,
+)
+
+hot_water_settings = parser.add_argument_group(
+    'AirBase hot water settings', 'Modify parameters of an AirBase hot water device'
+)
+
+hot_water_settings.add_argument(
+    '--power', choices=('on', 'off'), help='turn the hot water system on or off'
+)
+
+hot_water_settings.add_argument(
+    '--boost', choices=('on', 'off'), help='turn hot water boost on or off'
+)
+
+hot_water_settings.add_argument(
+    '--vacation', choices=('on', 'off'), help='turn hot water vacation mode on or off'
+)
+
+hot_water_settings.add_argument(
+    '--vacation-days', type=int, help='set hot water vacation days'
+)
+
+hot_water_settings.add_argument(
+    '--boil-level',
+    type=int,
+    help='set hot water boil level, where 0 is auto and 1-6 are manual',
 )
 
 
@@ -133,10 +167,43 @@ async def main():  # pylint: disable=too-many-branches
     if args.away:
         _settings.update({"en_hol": args.away})
 
+    if args.power:
+        _settings.update({"pow": args.power})
+
+    if args.boost:
+        _settings.update({"boost": args.boost})
+
+    if args.vacation:
+        _settings.update({"vacation": args.vacation})
+
+    if args.vacation_days is not None:
+        _settings.update({"vacation_days": args.vacation_days})
+
+    if args.boil_level is not None:
+        _settings.update({"boil_level": args.boil_level})
+
+    hot_water_args_used = any(
+        value is not None
+        for value in [
+            args.power,
+            args.boost,
+            args.vacation,
+            args.vacation_days,
+            args.boil_level,
+        ]
+    )
+
     if args.list:
         await list_all_devices()
     else:
-        daikin = await DaikinFactory(args.device, key=args.key, password=args.password)
+        daikin = await DaikinFactory(
+            args.device,
+            key=args.key,
+            password=args.password,
+            hot_water=args.hot_water,
+        )
+        if hot_water_args_used and not isinstance(daikin, DaikinAirBaseHotWater):
+            parser.error('hot water settings require an AirBase hot water device')
 
         if not _settings:
             daikin.show_values(not args.all)
