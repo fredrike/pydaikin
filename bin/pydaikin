@@ -58,10 +58,10 @@ parser.add_argument(
 parser.add_argument('-k', '--key', help='unit\'s key (only used by BRP072Cxx devices)')
 
 parser.add_argument(
-    '--hot-water',
-    '--airbase-hot-water',
-    action='store_true',
-    help='use the AirBase hot water API',
+    "--hot-water",
+    "--airbase-hot-water",
+    action="store_true",
+    help="use the AirBase hot water API",
 )
 
 settings = parser.add_argument_group('device settings', 'Modify paramaters of a device')
@@ -104,92 +104,92 @@ settings.add_argument(
 )
 
 hot_water_settings = parser.add_argument_group(
-    'AirBase hot water settings', 'Modify parameters of an AirBase hot water device'
+    "AirBase hot water settings", "Modify parameters of an AirBase hot water device"
 )
 
 hot_water_settings.add_argument(
-    '--power', choices=('on', 'off'), help='turn the hot water system on or off'
+    "--power", choices=("on", "off"), help="turn the hot water system on or off"
 )
 
 hot_water_settings.add_argument(
-    '--boost', choices=('on', 'off'), help='turn hot water boost on or off'
+    "--boost", choices=("on", "off"), help="turn hot water boost on or off"
 )
 
 hot_water_settings.add_argument(
-    '--vacation', choices=('on', 'off'), help='turn hot water vacation mode on or off'
+    "--vacation", choices=("on", "off"), help="turn hot water vacation mode on or off"
 )
 
 hot_water_settings.add_argument(
-    '--vacation-days', type=int, help='set hot water vacation days'
+    "--vacation-days", type=int, help="set hot water vacation days"
 )
 
 hot_water_settings.add_argument(
-    '--boil-level',
+    "--boil-level",
     type=int,
-    help='set hot water boil level, where 0 is auto and 1-6 are manual',
+    help="set hot water boil level, where 0 is auto and 1-6 are manual",
 )
 
 hot_water_settings.add_argument(
-    '--drive-program',
-    '--drive-p',
-    help='set active hot water drive program, 1-6 or set_01..program_1_and_2',
+    "--drive-program",
+    "--drive-p",
+    help="set active hot water drive program, 1-6 or set_01..program_1_and_2",
 )
 
 hot_water_settings.add_argument(
-    '--program1-start',
-    '--drive-p1s',
-    help='set hot water program 1 start time as HH:MM or slot 0-47',
+    "--program1-start",
+    "--drive-p1s",
+    help="set hot water program 1 start time as HH:MM or slot 0-47",
 )
 
 hot_water_settings.add_argument(
-    '--program1-end',
-    '--drive-p1e',
-    help='set hot water program 1 end time as HH:MM or slot 0-47',
+    "--program1-end",
+    "--drive-p1e",
+    help="set hot water program 1 end time as HH:MM or slot 0-47",
 )
 
 hot_water_settings.add_argument(
-    '--program2-start',
-    '--drive-p2s',
-    help='set hot water program 2 start time as HH:MM or slot 0-47',
+    "--program2-start",
+    "--drive-p2s",
+    help="set hot water program 2 start time as HH:MM or slot 0-47",
 )
 
 hot_water_settings.add_argument(
-    '--program2-end',
-    '--drive-p2e',
-    help='set hot water program 2 end time as HH:MM or slot 0-47',
+    "--program2-end",
+    "--drive-p2e",
+    help="set hot water program 2 end time as HH:MM or slot 0-47",
 )
 
 
 SETTING_ARGS = (
-    ('mode', 'mode', None),
-    ('temp', 'stemp', str),
-    ('humidity', 'shum', str),
-    ('fan', 'f_rate', None),
-    ('direction', 'f_dir', None),
-    ('away', 'en_hol', None),
-    ('power', 'pow', None),
-    ('boost', 'boost', None),
-    ('vacation', 'vacation', None),
-    ('vacation_days', 'vacation_days', None),
-    ('boil_level', 'boil_level', None),
-    ('drive_program', 'drive_program', None),
-    ('program1_start', 'program_1_start', None),
-    ('program1_end', 'program_1_end', None),
-    ('program2_start', 'program_2_start', None),
-    ('program2_end', 'program_2_end', None),
+    ("mode", "mode", None),
+    ("temp", "stemp", str),
+    ("humidity", "shum", str),
+    ("fan", "f_rate", None),
+    ("direction", "f_dir", None),
+    ("away", "en_hol", None),
+    ("power", "pow", None),
+    ("boost", "boost", None),
+    ("vacation", "vacation", None),
+    ("vacation_days", "vacation_days", None),
+    ("boil_level", "boil_level", None),
+    ("drive_program", "drive_program", None),
+    ("program1_start", "program_1_start", None),
+    ("program1_end", "program_1_end", None),
+    ("program2_start", "program_2_start", None),
+    ("program2_end", "program_2_end", None),
 )
 
 HOT_WATER_ARGS = (
-    'power',
-    'boost',
-    'vacation',
-    'vacation_days',
-    'boil_level',
-    'drive_program',
-    'program1_start',
-    'program1_end',
-    'program2_start',
-    'program2_end',
+    "power",
+    "boost",
+    "vacation",
+    "vacation_days",
+    "boil_level",
+    "drive_program",
+    "program1_start",
+    "program1_end",
+    "program2_start",
+    "program2_end",
 )
 
 
@@ -238,7 +238,7 @@ async def main():  # pylint: disable=too-many-branches
             hot_water=args.hot_water,
         )
         if hot_water_args_used(args) and not isinstance(daikin, DaikinAirBaseHotWater):
-            parser.error('hot water settings require an AirBase hot water device')
+            parser.error("hot water settings require an AirBase hot water device")
 
         if not _settings:
             daikin.show_values(not args.all)
