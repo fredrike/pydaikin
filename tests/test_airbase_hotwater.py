@@ -28,7 +28,8 @@ async def test_init(aresponses, client_session):
         method_pattern="GET",
         response=(
             "ret=OK,pow=1,boost=0,vacation=0,vacation_days=3,"
-            "temp_set=63.0,temp_tank=56,temp_outside=13,boil_level=0"
+            "temp_set=63.0,temp_tank=56,temp_outside=13,boil_level=0,drive_p=5,"
+            "drive_p1s=42,drive_p1e=14,drive_p2s=22,drive_p2e=28"
         ),
     )
 
@@ -41,6 +42,11 @@ async def test_init(aresponses, client_session):
     assert device.represent("pow") == ("power", "on")
     assert device.represent("mode") == ("mode", "auto")
     assert device.represent("temp_tank") == ("tank temp", "56")
+    assert device.represent("drive_p") == ("drive program", "program_1")
+    assert device.represent("drive_p1s") == ("program 1 start", "21:00")
+    assert device.represent("drive_p1e") == ("program 1 end", "07:00")
+    assert device.represent("drive_p2s") == ("program 2 start", "11:00")
+    assert device.represent("drive_p2e") == ("program 2 end", "14:00")
     assert device.tank_temperature == 56.0
     assert device.target_temperature == 63.0
     assert device.outside_temperature == 13.0
@@ -61,7 +67,8 @@ async def test_get_status_returns_typed_values(aresponses, client_session):
         method_pattern="GET",
         response=(
             "ret=OK,pow=1,boost=0,vacation=0,vacation_days=3,"
-            "temp_set=63.0,temp_tank=56,temp_outside=13,boil_level=0"
+            "temp_set=63.0,temp_tank=56,temp_outside=13,boil_level=0,drive_p=5,"
+            "drive_p1s=42,drive_p1e=14,drive_p2s=22,drive_p2e=28"
         ),
     )
 
@@ -73,11 +80,71 @@ async def test_get_status_returns_typed_values(aresponses, client_session):
         "vacation": False,
         "vacation_days": 3,
         "boil_level": 0,
+        "drive_p": 5,
+        "drive_program": "program_1",
+        "set_program": None,
+        "manual_program_1": True,
+        "manual_program_2": False,
         "mode": "auto",
         "temp_set": 63.0,
         "temp_tank": 56.0,
         "temp_outside": 13.0,
+        "drive_p1s": 42,
+        "drive_p1e": 14,
+        "drive_p2s": 22,
+        "drive_p2e": 28,
+        "program_1_start": "21:00",
+        "program_1_end": "07:00",
+        "program_2_start": "11:00",
+        "program_2_end": "14:00",
     }
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
+async def test_get_status_returns_manual_program_pair(aresponses, client_session):
+    """Test drive_p=6 represents manual programs 1 and 2 together."""
+    aresponses.add(
+        path_pattern="/skyfi/hotwater/get_unit_info",
+        method_pattern="GET",
+        response="ret=OK,pow=1,boil_level=0,drive_p=6",
+    )
+
+    device = DaikinAirBaseHotWater("ip", session=client_session)
+
+    status = await device.get_status()
+
+    assert status["drive_p"] == 6
+    assert status["drive_program"] == "program_1_and_2"
+    assert status["set_program"] is None
+    assert status["manual_program_1"] is True
+    assert status["manual_program_2"] is True
+    assert device.represent("drive_p") == ("drive program", "program_1_and_2")
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
+async def test_get_status_returns_set_program(aresponses, client_session):
+    """Test set programs are represented as mutually exclusive selections."""
+    aresponses.add(
+        path_pattern="/skyfi/hotwater/get_unit_info",
+        method_pattern="GET",
+        response="ret=OK,pow=1,boil_level=0,drive_p=2",
+    )
+
+    device = DaikinAirBaseHotWater("ip", session=client_session)
+
+    status = await device.get_status()
+
+    assert status["drive_p"] == 2
+    assert status["drive_program"] == "set_02"
+    assert status["set_program"] == 2
+    assert status["manual_program_1"] is False
+    assert status["manual_program_2"] is False
 
     aresponses.assert_all_requests_matched()
     aresponses.assert_no_unused_routes()
@@ -161,12 +228,51 @@ async def test_get_status_rejects_invalid_boil_level(aresponses, client_session)
 
 
 @pytest.mark.asyncio
+async def test_get_status_rejects_invalid_drive_program_time(
+    aresponses, client_session
+):
+    """Test invalid drive program slots in status responses raise clearly."""
+    aresponses.add(
+        path_pattern="/skyfi/hotwater/get_unit_info",
+        method_pattern="GET",
+        response="ret=OK,boil_level=0,drive_p1s=48",
+    )
+
+    device = DaikinAirBaseHotWater("ip", session=client_session)
+
+    with pytest.raises(AirBaseHotWaterResponseError):
+        await device.get_status()
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
+async def test_get_status_rejects_invalid_drive_program(aresponses, client_session):
+    """Test invalid drive program values in status responses raise clearly."""
+    aresponses.add(
+        path_pattern="/skyfi/hotwater/get_unit_info",
+        method_pattern="GET",
+        response="ret=OK,boil_level=0,drive_p=7",
+    )
+
+    device = DaikinAirBaseHotWater("ip", session=client_session)
+
+    with pytest.raises(AirBaseHotWaterResponseError):
+        await device.get_status()
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
 async def test_set_control_sends_normalized_params(aresponses, client_session):
     """Test setting multiple writable controls."""
     aresponses.add(
         path_pattern=re.compile(
             r"/skyfi/hotwater/set_control_info\?"
             r"(?=.*boil_level=6)(?=.*boost=1)(?=.*vacation=0)"
+            r"(?=.*drive_p=5)(?=.*drive_p1s=42)(?=.*drive_p1e=14)"
         ),
         method_pattern="GET",
         match_querystring=True,
@@ -175,11 +281,21 @@ async def test_set_control_sends_normalized_params(aresponses, client_session):
 
     device = DaikinAirBaseHotWater("ip", session=client_session)
 
-    await device.set_control(boil_level=6, boost=True, vacation=0)
+    await device.set_control(
+        boil_level=6,
+        boost=True,
+        vacation=0,
+        drive_program="program_1",
+        program_1_start="21:00",
+        program_1_end="07:00",
+    )
 
     assert device.values.get("boil_level", invalidate=False) == "6"
     assert device.values.get("boost", invalidate=False) == "1"
     assert device.values.get("vacation", invalidate=False) == "0"
+    assert device.values.get("drive_p", invalidate=False) == "5"
+    assert device.values.get("drive_p1s", invalidate=False) == "42"
+    assert device.values.get("drive_p1e", invalidate=False) == "14"
     assert device.values.get("mode", invalidate=False) == "manual"
 
     aresponses.assert_all_requests_matched()
@@ -277,6 +393,98 @@ async def test_vacation_days_helper(aresponses, client_session):
     aresponses.assert_no_unused_routes()
 
 
+@pytest.mark.asyncio
+async def test_drive_program_helpers(aresponses, client_session):
+    """Test drive program helper methods normalize human and raw times."""
+    for expected_path in [
+        re.compile(
+            r"/skyfi/hotwater/set_control_info\?(?=.*drive_p1s=42)(?=.*drive_p1e=14)"
+        ),
+        re.compile(
+            r"/skyfi/hotwater/set_control_info\?(?=.*drive_p2s=22)(?=.*drive_p2e=28)"
+        ),
+    ]:
+        aresponses.add(
+            path_pattern=expected_path,
+            method_pattern="GET",
+            match_querystring=True,
+            response="ret=OK",
+        )
+
+    device = DaikinAirBaseHotWater("ip", session=client_session)
+
+    await device.set_drive_program_1("21:00", "07:00")
+    await device.set_drive_program_2(22, 28)
+
+    assert device.values.get("drive_p1s", invalidate=False) == "42"
+    assert device.values.get("drive_p1e", invalidate=False) == "14"
+    assert device.values.get("drive_p2s", invalidate=False) == "22"
+    assert device.values.get("drive_p2e", invalidate=False) == "28"
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
+async def test_drive_program_selection_helper(aresponses, client_session):
+    """Test active drive program helper accepts generic labels."""
+    aresponses.add(
+        path_pattern="/skyfi/hotwater/set_control_info?drive_p=5",
+        method_pattern="GET",
+        match_querystring=True,
+        response="ret=OK",
+    )
+    aresponses.add(
+        path_pattern="/skyfi/hotwater/set_control_info?drive_p=6",
+        method_pattern="GET",
+        match_querystring=True,
+        response="ret=OK",
+    )
+
+    device = DaikinAirBaseHotWater("ip", session=client_session)
+
+    await device.set_drive_program_selection("program_1")
+    await device.set_drive_program_selection("program_1_and_2")
+
+    assert device.values.get("drive_p", invalidate=False) == "6"
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
+async def test_program_2_selection_requires_program_1_when_current_program_is_known(
+    client_session,
+):
+    """Test program 2 selection is blocked when program 1 is known inactive."""
+    device = DaikinAirBaseHotWater("ip", session=client_session)
+    device.values["drive_p"] = "4"
+
+    with pytest.raises(ValueError):
+        await device.set_drive_program_selection("program_2")
+
+
+@pytest.mark.asyncio
+async def test_set_program_selection_is_mutually_exclusive(aresponses, client_session):
+    """Test selecting a fixed set program sends one drive_p value."""
+    aresponses.add(
+        path_pattern="/skyfi/hotwater/set_control_info?drive_p=3",
+        method_pattern="GET",
+        match_querystring=True,
+        response="ret=OK",
+    )
+
+    device = DaikinAirBaseHotWater("ip", session=client_session)
+    device.values["drive_p"] = "2"
+
+    await device.set_drive_set_program(3)
+
+    assert device.values.get("drive_p", invalidate=False) == "3"
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
+
+
 def test_set_control_validation():
     """Test invalid control values are rejected before HTTP requests."""
     device = DaikinAirBaseHotWater("ip", session=MagicMock())
@@ -301,12 +509,58 @@ def test_set_control_validation():
     with pytest.raises(ValueError):
         DaikinAirBaseHotWater._normalize_control_params({"pow": 2})
 
+    with pytest.raises(ValueError):
+        DaikinAirBaseHotWater._normalize_control_params({"drive_p": 0})
+
+    with pytest.raises(ValueError):
+        DaikinAirBaseHotWater._normalize_control_params({"drive_program": "set_07"})
+
+    with pytest.raises(ValueError):
+        DaikinAirBaseHotWater._normalize_control_params({"drive_p1s": 48})
+
+    with pytest.raises(ValueError):
+        DaikinAirBaseHotWater._normalize_control_params({"drive_p1s": "21:15"})
+
+    with pytest.raises(ValueError):
+        DaikinAirBaseHotWater._normalize_control_params({"drive_p1s": "24:00"})
+
+    with pytest.raises(ValueError):
+        DaikinAirBaseHotWater._normalize_control_params({"program_1_start": True})
+
     assert DaikinAirBaseHotWater._normalize_control_params(
-        {"power": "on", "boost": "off", "vacation_days": 14}
+        {
+            "power": "on",
+            "boost": "off",
+            "vacation_days": 14,
+            "drive_program": "set_04",
+            "program_1_start": "21:00",
+            "program_1_end": "7:00",
+            "program_2_start": "22",
+            "program_2_end": 28,
+        }
     ) == {
         "pow": "1",
         "boost": "0",
         "vacation_days": "14",
+        "drive_p": "4",
+        "drive_p1s": "42",
+        "drive_p1e": "14",
+        "drive_p2s": "22",
+        "drive_p2e": "28",
     }
+
+    assert DaikinAirBaseHotWater._normalize_control_params(
+        {"drive_program": "program_1_and_2"}
+    ) == {
+        "drive_p": "6",
+    }
+
+    assert DaikinAirBaseHotWater._normalize_control_params(
+        {"drive_program": "program_2"}
+    ) == {
+        "drive_p": "6",
+    }
+
+    assert DaikinAirBaseHotWater._drive_time_slot_to_time(42, "drive_p1s") == "21:00"
 
     assert device.humidity is None

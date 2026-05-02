@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 import logging
 import re
 from typing import Any, Optional
@@ -39,7 +39,12 @@ class DaikinAirBaseHotWater(Appliance):  # pylint: disable=too-many-public-metho
     INFO_RESOURCES = HTTP_RESOURCES
 
     MAX_VACATION_DAYS = 365
+    DRIVE_TIME_SLOT_MINUTES = 30
+    DRIVE_TIME_SLOTS_PER_DAY = 24 * 60 // DRIVE_TIME_SLOT_MINUTES
     MAX_CONCURRENT_REQUESTS = 1
+    PROGRAM_1 = 5
+    PROGRAM_1_AND_2 = 6
+    PROGRAM_2 = PROGRAM_1_AND_2
 
     TRANSLATIONS = {
         "pow": {
@@ -59,6 +64,14 @@ class DaikinAirBaseHotWater(Appliance):  # pylint: disable=too-many-public-metho
             "manual": "manual",
             "off": "off",
         },
+        "drive_p": {
+            "1": "set_01",
+            "2": "set_02",
+            "3": "set_03",
+            "4": "set_04",
+            "5": "program_1",
+            "6": "program_1_and_2",
+        },
     }
 
     VALUES_SUMMARY = [
@@ -68,9 +81,14 @@ class DaikinAirBaseHotWater(Appliance):  # pylint: disable=too-many-public-metho
         "vacation",
         "vacation_days",
         "boil_level",
+        "drive_p",
         "temp_tank",
         "temp_set",
         "temp_outside",
+        "drive_p1s",
+        "drive_p1e",
+        "drive_p2s",
+        "drive_p2e",
     ]
 
     VALUES_TRANSLATION = {
@@ -80,14 +98,82 @@ class DaikinAirBaseHotWater(Appliance):  # pylint: disable=too-many-public-metho
         "temp_outside": "outside temp",
         "boil_level": "boil level",
         "vacation_days": "vacation days",
+        "drive_p": "drive program",
+        "drive_p1s": "program 1 start",
+        "drive_p1e": "program 1 end",
+        "drive_p2s": "program 2 start",
+        "drive_p2e": "program 2 end",
     }
 
+    _DRIVE_PROGRAM_ALIASES = {
+        "set_01": 1,
+        "set_1": 1,
+        "set01": 1,
+        "set1": 1,
+        "set_02": 2,
+        "set_2": 2,
+        "set02": 2,
+        "set2": 2,
+        "set_03": 3,
+        "set_3": 3,
+        "set03": 3,
+        "set3": 3,
+        "set_04": 4,
+        "set_4": 4,
+        "set04": 4,
+        "set4": 4,
+        "program_1": PROGRAM_1,
+        "program1": PROGRAM_1,
+        "prog_1": PROGRAM_1,
+        "prog1": PROGRAM_1,
+        "drive_p1": PROGRAM_1,
+        "program_1_and_2": PROGRAM_1_AND_2,
+        "programs_1_and_2": PROGRAM_1_AND_2,
+        "program_1_2": PROGRAM_1_AND_2,
+        "programs_1_2": PROGRAM_1_AND_2,
+        "prog_1_and_2": PROGRAM_1_AND_2,
+        "progs_1_and_2": PROGRAM_1_AND_2,
+        "prog_1_2": PROGRAM_1_AND_2,
+        "progs_1_2": PROGRAM_1_AND_2,
+        "drive_p1_p2": PROGRAM_1_AND_2,
+        "program_2": PROGRAM_1_AND_2,
+        "program2": PROGRAM_1_AND_2,
+        "prog_2": PROGRAM_1_AND_2,
+        "prog2": PROGRAM_1_AND_2,
+        "drive_p2": PROGRAM_1_AND_2,
+    }
+    _DRIVE_PROGRAM_FIELD = "drive_p"
+    _DRIVE_TIME_FIELDS = {"drive_p1s", "drive_p1e", "drive_p2s", "drive_p2e"}
+    _DRIVE_TIME_STATUS_FIELDS = {
+        "drive_p1s": "program_1_start",
+        "drive_p1e": "program_1_end",
+        "drive_p2s": "program_2_start",
+        "drive_p2e": "program_2_end",
+    }
     _BOOL_CONTROL_FIELDS = {"pow", "boost", "vacation"}
-    _INT_CONTROL_FIELDS = {"boil_level", "vacation_days"}
+    _INT_CONTROL_FIELDS = {
+        "boil_level",
+        "vacation_days",
+        _DRIVE_PROGRAM_FIELD,
+    } | _DRIVE_TIME_FIELDS
     _READ_ONLY_FIELDS = {"temp_set", "temp_tank", "temp_outside"}
     _VALID_CONTROL_FIELDS = _BOOL_CONTROL_FIELDS | _INT_CONTROL_FIELDS
     _CONTROL_ALIASES = {
         "power": "pow",
+        "drive_program": "drive_p",
+        "drive_program_selection": "drive_p",
+        "program1_start": "drive_p1s",
+        "program1_end": "drive_p1e",
+        "program2_start": "drive_p2s",
+        "program2_end": "drive_p2e",
+        "program_1_start": "drive_p1s",
+        "program_1_end": "drive_p1e",
+        "program_2_start": "drive_p2s",
+        "program_2_end": "drive_p2e",
+        "drive_program_1_start": "drive_p1s",
+        "drive_program_1_end": "drive_p1e",
+        "drive_program_2_start": "drive_p2s",
+        "drive_program_2_end": "drive_p2e",
     }
 
     def __init__(
@@ -127,13 +213,29 @@ class DaikinAirBaseHotWater(Appliance):  # pylint: disable=too-many-public-metho
             except ValueError as exc:
                 raise AirBaseHotWaterResponseError(str(exc)) from exc
             response["mode"] = "auto" if boil_level == "0" else "manual"
+        drive_program = response.get("drive_p")
+        if drive_program is not None:
+            try:
+                DaikinAirBaseHotWater._normalize_drive_program(drive_program)
+            except ValueError as exc:
+                raise AirBaseHotWaterResponseError(str(exc)) from exc
+        for key in DaikinAirBaseHotWater._DRIVE_TIME_FIELDS:
+            drive_time = response.get(key)
+            if not DaikinAirBaseHotWater._is_missing(drive_time):
+                try:
+                    DaikinAirBaseHotWater._validate_drive_time_slot(key, drive_time)
+                except ValueError as exc:
+                    raise AirBaseHotWaterResponseError(str(exc)) from exc
         return response
 
     async def get_status(self) -> dict[str, StatusValue]:
         """Fetch and return typed hot water status data."""
         self.values.invalidate_resource(self.GET_UNIT_INFO)
         await self.update_status(self.HTTP_RESOURCES)
-        return {
+        drive_program_value = self._to_drive_program_value(
+            self.values.get("drive_p", invalidate=False)
+        )
+        status: dict[str, StatusValue] = {
             "power": self._to_bool(self.values.get("pow", invalidate=False), "pow"),
             "boost": self._to_bool(self.values.get("boost", invalidate=False), "boost"),
             "vacation": self._to_bool(
@@ -145,6 +247,11 @@ class DaikinAirBaseHotWater(Appliance):  # pylint: disable=too-many-public-metho
             "boil_level": self._to_int(
                 self.values.get("boil_level", invalidate=False), "boil_level"
             ),
+            "drive_p": drive_program_value,
+            "drive_program": self._drive_program_label(drive_program_value),
+            "set_program": self._drive_set_program(drive_program_value),
+            "manual_program_1": self._manual_program_1_enabled(drive_program_value),
+            "manual_program_2": self._manual_program_2_enabled(drive_program_value),
             "mode": self.represent("mode")[1] if "mode" in self.values else None,
             "temp_set": self._to_float(
                 self.values.get("temp_set", invalidate=False), "temp_set"
@@ -156,12 +263,18 @@ class DaikinAirBaseHotWater(Appliance):  # pylint: disable=too-many-public-metho
                 self.values.get("temp_outside", invalidate=False), "temp_outside"
             ),
         }
+        for source, target in self._DRIVE_TIME_STATUS_FIELDS.items():
+            raw_value = self.values.get(source, invalidate=False)
+            status[source] = self._to_drive_time_slot(raw_value, source)
+            status[target] = self._to_drive_time(raw_value, source)
+        return status
 
     async def set(self, settings):
         """Set settings on Daikin AirBase hot water device."""
         params = self._normalize_control_params(settings)
         if not params:
             return
+        self._validate_drive_program_selection(params)
 
         _LOGGER.debug(
             "Sending request to %s with params: %s", self.SET_CONTROL_INFO, params
@@ -215,6 +328,42 @@ class DaikinAirBaseHotWater(Appliance):  # pylint: disable=too-many-public-metho
         """Turn the hot water system on or off."""
         await self.set({"pow": mode})
 
+    async def set_drive_program_selection(self, program: Any) -> None:
+        """Set the active drive program.
+
+        ``program_1_and_2`` enables both manually configured programs. Program 2
+        cannot be active by itself.
+        """
+        await self.set({"drive_p": program})
+
+    async def set_drive_set_program(self, program: int) -> None:
+        """Set one of the mutually exclusive fixed drive programs 1-4."""
+        program = self._validate_int_range("set program", program, minimum=1, maximum=4)
+        await self.set_drive_program_selection(program)
+
+    async def set_drive_program(self, program: int, start: Any, end: Any) -> None:
+        """Set a drive program start and end time.
+
+        Args:
+            program: Drive program number, either 1 or 2.
+            start: Start time as a 0-47 half-hour slot or HH:MM string.
+            end: End time as a 0-47 half-hour slot or HH:MM string.
+        """
+        if program == 1:
+            await self.set({"drive_p1s": start, "drive_p1e": end})
+        elif program == 2:
+            await self.set({"drive_p2s": start, "drive_p2e": end})
+        else:
+            raise ValueError("drive program must be 1 or 2")
+
+    async def set_drive_program_1(self, start: Any, end: Any) -> None:
+        """Set drive program 1 start and end time."""
+        await self.set_drive_program(1, start, end)
+
+    async def set_drive_program_2(self, start: Any, end: Any) -> None:
+        """Set drive program 2 start and end time."""
+        await self.set_drive_program(2, start, end)
+
     async def set_zone(self, zone_id, key, value):
         """Set zone status."""
 
@@ -267,6 +416,24 @@ class DaikinAirBaseHotWater(Appliance):  # pylint: disable=too-many-public-metho
     def target_temperature(self) -> Optional[float]:
         """Return current hot water target temperature."""
         return self._parse_number("temp_set")
+
+    def represent(self, key):
+        """Return translated value from key."""
+        if key in self._DRIVE_TIME_FIELDS:
+            k = self.VALUES_TRANSLATION.get(key, key)
+            return (k, self._to_drive_time(self.values.get(key), key))
+        return super().represent(key)
+
+    def _validate_drive_program_selection(self, params: dict[str, str]) -> None:
+        """Validate program 2 is only selected after program 1 is active."""
+        if params.get("drive_p") != str(self.PROGRAM_1_AND_2):
+            return
+
+        current_program = self.values.get("drive_p", invalidate=False)
+        if current_program is None:
+            return
+        if current_program not in {str(self.PROGRAM_1), str(self.PROGRAM_1_AND_2)}:
+            raise ValueError("program_1_and_2 requires program_1 to be selected first")
 
     def show_sensors(self):
         """Print hot water sensors."""
@@ -331,6 +498,10 @@ class DaikinAirBaseHotWater(Appliance):  # pylint: disable=too-many-public-metho
                         maximum=cls.MAX_VACATION_DAYS,
                     )
                 )
+            elif key == cls._DRIVE_PROGRAM_FIELD:
+                normalized[key] = str(cls._normalize_drive_program(value))
+            elif key in cls._DRIVE_TIME_FIELDS:
+                normalized[key] = str(cls._normalize_drive_time(key, value))
 
         return normalized
 
@@ -397,6 +568,57 @@ class DaikinAirBaseHotWater(Appliance):  # pylint: disable=too-many-public-metho
         return int_value
 
     @classmethod
+    def _normalize_drive_time(cls, key: str, value: Any) -> int:
+        """Normalize a drive program time to a half-hour slot."""
+        if isinstance(value, time):
+            return cls._time_parts_to_drive_slot(key, value.hour, value.minute)
+        if isinstance(value, str):
+            if re.fullmatch(r"\d+", value):
+                return cls._validate_drive_time_slot(key, value)
+            match = re.fullmatch(r"(\d{1,2}):(\d{2})", value)
+            if match:
+                return cls._time_parts_to_drive_slot(
+                    key,
+                    int(match.group(1)),
+                    int(match.group(2)),
+                )
+            raise ValueError(f"{key} must be a 0-47 slot or HH:MM time")
+        return cls._validate_drive_time_slot(key, value)
+
+    @classmethod
+    def _validate_drive_time_slot(cls, key: str, value: Any) -> int:
+        """Validate a drive program time slot."""
+        return cls._validate_int_range(
+            key, value, minimum=0, maximum=cls.DRIVE_TIME_SLOTS_PER_DAY - 1
+        )
+
+    @classmethod
+    def _normalize_drive_program(cls, value: Any) -> int:
+        """Normalize a drive program selector to its API value."""
+        if isinstance(value, str):
+            normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+            if normalized in cls._DRIVE_PROGRAM_ALIASES:
+                return cls._DRIVE_PROGRAM_ALIASES[normalized]
+        return cls._validate_int_range("drive_p", value, minimum=1, maximum=6)
+
+    @classmethod
+    def _time_parts_to_drive_slot(cls, key: str, hour: int, minute: int) -> int:
+        """Convert HH:MM parts to a half-hour drive time slot."""
+        if hour < 0 or hour > 23:
+            raise ValueError(f"{key} hour must be between 0 and 23")
+        if minute % cls.DRIVE_TIME_SLOT_MINUTES != 0 or minute < 0 or minute > 59:
+            raise ValueError(f"{key} must use 30 minute increments")
+        return (hour * 60 + minute) // cls.DRIVE_TIME_SLOT_MINUTES
+
+    @classmethod
+    def _drive_time_slot_to_time(cls, value: Any, key: str) -> str:
+        """Convert a half-hour drive time slot to HH:MM."""
+        slot = cls._validate_drive_time_slot(key, value)
+        minutes = slot * cls.DRIVE_TIME_SLOT_MINUTES
+        hour, minute = divmod(minutes, 60)
+        return f"{hour:02d}:{minute:02d}"
+
+    @classmethod
     def _to_bool(cls, value: str | None, key: str) -> bool | None:
         """Convert a 0/1 status value to bool."""
         if cls._is_missing(value):
@@ -430,6 +652,72 @@ class DaikinAirBaseHotWater(Appliance):  # pylint: disable=too-many-public-metho
             raise AirBaseHotWaterResponseError(
                 f"{key} must be a float, got {value!r}"
             ) from exc
+
+    @classmethod
+    def _to_drive_time_slot(cls, value: str | None, key: str) -> int | None:
+        """Convert a status drive program time to its raw half-hour slot."""
+        if cls._is_missing(value):
+            return None
+        try:
+            return cls._validate_drive_time_slot(key, value)
+        except ValueError as exc:
+            raise AirBaseHotWaterResponseError(str(exc)) from exc
+
+    @classmethod
+    def _to_drive_time(cls, value: str | None, key: str) -> str | None:
+        """Convert a status drive program time to HH:MM."""
+        if cls._is_missing(value):
+            return None
+        try:
+            return cls._drive_time_slot_to_time(value, key)
+        except ValueError as exc:
+            raise AirBaseHotWaterResponseError(str(exc)) from exc
+
+    @classmethod
+    def _to_drive_program_value(cls, value: str | None) -> int | None:
+        """Convert a status drive program selector to its raw value."""
+        if cls._is_missing(value):
+            return None
+        try:
+            return cls._normalize_drive_program(value)
+        except ValueError as exc:
+            raise AirBaseHotWaterResponseError(str(exc)) from exc
+
+    @classmethod
+    def _to_drive_program(cls, value: str | None) -> str | None:
+        """Convert a status drive program selector to its generic label."""
+        if cls._is_missing(value):
+            return None
+        raw_value = cls._to_drive_program_value(value)
+        return cls._drive_program_label(raw_value)
+
+    @classmethod
+    def _drive_program_label(cls, raw_value: int | None) -> str | None:
+        """Return the generic label for a drive program selector."""
+        if raw_value is None:
+            return None
+        return cls.daikin_to_human("drive_p", str(raw_value))
+
+    @classmethod
+    def _drive_set_program(cls, raw_value: int | None) -> int | None:
+        """Return selected fixed set program number, if any."""
+        if raw_value is None or raw_value > 4:
+            return None
+        return raw_value
+
+    @classmethod
+    def _manual_program_1_enabled(cls, raw_value: int | None) -> bool | None:
+        """Return whether manual program 1 is selected."""
+        if raw_value is None:
+            return None
+        return raw_value in {cls.PROGRAM_1, cls.PROGRAM_1_AND_2}
+
+    @classmethod
+    def _manual_program_2_enabled(cls, raw_value: int | None) -> bool | None:
+        """Return whether manual program 2 is selected."""
+        if raw_value is None:
+            return None
+        return raw_value == cls.PROGRAM_1_AND_2
 
     @staticmethod
     def _is_missing(value: str | None) -> bool:
