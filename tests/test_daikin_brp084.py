@@ -655,3 +655,167 @@ async def test_update_status_registers_energy_history(aresponses, client_session
     assert len(device._energy_consumption_history['total']) >= 1
     recorded = device._energy_consumption_history['total'][0]
     assert recorded.today == 0.7  # datas[-1] = 700 Wh / 1000 = 0.7 kWh
+
+
+def _build_response(*, mode_pv, set_target_prop, set_target_pv, room_pv, iht_pv=None):
+    """Build a multireq mock with a chosen mode + setpoint + room temp + iht.
+
+    mode_pv: e_3001/p_01 value (e.g. "0100" for heat, "0200" for cool)
+    set_target_prop: which e_3001 property holds the active setpoint (p_02/p_03/p_1D)
+    set_target_pv: hex string for that setpoint (u8/2 = °C)
+    room_pv: e_A00B/p_01 hex (whole degrees)
+    iht_pv: e_3003/p_0C hex (u8/2 = °C); set to None to omit the entity
+
+    Includes all per-mode fan + swing properties so the mock works for any mode
+    (otherwise pydaikin's path lookups raise DaikinException on missing keys).
+    """
+    e_3001_pch = [
+        {"pn": "p_01", "pv": mode_pv},
+        {"pn": set_target_prop, "pv": set_target_pv},
+        # Per-mode fan rates — pydaikin only reads the active one, but path
+        # lookup happens for whichever mode is current
+        {"pn": "p_09", "pv": "0A00"},  # cool fan
+        {"pn": "p_0A", "pv": "0A00"},  # heat fan
+        {"pn": "p_26", "pv": "0A00"},  # auto fan
+        {"pn": "p_28", "pv": "0A00"},  # fan-only fan rate
+        # Per-mode swing axes
+        {"pn": "p_05", "pv": "000000"}, {"pn": "p_06", "pv": "000000"},  # cool
+        {"pn": "p_07", "pv": "000000"}, {"pn": "p_08", "pv": "000000"},  # heat
+        {"pn": "p_20", "pv": "000000"}, {"pn": "p_21", "pv": "000000"},  # auto
+        {"pn": "p_22", "pv": "000000"}, {"pn": "p_23", "pv": "000000"},  # dry
+        {"pn": "p_24", "pv": "000000"}, {"pn": "p_25", "pv": "000000"},  # fan
+    ]
+    e_1002_pch = [
+        {"pn": "e_A002", "pch": [{"pn": "p_01", "pv": "01"}]},
+        {"pn": "e_3001", "pch": e_3001_pch},
+        {"pn": "e_A00B", "pch": [
+            {"pn": "p_01", "pv": room_pv},
+            {"pn": "p_02", "pv": "3c"},
+        ]},
+    ]
+    if iht_pv is not None:
+        e_1002_pch.append({"pn": "e_3003", "pch": [{"pn": "p_0C", "pv": iht_pv}]})
+
+    return {
+        "responses": [
+            {
+                "fr": "/dsiot/edge/adr_0100.dgc_status",
+                "pc": {"pn": "dgc_status", "pch": [{"pn": "e_1002", "pch": e_1002_pch}]},
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge/adr_0200.dgc_status",
+                "pc": {"pn": "dgc_status", "pch": [{"pn": "e_1003", "pch": [
+                    {"pn": "e_A00D", "pch": [{"pn": "p_01", "pv": "22"}]},
+                ]}]},
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge/adr_0100.i_power.week_power",
+                "pc": {"pn": "week_power", "pch": [
+                    {"pn": "today_runtime", "pv": "120"},
+                    {"pn": "datas", "pv": [0, 0, 0, 0, 0, 0, 0]},
+                ]},
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge.adp_i",
+                "pc": {"pn": "adp_i", "pch": [{"pn": "mac", "pv": "112233445566"}]},
+                "rsc": 2000,
+            },
+        ]
+    }
+
+
+@pytest.mark.asyncio
+async def test_estimated_indoor_temp_heat_mode(aresponses, client_session):
+    """In heat mode, estimated_indoor_temp = htemp - (iht - stemp)."""
+    # heat mode, setpoint 22°C (p_03=2C), room 24°C (p_01=18), iht 24°C (p_0C=30)
+    # bias = 24 - 22 = 2°C; estimated = 24 - 2 = 22.0°C
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(
+            status=200,
+            text=json.dumps(_build_response(
+                mode_pv="0100", set_target_prop="p_03", set_target_pv="2C",
+                room_pv="18", iht_pv="30",
+            )),
+            headers={"Content-Type": "application/json"},
+        ),
+    )
+    device = DaikinBRP084('ip', session=client_session)
+    await device.init()
+    assert device.values.get('mode') == 'heat'
+    assert device.values.get('htemp') == '24.0'
+    assert device.values.get('stemp') == '22.0'
+    assert device.values.get('internal_heat_target') == '24.0'
+    assert device.values.get('estimated_indoor_temp') == '22.0'
+
+
+@pytest.mark.asyncio
+async def test_estimated_indoor_temp_cool_mode_absent(aresponses, client_session):
+    """In cool mode, estimated_indoor_temp must NOT be populated.
+
+    internal_heat_target is heat-mode-specific; reading it in cool mode would
+    produce a meaningless number. Sensor should stay absent.
+    """
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(
+            status=200,
+            text=json.dumps(_build_response(
+                mode_pv="0200", set_target_prop="p_02", set_target_pv="32",
+                room_pv="18", iht_pv="30",
+            )),
+            headers={"Content-Type": "application/json"},
+        ),
+    )
+    device = DaikinBRP084('ip', session=client_session)
+    await device.init()
+    assert device.values.get('mode') == 'cool'
+    assert 'estimated_indoor_temp' not in device.values
+
+
+@pytest.mark.asyncio
+async def test_estimated_indoor_temp_zero_bias(aresponses, client_session):
+    """When iht == stemp (no bias), estimated should equal raw htemp."""
+    # heat mode, setpoint 22°C, room 24°C, iht 22°C — bias=0, estimated=24.0
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(
+            status=200,
+            text=json.dumps(_build_response(
+                mode_pv="0100", set_target_prop="p_03", set_target_pv="2C",
+                room_pv="18", iht_pv="2C",
+            )),
+            headers={"Content-Type": "application/json"},
+        ),
+    )
+    device = DaikinBRP084('ip', session=client_session)
+    await device.init()
+    assert device.values.get('estimated_indoor_temp') == '24.0'
+
+
+@pytest.mark.asyncio
+async def test_estimated_indoor_temp_missing_iht(aresponses, client_session):
+    """If e_3003/p_0C is missing entirely, estimated should also be absent."""
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(
+            status=200,
+            text=json.dumps(_build_response(
+                mode_pv="0100", set_target_prop="p_03", set_target_pv="2C",
+                room_pv="18", iht_pv=None,
+            )),
+            headers={"Content-Type": "application/json"},
+        ),
+    )
+    device = DaikinBRP084('ip', session=client_session)
+    await device.init()
+    assert device.values.get('mode') == 'heat'
+    assert 'internal_heat_target' not in device.values
+    assert 'estimated_indoor_temp' not in device.values

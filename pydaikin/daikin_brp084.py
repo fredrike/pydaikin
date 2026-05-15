@@ -585,6 +585,27 @@ class DaikinBRP084(Appliance):
             except ValueError:
                 pass
 
+            # Estimated indoor temperature (heat mode only): the indoor sensor
+            # is a return-air thermistor that reads several °C above actual
+            # room air. The firmware silently compensates by aiming for a
+            # higher internal target (e_3003/p_0C = user setpoint + bias).
+            # Subtract that same bias from the return-air reading to estimate
+            # actual room temperature.
+            #
+            #   estimated = indoor_temp - (internal_heat_target - user_setpoint)
+            #
+            # Only computed in heat mode (internal_heat_target is heat-specific
+            # and undefined in cool/fan/dry/auto/off).
+            if self.values.get('mode', invalidate=False) == 'heat':
+                try:
+                    htemp = float(self.values['htemp'])
+                    stemp = float(self.values['stemp'])
+                    iht = float(self.values['internal_heat_target'])
+                    bias = iht - stemp
+                    self.values['estimated_indoor_temp'] = str(round(htemp - bias, 1))
+                except (KeyError, ValueError, TypeError):
+                    pass
+
             # Device identity — firmware version (from WiFi adapter) and model
             # code (ASCII-hex in e_A001/p_0D). entity.py in HA expects these
             # under `ver` and `model` respectively for the DeviceInfo panel.
