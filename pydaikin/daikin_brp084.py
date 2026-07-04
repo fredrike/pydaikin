@@ -94,6 +94,8 @@ class DaikinBRP084(Appliance):
             "p_01",
         ],
         "mac_address": ["/dsiot/edge.adp_i", "adp_i", "mac"],
+        # Separate cool/heat metering capability flag (0 = combined totals).
+        "en_ipw_sep": ["/dsiot/edge.adp_i", "adp_i", "func", "en_ipw_sep"],
         # Mode-specific paths for temperature settings
         "temp_settings": {
             "cool": E_1002_E_3001_PATH + ["p_02"],
@@ -408,84 +410,115 @@ class DaikinBRP084(Appliance):
             # Get swing mode
             self.values['f_dir'] = self.get_swing_state(response)
 
-            # Get energy data
-            try:
-                self.values['today_runtime'] = self.find_value_by_pn(
-                    response, *self.get_path("energy", "today_runtime")
-                )
-
-                energy_data = self.find_value_by_pn(
-                    response, *self.get_path("energy", "weekly_data")
-                )
-                if isinstance(energy_data, list) and len(energy_data) > 0:
-                    self.values['datas'] = '/'.join(map(str, energy_data))
-
-                # Get cooling weekly data (datas2) for heat/cool breakdown
-                try:
-                    cooling_data = self.find_value_by_pn(
-                        response, *self.get_path("energy", "weekly_data_cooling")
-                    )
-                    if isinstance(cooling_data, list) and len(cooling_data) > 0:
-                        self.values['datas2'] = '/'.join(map(str, cooling_data))
-
-                        # Synthesize curr_day_cool/curr_day_heat from weekly data.
-                        # DSIOT doesn't provide hourly breakdowns, so we store
-                        # today's value as a single-element string.
-                        # datas/datas2 are in Wh, power.py's cool/heat parsers
-                        # use sum() with divider=10 (expecting 0.1 kWh units).
-                        # Convert: Wh / 100 = 0.1 kWh units.
-                        cool_today = (cooling_data[-1] if cooling_data else 0) // 100
-                        total_today = (
-                            energy_data[-1] // 100
-                            if isinstance(energy_data, list) and energy_data
-                            else 0
-                        )
-                        heat_today = max(0, total_today - cool_today)
-                        cool_today = max(0, cool_today)
-                        self.values['curr_day_cool'] = str(cool_today)
-                        self.values['curr_day_heat'] = str(heat_today)
-
-                        # Yesterday's breakdown
-                        if (
-                            len(cooling_data) >= 2
-                            and isinstance(energy_data, list)
-                            and len(energy_data) >= 2
-                        ):
-                            cool_yesterday = cooling_data[-2] // 100
-                            total_yesterday = energy_data[-2] // 100
-                            heat_yesterday = max(0, total_yesterday - cool_yesterday)
-                            self.values['prev_1day_cool'] = str(max(0, cool_yesterday))
-                            self.values['prev_1day_heat'] = str(heat_yesterday)
-                except DaikinException:
-                    pass
-
-                # Get yearly energy data
-                try:
-                    yearly_data = self.find_value_by_pn(
-                        response, *self.get_path("energy", "yearly_data")
-                    )
-                    if isinstance(yearly_data, list) and len(yearly_data) > 0:
-                        self.values['this_year'] = '/'.join(map(str, yearly_data))
-                except DaikinException:
-                    pass
-
-                try:
-                    prev_yearly_data = self.find_value_by_pn(
-                        response, *self.get_path("energy", "yearly_data_previous")
-                    )
-                    if isinstance(prev_yearly_data, list) and len(prev_yearly_data) > 0:
-                        self.values['previous_year'] = '/'.join(
-                            map(str, prev_yearly_data)
-                        )
-                except DaikinException:
-                    pass
-
-            except DaikinException:
-                pass
+            # Energy data (weekly totals, heat/cool split, yearly totals).
+            self._extract_energy(response)
 
         except DaikinException as e:
             _LOGGER.error("Error extracting values: %s", e)
             raise
+
+    def _extract_energy(self, response):
+        """Extract weekly/yearly energy values and the heat/cool breakdown.
+
+        Each read is guarded so a device that doesn't expose a given series
+        simply leaves those values unset.
+        """
+        # Detect whether the adapter meters cool/heat separately. When
+        # en_ipw_sep=0 (or absent), datas is the combined total and datas2
+        # is the cooling portion, so heat = total - cool holds. Guard on
+        # this so separate-metering units don't get a wrong derivation.
+        try:
+            self.values['en_ipw_sep'] = str(
+                self.find_value_by_pn(response, *self.get_path("en_ipw_sep"))
+            )
+        except DaikinException:
+            pass
+
+        try:
+            self.values['today_runtime'] = self.find_value_by_pn(
+                response, *self.get_path("energy", "today_runtime")
+            )
+
+            energy_data = self.find_value_by_pn(
+                response, *self.get_path("energy", "weekly_data")
+            )
+            if isinstance(energy_data, list) and len(energy_data) > 0:
+                self.values['datas'] = '/'.join(map(str, energy_data))
+
+            self._extract_heat_cool_breakdown(response, energy_data)
+            self._extract_yearly_energy(response)
+        except DaikinException:
+            pass
+
+    def _extract_heat_cool_breakdown(self, response, energy_data):
+        """Derive today/yesterday cool vs heat from the weekly series."""
+        try:
+            cooling_data = self.find_value_by_pn(
+                response, *self.get_path("energy", "weekly_data_cooling")
+            )
+            # heat = total - cool is only valid when the adapter reports
+            # combined metering (en_ipw_sep != 1); otherwise the array
+            # semantics differ and subtracting emits wrong figures.
+            combined_metering = self.values.get('en_ipw_sep', '0') != '1'
+
+            if not (
+                combined_metering
+                and isinstance(cooling_data, list)
+                and len(cooling_data) > 0
+            ):
+                return
+
+            self.values['datas2'] = '/'.join(map(str, cooling_data))
+
+            # Synthesize curr_day_cool/curr_day_heat from weekly data.
+            # DSIOT doesn't provide hourly breakdowns, so we store today's
+            # value as a single-element string. datas/datas2 are in Wh,
+            # power.py's cool/heat parsers use sum() with divider=10
+            # (expecting 0.1 kWh units). Convert: Wh / 100 = 0.1 kWh units.
+            cool_today = (cooling_data[-1] if cooling_data else 0) // 100
+            total_today = (
+                energy_data[-1] // 100
+                if isinstance(energy_data, list) and energy_data
+                else 0
+            )
+            heat_today = max(0, total_today - cool_today)
+            cool_today = max(0, cool_today)
+            self.values['curr_day_cool'] = str(cool_today)
+            self.values['curr_day_heat'] = str(heat_today)
+
+            # Yesterday's breakdown
+            if (
+                len(cooling_data) >= 2
+                and isinstance(energy_data, list)
+                and len(energy_data) >= 2
+            ):
+                cool_yesterday = cooling_data[-2] // 100
+                total_yesterday = energy_data[-2] // 100
+                heat_yesterday = max(0, total_yesterday - cool_yesterday)
+                self.values['prev_1day_cool'] = str(max(0, cool_yesterday))
+                self.values['prev_1day_heat'] = str(heat_yesterday)
+        except DaikinException:
+            pass
+
+    def _extract_yearly_energy(self, response):
+        """Extract this-year and previous-year monthly energy series."""
+        try:
+            yearly_data = self.find_value_by_pn(
+                response, *self.get_path("energy", "yearly_data")
+            )
+            if isinstance(yearly_data, list) and len(yearly_data) > 0:
+                self.values['this_year'] = '/'.join(map(str, yearly_data))
+        except DaikinException:
+            pass
+
+        try:
+            prev_yearly_data = self.find_value_by_pn(
+                response, *self.get_path("energy", "yearly_data_previous")
+            )
+            if isinstance(prev_yearly_data, list) and len(prev_yearly_data) > 0:
+                self.values['previous_year'] = '/'.join(map(str, prev_yearly_data))
+        except DaikinException:
+            pass
 
     async def _get_resource(self, path: str, params: Optional[Dict] = None):
         """Make the HTTP request to the device."""
