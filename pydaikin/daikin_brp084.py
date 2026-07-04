@@ -68,7 +68,7 @@ class DaikinRequest:
         return payload
 
 
-# pylint: disable=abstract-method
+# pylint: disable=abstract-method,too-many-public-methods
 class DaikinBRP084(Appliance):
     """Daikin class for BRP devices with firmware 2.8.0."""
 
@@ -469,64 +469,9 @@ class DaikinBRP084(Appliance):
             # Get swing mode
             self.values['f_dir'] = self.get_swing_state(response)
 
-            # Get on/off feature toggles. Each is optional - not all firmware
-            # exposes every container (e.g. e_3003 or the outdoor e_3002).
-            for key in ('comfort', 'econo', 'outdoor_quiet', 'powerful'):
-                try:
-                    raw = self.find_value_by_pn(response, *self.get_path(key))
-                    self.values[key] = self.TRANSLATIONS[key].get(raw, 'off')
-                except DaikinException:
-                    pass
-
-            # Get current vertical vane position for the active mode.
-            try:
-                if self.values['mode'] in self.API_PATHS["swing_settings"]:
-                    vane_raw = self.find_value_by_pn(
-                        response,
-                        *self.get_path(
-                            "swing_settings", self.values['mode'], "vertical"
-                        ),
-                    )
-                    self.values['vane_vertical'] = self.VERTICAL_VANE_MAP.get(
-                        vane_raw, 'off'
-                    )
-            except DaikinException:
-                pass
-
-            # Get adapter capability flags / firmware info (optional).
-            for key, path_key in (
-                ('ver', 'firmware_ver'),
-                ('api_ver', 'api_ver'),
-            ):
-                try:
-                    self.values[key] = str(
-                        self.find_value_by_pn(response, *self.get_path(path_key))
-                    )
-                except DaikinException:
-                    pass
-
-            # Get outdoor unit sensors (optional, read-only).
-            try:
-                self.values['cmp_temp'] = str(
-                    self.hex_le_to_temp(
-                        self.find_value_by_pn(
-                            response, *self.get_path("compressor_temp")
-                        )
-                    )
-                )
-            except DaikinException:
-                pass
-
-            for key, path_key in (
-                ('model', 'indoor_model'),
-                ('outdoor_model', 'outdoor_model'),
-            ):
-                try:
-                    self.values[key] = self.hex_to_ascii(
-                        self.find_value_by_pn(response, *self.get_path(path_key))
-                    )
-                except DaikinException:
-                    pass
+            # Optional feature toggles, vane position, capability flags and
+            # outdoor sensors (each guarded - not all firmware exposes them).
+            self._extract_optional_readings(response)
 
             # Get energy data
             try:
@@ -546,6 +491,66 @@ class DaikinBRP084(Appliance):
         except DaikinException as e:
             _LOGGER.error("Error extracting values: %s", e)
             raise
+
+    def _extract_optional_readings(self, response):
+        """Extract optional values that not all firmware/models expose.
+
+        Covers the on/off feature toggles, the active-mode vertical vane
+        position, adapter capability/firmware info and outdoor-unit sensors.
+        Each read is guarded individually so a missing container just leaves
+        that value unset rather than failing the whole status update.
+        """
+        # On/off feature toggles (comfort/econo/outdoor_quiet/powerful).
+        for key in self.POWER_TOGGLES:
+            try:
+                raw = self.find_value_by_pn(response, *self.get_path(key))
+                self.values[key] = self.TRANSLATIONS[key].get(raw, 'off')
+            except DaikinException:
+                pass
+
+        # Current vertical vane position for the active mode.
+        try:
+            if self.values['mode'] in self.API_PATHS["swing_settings"]:
+                vane_raw = self.find_value_by_pn(
+                    response,
+                    *self.get_path("swing_settings", self.values['mode'], "vertical"),
+                )
+                self.values['vane_vertical'] = self.VERTICAL_VANE_MAP.get(
+                    vane_raw, 'off'
+                )
+        except DaikinException:
+            pass
+
+        # Adapter capability flags / firmware info.
+        for key, path_key in (('ver', 'firmware_ver'), ('api_ver', 'api_ver')):
+            try:
+                self.values[key] = str(
+                    self.find_value_by_pn(response, *self.get_path(path_key))
+                )
+            except DaikinException:
+                pass
+
+        # Outdoor-unit compressor temperature.
+        try:
+            self.values['cmp_temp'] = str(
+                self.hex_le_to_temp(
+                    self.find_value_by_pn(response, *self.get_path("compressor_temp"))
+                )
+            )
+        except DaikinException:
+            pass
+
+        # Decoded model strings.
+        for key, path_key in (
+            ('model', 'indoor_model'),
+            ('outdoor_model', 'outdoor_model'),
+        ):
+            try:
+                self.values[key] = self.hex_to_ascii(
+                    self.find_value_by_pn(response, *self.get_path(path_key))
+                )
+            except DaikinException:
+                pass
 
     async def _get_resource(self, path: str, params: Optional[Dict] = None):
         """Make the HTTP request to the device."""
