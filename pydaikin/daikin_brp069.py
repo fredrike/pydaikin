@@ -262,7 +262,16 @@ class DaikinBRP069(Appliance):
                 key = val + self.values['mode']
                 if key in current_val:
                     self.values[k] = current_val[key]
-
+        if self.values.get('stemp') == '--':
+            for fallback_key in ('dt3', 'dt4', 'dt0', 'dt2'):
+                if current_val.get(fallback_key, '--') != '--':
+                    self.values['stemp'] = current_val[fallback_key]
+                    _LOGGER.debug(
+                        "stemp was '--', falling back to %s=%s",
+                        fallback_key,
+                        self.values['stemp'],
+                    )
+                    break
         return current_val
 
     async def set(self, settings):
