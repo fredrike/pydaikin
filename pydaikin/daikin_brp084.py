@@ -97,14 +97,14 @@ class DaikinBRP084(Appliance):
         # Mode-specific paths for temperature settings
         "temp_settings": {
             "cool": E_1002_E_3001_PATH + ["p_02"],
-            "heat": E_1002_E_3001_PATH + ["p_03"],
+            "hot": E_1002_E_3001_PATH + ["p_03"],
             "auto": E_1002_E_3001_PATH + ["p_1D"],
         },
         # Fan settings organized by mode
         "fan_settings": {
             "auto": E_1002_E_3001_PATH + ["p_26"],
             "cool": E_1002_E_3001_PATH + ["p_09"],
-            "heat": E_1002_E_3001_PATH + ["p_0A"],
+            "hot": E_1002_E_3001_PATH + ["p_0A"],
             "fan": E_1002_E_3001_PATH + ["p_28"],
         },
         # Swing settings organized by mode
@@ -117,7 +117,7 @@ class DaikinBRP084(Appliance):
                 "vertical": E_1002_E_3001_PATH + ["p_05"],
                 "horizontal": E_1002_E_3001_PATH + ["p_06"],
             },
-            "heat": {
+            "hot": {
                 "vertical": E_1002_E_3001_PATH + ["p_07"],
                 "horizontal": E_1002_E_3001_PATH + ["p_08"],
             },
@@ -149,7 +149,7 @@ class DaikinBRP084(Appliance):
         'mode': {
             '0300': 'auto',
             '0200': 'cool',
-            '0100': 'heat',
+            '0100': 'hot',
             '0000': 'fan',
             '0500': 'dry',
             '00': 'off',
@@ -180,9 +180,15 @@ class DaikinBRP084(Appliance):
     MODE_MAP = {
         '0300': 'auto',
         '0200': 'cool',
-        '0100': 'heat',
+        '0100': 'hot',
         '0000': 'fan',
         '0500': 'dry',
+    }
+
+    # Aliases accepted from callers (e.g. Home Assistant's climate integration
+    # passes "heat" as an alias for "hot").
+    MODE_ALIASES = {
+        'heat': 'hot',
     }
 
     FAN_MODE_MAP = {
@@ -457,7 +463,8 @@ class DaikinBRP084(Appliance):
                 self.values['pow'] = '0'
             elif key == 'mode':
                 self.values['pow'] = '1'
-                self.values['mode'] = value
+                # Normalize alias so cached mode matches what was written
+                self.values['mode'] = self.MODE_ALIASES.get(value, value)
             else:
                 self.values[key] = value
 
@@ -468,11 +475,29 @@ class DaikinBRP084(Appliance):
         requests.append(DaikinAttribute(path[-1], value, path[2:4], path[0]))
 
     def _handle_power_setting(self, settings, requests):
-        """Handle power-related settings."""
+        """Handle power-related settings.
+
+        Mirrors BRP069's contract (see daikin_brp069.py _update_settings,
+        the `'mode' in settings or not settings → pow='1'` branch):
+          - device.set({})            → power ON (HA's toggle switch path)
+          - device.set({'mode':'off'}) → power OFF
+          - device.set({'mode': X})   → power ON + set mode X
+          - device.set({'stemp': X})  → temperature only, leave power as-is
+                                         (so changing setpoint on a powered-
+                                         off unit does NOT turn it on).
+        """
+        # Truly empty settings → HA's "turn on" path. Only this empty case
+        # forces a power write; other partial settings (e.g. just stemp)
+        # leave power untouched.
+        if not settings:
+            self.add_request(requests, self.get_path("power"), "01")
+            return
+
+        # Settings present but no mode key → no power write.
         if 'mode' not in settings:
             return
 
-        # Turn off/on
+        # Mode change → write power explicitly.
         power_path = self.get_path("power")
         self.add_request(
             requests, power_path, "00" if settings['mode'] == 'off' else "01"
@@ -481,11 +506,17 @@ class DaikinBRP084(Appliance):
         if settings['mode'] == 'off':
             return
 
-        # Set mode
-        mode_value = self.REVERSE_MODE_MAP.get(settings['mode'])
+        # Set mode. Apply caller-side aliases (e.g. HA passes "heat" for hot).
+        requested_mode = self.MODE_ALIASES.get(settings['mode'], settings['mode'])
+        mode_value = self.REVERSE_MODE_MAP.get(requested_mode)
         if mode_value:
             mode_path = self.get_path("mode")
             self.add_request(requests, mode_path, mode_value)
+        else:
+            _LOGGER.warning(
+                "Unrecognized mode %r; no mode write will be sent",
+                settings['mode'],
+            )
 
     def _handle_temperature_setting(self, settings, requests):
         """Handle temperature-related settings."""
