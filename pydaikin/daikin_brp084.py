@@ -93,7 +93,92 @@ class DaikinBRP084(Appliance):
             "e_A00D",
             "p_01",
         ],
+        # Outdoor unit e_2006 (discovered via setpoint-sweep probing on FTXM71):
+        # p_01 = compressor run flag, p_04 = compressor frequency (u16 LE, Hz),
+        # p_0B = refrigerant temp (i16 LE / 10 °C), p_25 = heat-exchanger temp.
+        "compressor_running": [
+            "/dsiot/edge/adr_0200.dgc_status",
+            "dgc_status",
+            "e_1003",
+            "e_2006",
+            "p_01",
+        ],
+        "compressor_frequency": [
+            "/dsiot/edge/adr_0200.dgc_status",
+            "dgc_status",
+            "e_1003",
+            "e_2006",
+            "p_04",
+        ],
+        "outdoor_refrigerant_temp": [
+            "/dsiot/edge/adr_0200.dgc_status",
+            "dgc_status",
+            "e_1003",
+            "e_2006",
+            "p_0B",
+        ],
+        "outdoor_hx_temp": [
+            "/dsiot/edge/adr_0200.dgc_status",
+            "dgc_status",
+            "e_1003",
+            "e_2006",
+            "p_25",
+        ],
+        # Outdoor unit other diagnostics (verified via fan-mode probe):
+        #   e_2005/p_01 = electronic expansion valve position (u16 LE, steps)
+        #   e_2008/p_01 = outdoor fan step (u16 LE)
+        "eev_position": [
+            "/dsiot/edge/adr_0200.dgc_status",
+            "dgc_status",
+            "e_1003",
+            "e_2005",
+            "p_01",
+        ],
+        "outdoor_fan_step": [
+            "/dsiot/edge/adr_0200.dgc_status",
+            "dgc_status",
+            "e_1003",
+            "e_2008",
+            "p_01",
+        ],
+        # Indoor unit e_3003/p_0C — internal "compensated target" the firmware
+        # uses for control, computed as user setpoint + 3-4°C control curve
+        # offset (verified via setpoint sweep: setpoint=20→23°C, p_0C=23→27°C).
+        # Encoding matches the user-facing setpoints in e_3001 (u8/2 = °C).
+        # Writable but auto-overwritten by control logic within ~10s.
+        # The gap between this and the user setpoint is the most likely cause
+        # of the "+5°C overshoot" Daikin owners often report.
+        "internal_heat_target": [
+            "/dsiot/edge/adr_0100.dgc_status",
+            "dgc_status",
+            "e_1002",
+            "e_3003",
+            "p_0C",
+        ],
+        # Indoor unit e_2015_02 (discovered via fan-mode probe on FTXM71):
+        # both sensors converge with compressor off → same coil, two locations.
+        # In hot mode: p_03 (refrigerant inlet, hot gas from compressor) is
+        # 20-30°C above p_02 (refrigerant outlet, after dumping heat to room).
+        # In cool mode the relationship inverts.
+        "indoor_coil_inlet_temp": [
+            "/dsiot/edge/adr_0100.dgc_status",
+            "dgc_status",
+            "e_1002",
+            "e_2015_02",
+            "p_03",
+        ],
+        "indoor_coil_outlet_temp": [
+            "/dsiot/edge/adr_0100.dgc_status",
+            "dgc_status",
+            "e_1002",
+            "e_2015_02",
+            "p_02",
+        ],
         "mac_address": ["/dsiot/edge.adp_i", "adp_i", "mac"],
+        # Adapter firmware version (e.g. "3_12_3" -> "3.12.3")
+        "firmware_version": ["/dsiot/edge.adp_i", "adp_i", "ver"],
+        # Unit model code, ASCII-hex encoded in e_A001/p_0D (e.g. "43393431" -> "C941")
+        "model_code": E_1002_PATH + ["e_A001", "p_0D"],
         # Mode-specific paths for temperature settings
         "temp_settings": {
             "cool": E_1002_E_3001_PATH + ["p_02"],
@@ -254,6 +339,31 @@ class DaikinBRP084(Appliance):
         return int(value, 16)
 
     @staticmethod
+    def hex_le_u16(value: str) -> Optional[int]:
+        """Decode a 2-byte little-endian unsigned integer from a 4-char hex string."""
+        if not isinstance(value, str) or len(value) < 4:
+            return None
+        try:
+            return int(value[2:4] + value[0:2], 16)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def hex_le_i16_div10(value: str) -> Optional[float]:
+        """Decode a 2-byte little-endian signed int16 / 10 from a 4-char hex string.
+
+        Used for refrigerant / heat-exchanger / coil temperatures across both
+        the indoor and outdoor units. Returns degrees Celsius.
+        """
+        if not isinstance(value, str) or len(value) < 4:
+            return None
+        try:
+            raw = int.from_bytes(bytes.fromhex(value[:4]), 'little', signed=True)
+            return raw / 10.0
+        except ValueError:
+            return None
+
+    @staticmethod
     def find_value_by_pn(data: dict, fr: str, *keys):
         """Find values in nested response data."""
         data = [x['pc'] for x in data['responses'] if x['fr'] == fr]
@@ -300,23 +410,6 @@ class DaikinBRP084(Appliance):
 
         return 'off'  # Default return value
 
-    def _safe_extract(self, response: dict, *keys) -> Optional[str]:
-        """Extract a value from the response, returning None if not found."""
-        try:
-            return self.find_value_by_pn(response, *keys)
-        except DaikinException:
-            return None
-
-    def _safe_hex_temp(self, response: dict, path_key: str, divisor: int = 2) -> str:
-        """Extract a temperature value, returning '--' if missing or null."""
-        try:
-            raw = self.find_value_by_pn(response, *self.get_path(path_key))
-            if raw is not None:
-                return str(self.hex_to_temp(raw, divisor))
-        except DaikinException:
-            pass
-        return "--"
-
     async def init(self):
         """Initialize the device and fetch initial state."""
         # Only update if values haven't been populated yet (e.g., by factory detection)
@@ -348,12 +441,9 @@ class DaikinBRP084(Appliance):
 
         # Extract basic info
         try:
-            # Get MAC address and firmware version
+            # Get MAC address
             mac = self.find_value_by_pn(response, *self.get_path("mac_address"))
             self.values['mac'] = mac
-            self.values['ver'] = self._safe_extract(
-                response, "/dsiot/edge.adp_i", "adp_i", "ver"
-            )
 
             # Get power state
             is_off = self.find_value_by_pn(response, *self.get_path("power")) == "00"
@@ -365,7 +455,11 @@ class DaikinBRP084(Appliance):
             self.values['mode'] = 'off' if is_off else self.MODE_MAP[mode_value]
 
             # Get temperatures
-            self.values['otemp'] = self._safe_hex_temp(response, "outdoor_temp")
+            self.values['otemp'] = str(
+                self.hex_to_temp(
+                    self.find_value_by_pn(response, *self.get_path("outdoor_temp"))
+                )
+            )
 
             self.values['htemp'] = str(
                 self.hex_to_temp(
@@ -425,9 +519,131 @@ class DaikinBRP084(Appliance):
             except DaikinException:
                 pass
 
+            # Get compressor state (outdoor unit e_2006). Present on FTXM-series;
+            # absent on units that don't expose e_2006 — in that case we leave
+            # the values unset and support_compressor_frequency stays False.
+            try:
+                freq_hex = self.find_value_by_pn(
+                    response, *self.get_path("compressor_frequency")
+                )
+                freq = self.hex_le_u16(freq_hex)
+                if freq is not None:
+                    self.values['cmpfreq'] = str(freq)
+            except DaikinException:
+                pass
+
+            try:
+                run_flag = self.find_value_by_pn(
+                    response, *self.get_path("compressor_running")
+                )
+                if run_flag is not None:
+                    self.values['compressor_running'] = (
+                        '1' if run_flag == '01' else '0'
+                    )
+            except DaikinException:
+                pass
+
+            # Diagnostic temperature sensors (i16 LE / 10 °C). Each wrapped in
+            # try/except so units that don't expose the entity stay quiet.
+            for values_key, path_key in (
+                ('outdoor_refrigerant_temp', 'outdoor_refrigerant_temp'),
+                ('outdoor_hx_temp',          'outdoor_hx_temp'),
+                ('indoor_coil_inlet_temp',   'indoor_coil_inlet_temp'),
+                ('indoor_coil_outlet_temp',  'indoor_coil_outlet_temp'),
+            ):
+                try:
+                    raw = self.find_value_by_pn(response, *self.get_path(path_key))
+                    decoded = self.hex_le_i16_div10(raw)
+                    if decoded is not None:
+                        self.values[values_key] = str(decoded)
+                except DaikinException:
+                    pass
+
+            # Diagnostic step values (u16 LE, raw step counts).
+            for values_key, path_key in (
+                ('eev_position',     'eev_position'),
+                ('outdoor_fan_step', 'outdoor_fan_step'),
+            ):
+                try:
+                    raw = self.find_value_by_pn(response, *self.get_path(path_key))
+                    decoded = self.hex_le_u16(raw)
+                    if decoded is not None:
+                        self.values[values_key] = str(decoded)
+                except DaikinException:
+                    pass
+
+            # Internal compensated target (u8 / 2 = °C, same encoding
+            # as e_3001/p_03 user setpoint). See API_PATHS comment above.
+            try:
+                raw = self.find_value_by_pn(
+                    response, *self.get_path("internal_heat_target")
+                )
+                if raw and len(raw) >= 2:
+                    self.values['internal_heat_target'] = str(int(raw[:2], 16) / 2)
+            except DaikinException:
+                pass
+            except ValueError:
+                pass
+
+            # Estimated indoor temperature (hot mode only): the indoor sensor
+            # is a return-air thermistor that reads several °C above actual
+            # room air. The firmware silently compensates by aiming for a
+            # higher internal target (e_3003/p_0C = user setpoint + bias).
+            # Subtract that same bias from the return-air reading to estimate
+            # actual room temperature.
+            #
+            #   estimated = indoor_temp - (internal_heat_target - user_setpoint)
+            #
+            # Only computed in hot mode (internal_heat_target is hot-mode-specific
+            # and undefined in cool/fan/dry/auto/off).
+            if self.values.get('mode', invalidate=False) == 'hot':
+                try:
+                    htemp = float(self.values['htemp'])
+                    stemp = float(self.values['stemp'])
+                    iht = float(self.values['internal_heat_target'])
+                    bias = iht - stemp
+                    self.values['estimated_indoor_temp'] = str(round(htemp - bias, 1))
+                except (KeyError, ValueError, TypeError):
+                    pass
+
+            # Device identity — firmware version (from WiFi adapter) and model
+            # code (ASCII-hex in e_A001/p_0D). entity.py in HA expects these
+            # under `ver` and `model` respectively for the DeviceInfo panel.
+            try:
+                ver = self.find_value_by_pn(
+                    response, *self.get_path("firmware_version")
+                )
+                if ver:
+                    self.values['ver'] = ver
+            except DaikinException:
+                pass
+
+            try:
+                model_hex = self.find_value_by_pn(
+                    response, *self.get_path("model_code")
+                )
+                if model_hex:
+                    try:
+                        self.values['model'] = (
+                            bytes.fromhex(model_hex)
+                            .decode('ascii', errors='replace')
+                            .strip()
+                        )
+                    except ValueError:
+                        pass
+            except DaikinException:
+                pass
+
         except DaikinException as e:
             _LOGGER.error("Error extracting values: %s", e)
             raise
+
+        # Feed the energy-consumption history buffer. The base-class
+        # Appliance.update_status() does this automatically, but BRP084
+        # overrides the method and so we must call it explicitly — otherwise
+        # current_power_consumption() never leaves its "not initialized"
+        # branch and HA's "Estimated power draw" sensor stays at 0 kW.
+        self._register_energy_consumption_history()
 
     async def _get_resource(self, path: str, params: Optional[Dict] = None):
         """Make the HTTP request to the device."""
@@ -559,7 +775,7 @@ class DaikinBRP084(Appliance):
             return
 
         # Set vertical swing
-        vertical_path = self.get_path("swing_settings", self.values['mode'], "vertical")
+        vertical_path = self.get_path("swing_settings", self.values['mode"], "vertical")
         self.add_request(
             requests,
             vertical_path,
@@ -603,6 +819,17 @@ class DaikinBRP084(Appliance):
 
             # Update status after setting
             await self.update_status()
+
+    @property
+    def today_energy_consumption(self):
+        """Return today's energy consumption in kWh.
+
+        BRP084 reports only aggregate daily energy (via the `datas` array); the
+        cool/hot per-day split used by BRP069 (`curr_day_cool`/`curr_day_hot`)
+        is not available on this firmware. Fall back to the total so HA energy
+        sensors populate instead of staying at 0.
+        """
+        return super().today_energy_consumption or self.today_total_energy_consumption
 
     # pylint: disable=unused-argument
     async def set_streamer(self, mode):
