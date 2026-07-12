@@ -537,9 +537,7 @@ class DaikinBRP084(Appliance):
                     response, *self.get_path("compressor_running")
                 )
                 if run_flag is not None:
-                    self.values['compressor_running'] = (
-                        '1' if run_flag == '01' else '0'
-                    )
+                    self.values['compressor_running'] = '1' if run_flag == '01' else '0'
             except DaikinException:
                 pass
 
@@ -547,9 +545,9 @@ class DaikinBRP084(Appliance):
             # try/except so units that don't expose the entity stay quiet.
             for values_key, path_key in (
                 ('outdoor_refrigerant_temp', 'outdoor_refrigerant_temp'),
-                ('outdoor_hx_temp',          'outdoor_hx_temp'),
-                ('indoor_coil_inlet_temp',   'indoor_coil_inlet_temp'),
-                ('indoor_coil_outlet_temp',  'indoor_coil_outlet_temp'),
+                ('outdoor_hx_temp', 'outdoor_hx_temp'),
+                ('indoor_coil_inlet_temp', 'indoor_coil_inlet_temp'),
+                ('indoor_coil_outlet_temp', 'indoor_coil_outlet_temp'),
             ):
                 try:
                     raw = self.find_value_by_pn(response, *self.get_path(path_key))
@@ -561,7 +559,7 @@ class DaikinBRP084(Appliance):
 
             # Diagnostic step values (u16 LE, raw step counts).
             for values_key, path_key in (
-                ('eev_position',     'eev_position'),
+                ('eev_position', 'eev_position'),
                 ('outdoor_fan_step', 'outdoor_fan_step'),
             ):
                 try:
@@ -781,7 +779,7 @@ class DaikinBRP084(Appliance):
             vertical_path,
             (
                 self.TURN_OFF_SWING_AXIS
-                 if settings['f_dir'] in ('off', 'horizontal')
+                if settings['f_dir'] in ('off', 'horizontal')
                 else self.TURN_ON_SWING_AXIS
             ),
         )
