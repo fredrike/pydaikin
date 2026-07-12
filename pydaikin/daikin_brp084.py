@@ -775,13 +775,13 @@ class DaikinBRP084(Appliance):
             return
 
         # Set vertical swing
-        vertical_path = self.get_path("swing_settings", self.values['mode"], "vertical")
+        vertical_path = self.get_path("swing_settings", self.values["mode"], "vertical")
         self.add_request(
             requests,
             vertical_path,
             (
                 self.TURN_OFF_SWING_AXIS
-                if settings['f_dir'] in ('off', 'horizontal')
+                 if settings['f_dir'] in ('off', 'horizontal')
                 else self.TURN_ON_SWING_AXIS
             ),
         )
