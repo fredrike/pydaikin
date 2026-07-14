@@ -145,37 +145,6 @@ class DaikinBRP084(Appliance):
         },
     }
 
-    TRANSLATIONS: dict[str, dict[str, str]] = {
-        'mode': {
-            '0300': 'auto',
-            '0200': 'cool',
-            '0100': 'hot',
-            '0000': 'fan',
-            '0500': 'dry',
-            '00': 'off',
-            '01': 'on',
-        },
-        'f_rate': {
-            '0A00': 'auto',
-            '0B00': 'quiet',
-            '0300': '1',
-            '0400': '2',
-            '0500': '3',
-            '0600': '4',
-            '0700': '5',
-        },
-        'f_dir': {
-            'off': 'off',
-            'vertical': 'vertical',
-            'horizontal': 'horizontal',
-            'both': '3d',
-        },
-        'en_hol': {
-            '0': 'off',
-            '1': 'on',
-        },
-    }
-
     # Mapping between the values from firmware 2.8.0 to traditional API values
     MODE_MAP = {
         '0300': 'auto',
@@ -195,7 +164,24 @@ class DaikinBRP084(Appliance):
         '0700': '5',
     }
 
-    # These mappings are now handled by the API_PATHS dictionary
+    TRANSLATIONS: dict[str, dict[str, str]] = {
+        'mode': MODE_MAP
+        | {
+            '00': 'off',
+            '01': 'on',
+        },
+        'f_rate': FAN_MODE_MAP,
+        'f_dir': {
+            'off': 'off',
+            'vertical': 'vertical',
+            'horizontal': 'horizontal',
+            'both': '3d',
+        },
+        'en_hol': {
+            '0': 'off',
+            '1': 'on',
+        },
+    }
 
     # The values for turning swing axis on/off
     TURN_OFF_SWING_AXIS = "000000"
