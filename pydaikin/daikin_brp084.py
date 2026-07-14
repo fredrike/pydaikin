@@ -459,11 +459,29 @@ class DaikinBRP084(Appliance):
         requests.append(DaikinAttribute(path[-1], value, path[2:4], path[0]))
 
     def _handle_power_setting(self, settings, requests):
-        """Handle power-related settings."""
+        """Handle power-related settings.
+
+        Mirrors BRP069's contract (see daikin_brp069.py _update_settings,
+        the ``'mode' in settings or not settings → pow='1'`` branch):
+          - device.set({})             → power ON  (HA's toggle-switch path)
+          - device.set({'mode':'off'}) → power OFF
+          - device.set({'mode': X})    → power ON + set mode X
+          - device.set({'stemp': X})   → temperature only, leave power as-is
+                                          (so changing setpoint on a powered-
+                                          off unit does NOT turn it on).
+        """
+        # Truly empty settings → HA's "turn on" path. Only this empty case
+        # forces a power write; other partial settings (e.g. just stemp)
+        # leave power untouched.
+        if not settings:
+            self.add_request(requests, self.get_path("power"), "01")
+            return
+
+        # Settings present but no mode key → no power write.
         if 'mode' not in settings:
             return
 
-        # Turn off/on
+        # Mode change → write power explicitly.
         power_path = self.get_path("power")
         self.add_request(
             requests, power_path, "00" if settings['mode'] == 'off' else "01"
@@ -472,11 +490,16 @@ class DaikinBRP084(Appliance):
         if settings['mode'] == 'off':
             return
 
-        # Set mode
+        # Set mode.
         mode_value = self.REVERSE_MODE_MAP.get(settings['mode'])
         if mode_value:
             mode_path = self.get_path("mode")
             self.add_request(requests, mode_path, mode_value)
+        else:
+            _LOGGER.warning(
+                "Unrecognized mode %r; no mode write will be sent",
+                settings['mode'],
+            )
 
     def _handle_temperature_setting(self, settings, requests):
         """Handle temperature-related settings."""

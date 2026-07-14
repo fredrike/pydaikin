@@ -600,3 +600,85 @@ async def test_firmware_version_extraction(aresponses, client_session):
 
     assert device.values.get('ver') == '3_12_3'
     assert device.values.get('mac') == '112233445566'
+
+
+def test_empty_settings_sends_power_on(client_session):
+    """set({}) sends a power-ON request (HA toggle-switch path)."""
+    device = DaikinBRP084('ip', session=client_session)
+    requests = []
+    device._handle_power_setting({}, requests)
+
+    assert len(requests) == 1
+    assert requests[0].name == "p_01"
+    assert requests[0].value == "01"
+
+
+def test_stemp_only_no_power_write(client_session):
+    """set({'stemp': X}) does not touch power."""
+    device = DaikinBRP084('ip', session=client_session)
+    device.values['mode'] = 'cool'
+
+    requests = []
+    device._handle_power_setting({'stemp': '25.0'}, requests)
+
+    assert len(requests) == 0
+
+
+def test_f_rate_only_no_power_write(client_session):
+    """set({'f_rate': X}) does not touch power."""
+    device = DaikinBRP084('ip', session=client_session)
+    device.values['mode'] = 'cool'
+
+    requests = []
+    device._handle_power_setting({'f_rate': 'auto'}, requests)
+
+    assert len(requests) == 0
+
+
+def test_mode_off_sends_power_off(client_session):
+    """set({'mode': 'off'}) sends power OFF and no mode write."""
+    device = DaikinBRP084('ip', session=client_session)
+    requests = []
+    device._handle_power_setting({'mode': 'off'}, requests)
+
+    assert len(requests) == 1
+    assert requests[0].name == "p_01"
+    assert requests[0].value == "00"
+
+
+def test_valid_mode_sends_power_on_and_mode(client_session):
+    """set({'mode': 'cool'}) sends power ON followed by mode hex."""
+    device = DaikinBRP084('ip', session=client_session)
+    requests = []
+    device._handle_power_setting({'mode': 'cool'}, requests)
+
+    assert len(requests) == 2
+    assert requests[0].value == "01"  # power on
+    assert requests[1].value == "0200"  # cool hex
+
+
+def test_hot_mode_sends_correct_hex(client_session):
+    """set({'mode': 'hot'}) maps to hex 0100."""
+    device = DaikinBRP084('ip', session=client_session)
+    requests = []
+    device._handle_power_setting({'mode': 'hot'}, requests)
+
+    assert len(requests) == 2
+    assert requests[0].value == "01"  # power on
+    assert requests[1].value == "0100"  # hot hex
+
+
+def test_unrecognized_mode_logs_warning(client_session, caplog):
+    """Unrecognized mode sends power ON but no mode write, and logs a warning."""
+    import logging
+
+    device = DaikinBRP084('ip', session=client_session)
+    requests = []
+
+    with caplog.at_level(logging.WARNING):
+        device._handle_power_setting({'mode': 'bogus'}, requests)
+
+    assert len(requests) == 1  # power ON only
+    assert requests[0].value == "01"
+    assert "Unrecognized mode" in caplog.text
+    assert "bogus" in caplog.text
