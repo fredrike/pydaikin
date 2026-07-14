@@ -97,14 +97,14 @@ class DaikinBRP084(Appliance):
         # Mode-specific paths for temperature settings
         "temp_settings": {
             "cool": E_1002_E_3001_PATH + ["p_02"],
-            "heat": E_1002_E_3001_PATH + ["p_03"],
+            "hot": E_1002_E_3001_PATH + ["p_03"],
             "auto": E_1002_E_3001_PATH + ["p_1D"],
         },
         # Fan settings organized by mode
         "fan_settings": {
             "auto": E_1002_E_3001_PATH + ["p_26"],
             "cool": E_1002_E_3001_PATH + ["p_09"],
-            "heat": E_1002_E_3001_PATH + ["p_0A"],
+            "hot": E_1002_E_3001_PATH + ["p_0A"],
             "fan": E_1002_E_3001_PATH + ["p_28"],
         },
         # Swing settings organized by mode
@@ -117,7 +117,7 @@ class DaikinBRP084(Appliance):
                 "vertical": E_1002_E_3001_PATH + ["p_05"],
                 "horizontal": E_1002_E_3001_PATH + ["p_06"],
             },
-            "heat": {
+            "hot": {
                 "vertical": E_1002_E_3001_PATH + ["p_07"],
                 "horizontal": E_1002_E_3001_PATH + ["p_08"],
             },
@@ -149,7 +149,7 @@ class DaikinBRP084(Appliance):
         'mode': {
             '0300': 'auto',
             '0200': 'cool',
-            '0100': 'heat',
+            '0100': 'hot',
             '0000': 'fan',
             '0500': 'dry',
             '00': 'off',
@@ -180,7 +180,7 @@ class DaikinBRP084(Appliance):
     MODE_MAP = {
         '0300': 'auto',
         '0200': 'cool',
-        '0100': 'heat',
+        '0100': 'hot',
         '0000': 'fan',
         '0500': 'dry',
     }
