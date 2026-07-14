@@ -145,7 +145,7 @@ class DaikinBRP084(Appliance):
         },
     }
 
-    TRANSLATIONS = {
+    TRANSLATIONS: dict[str, dict[str, str]] = {
         'mode': {
             '0300': 'auto',
             '0200': 'cool',
@@ -206,7 +206,7 @@ class DaikinBRP084(Appliance):
 
     INFO_RESOURCES = []
 
-    def get_path(self, *keys):
+    def get_path(self, *keys) -> list[str]:
         """Get API path from the nested dictionary structure.
 
         Args:
@@ -218,14 +218,19 @@ class DaikinBRP084(Appliance):
             List of path components to use with find_value_by_pn.
 
         Raises:
-            DaikinException: If the path is not found in the API_PATHS dictionary.
+            DaikinException: If the path is not found in the API_PATHS dictionary or
+                the resolved value is not a list.
         """
         current = self.API_PATHS
         for key in keys:
             if key not in current:
-                raise DaikinException(f"Path key {key} not found")
+                raise DaikinException(
+                    f"Path key {key} not found in path: {'/'.join(map(str, keys))}"
+                )
             current = current[key]
-        return current
+        if isinstance(current, list):
+            return current
+        raise DaikinException(f"Resolved path is not a list: {current}")
 
     def __init__(self, device_id, session: Optional[ClientSession] = None) -> None:
         """Initialize the Daikin appliance for firmware 2.8.0."""
