@@ -31,7 +31,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
         await instance.__init__(*a, **kw)
         return instance._generated_object
 
-    async def __init__(
+    async def __init__(  # pylint: disable=too-many-branches
         self,
         device_id: str,
         session: Optional[ClientSession] = None,
@@ -44,11 +44,14 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
         # Check if this is a device with optional port from discovery
         device_ip, device_port = self._extract_ip_port(device_id)
         obj = None
+        already_initialized = False
 
         if password:
             obj = DaikinSkyFi(device_ip, session, password)
         elif key:
             obj = await self._try_brp072c(device_ip, session, key, kwargs)
+            if obj is not None:
+                already_initialized = True
         # Try BRP084, firmware 2.8.0
         if not obj:
             try:
@@ -88,7 +91,8 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 _LOGGER.debug("Using custom port %s for AirBase", device_port)
                 obj.base_url = f"http://{device_ip}:{device_port}"
 
-        await obj.init()
+        if not already_initialized:
+            await obj.init()
         if not obj.values.get("mode"):
             raise DaikinException(
                 f"Error creating device, {device_id} is not supported."
