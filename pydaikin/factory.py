@@ -4,6 +4,7 @@ import logging
 import re
 from typing import Optional, Tuple
 
+import aiohttp
 from aiohttp import ClientSession
 from aiohttp.web_exceptions import HTTPNotFound
 
@@ -47,23 +48,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
         if password:
             obj = DaikinSkyFi(device_ip, session, password)
         elif key:
-            obj = DaikinBRP072C(
-                device_ip,
-                session,
-                key=key,
-                uuid=kwargs.get('uuid'),
-                ssl_context=kwargs.get('ssl_context'),
-            )
-            try:
-                # Some BRP069 units also use keys to auth. 
-                # If treated as a BRP072 we won't be able to connect, 
-                # since this will force https on a unit that expects connection to port 80.
-                # We do a preliminary attempt at initialization to catch connection errors 
-                # and then fallback to the following cases.
-                await obj.init()
-            except Exception as e:
-                _LOGGER.debug(e)
-                obj = None
+            obj = await self._try_brp072c(device_ip, session, key, kwargs)
         # Try BRP084, firmware 2.8.0
         if not obj:
             try:
@@ -110,6 +95,34 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
             )
         _LOGGER.debug("Daikin generated object: %s", type(obj))
         self._generated_object = obj
+
+    @staticmethod
+    async def _try_brp072c(
+        device_ip: str,
+        session: Optional[ClientSession],
+        key: str,
+        kwargs: dict,
+    ) -> Optional[DaikinBRP072C]:
+        """Try to connect as BRP072C; return None if it fails."""
+        obj = DaikinBRP072C(
+            device_ip,
+            session,
+            key=key,
+            uuid=kwargs.get("uuid"),
+            ssl_context=kwargs.get("ssl_context"),
+        )
+        try:
+            # Some BRP069 units also use keys to auth.
+            # If treated as a BRP072 we won't be able to connect,
+            # since this will force https on a unit that expects
+            # connection to port 80. We do a preliminary attempt at
+            # initialization to catch connection errors and then
+            # fallback to the following cases.
+            await obj.init()
+            return obj
+        except (DaikinException, aiohttp.ClientError, TimeoutError, OSError) as err:
+            _LOGGER.debug(err)
+            return None
 
     @staticmethod
     def _extract_ip_port(device_id: str) -> Tuple[str, Optional[int]]:
