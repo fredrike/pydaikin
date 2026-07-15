@@ -682,3 +682,138 @@ def test_unrecognized_mode_logs_warning(client_session, caplog):
     assert requests[0].value == "01"
     assert "Unrecognized mode" in caplog.text
     assert "bogus" in caplog.text
+
+
+def _energy_response(
+    en_ipw_sep="0",
+    datas=None,
+    datas2=None,
+    this_year=None,
+    previous_year=None,
+):
+    """Build a minimal multireq response exercising only the energy paths."""
+    week_pch = [{"pn": "today_runtime", "pv": "120"}]
+    if datas is not None:
+        week_pch.append({"pn": "datas", "pv": datas})
+    if datas2 is not None:
+        week_pch.append({"pn": "datas2", "pv": datas2})
+
+    year_pch = []
+    if this_year is not None:
+        year_pch.append({"pn": "this_year", "pv": this_year})
+    if previous_year is not None:
+        year_pch.append({"pn": "previous_year", "pv": previous_year})
+
+    adp_pch = [{"pn": "mac", "pv": "112233445566"}]
+    if en_ipw_sep is not None:
+        adp_pch.append({"pn": "func", "pch": [{"pn": "en_ipw_sep", "pv": en_ipw_sep}]})
+
+    return {
+        "responses": [
+            {
+                "fr": "/dsiot/edge/adr_0100.i_power.week_power",
+                "pc": {"pn": "week_power", "pch": week_pch},
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge/adr_0100.i_power.year_power",
+                "pc": {"pn": "year_power", "pch": year_pch},
+                "rsc": 2000,
+            },
+            {
+                "fr": "/dsiot/edge.adp_i",
+                "pc": {"pn": "adp_i", "pch": adp_pch},
+                "rsc": 2000,
+            },
+        ]
+    }
+
+
+def _make_device():
+    return DaikinBRP084('127.0.0.1', session=MagicMock())
+
+
+def test_extract_energy_full_breakdown():
+    """Combined-metering device derives cool/heat split and yearly series."""
+    device = _make_device()
+    response = _energy_response(
+        en_ipw_sep="0",
+        datas=[0, 0, 0, 0, 0, 500, 1000],  # weekly totals (Wh)
+        datas2=[0, 0, 0, 0, 0, 200, 300],  # weekly cooling (Wh)
+        this_year=[10, 20, 30],
+        previous_year=[5, 6, 7],
+    )
+
+    device._extract_energy(response)
+
+    assert device.values['today_runtime'] == "120"
+    assert device.values['en_ipw_sep'] == "0"
+    assert device.values['datas'] == "0/0/0/0/0/500/1000"
+    assert device.values['datas2'] == "0/0/0/0/0/200/300"
+    # today: total 1000Wh -> 10, cool 300Wh -> 3, heat 10-3 = 7 (0.1 kWh units)
+    assert device.values['curr_day_cool'] == "3"
+    assert device.values['curr_day_heat'] == "7"
+    # yesterday: total 500 -> 5, cool 200 -> 2, heat 3
+    assert device.values['prev_1day_cool'] == "2"
+    assert device.values['prev_1day_heat'] == "3"
+    assert device.values['this_year'] == "10/20/30"
+    assert device.values['previous_year'] == "5/6/7"
+
+
+def test_extract_energy_separate_metering_skips_split():
+    """en_ipw_sep=1 means datas2 is not a comparable total, so no derivation."""
+    device = _make_device()
+    response = _energy_response(
+        en_ipw_sep="1",
+        datas=[0, 0, 0, 0, 0, 500, 1000],
+        datas2=[0, 0, 0, 0, 0, 200, 300],
+        this_year=[1, 2, 3],
+    )
+
+    device._extract_energy(response)
+
+    assert device.values['en_ipw_sep'] == "1"
+    assert device.values['datas'] == "0/0/0/0/0/500/1000"
+    # Heat/cool split guarded off for separate-metering adapters.
+    assert 'datas2' not in device.values
+    assert 'curr_day_cool' not in device.values
+    assert 'curr_day_heat' not in device.values
+    # Yearly data is independent of the split and still extracted.
+    assert device.values['this_year'] == "1/2/3"
+
+
+def test_extract_energy_absent_en_ipw_sep_defaults_to_combined():
+    """A device that omits en_ipw_sep is treated as combined metering."""
+    device = _make_device()
+    response = _energy_response(
+        en_ipw_sep=None,
+        datas=[100, 1000],
+        datas2=[40, 300],
+    )
+
+    device._extract_energy(response)
+
+    assert 'en_ipw_sep' not in device.values
+    assert device.values['curr_day_cool'] == "3"  # 300 // 100
+    assert device.values['curr_day_heat'] == "7"  # 1000//100 - 3
+
+
+def test_extract_energy_without_cooling_series():
+    """No datas2 -> weekly totals kept, but no heat/cool split is synthesised."""
+    device = _make_device()
+    response = _energy_response(datas=[100, 1000], datas2=None)
+
+    device._extract_energy(response)
+
+    assert device.values['datas'] == "100/1000"
+    assert 'datas2' not in device.values
+    assert 'curr_day_cool' not in device.values
+
+
+def test_extract_energy_missing_everything_is_guarded():
+    """A response with no power series leaves energy values unset, no raise."""
+    device = _make_device()
+    device._extract_energy({'responses': []})
+
+    for key in ('today_runtime', 'datas', 'datas2', 'this_year', 'previous_year'):
+        assert key not in device.values
