@@ -99,14 +99,14 @@ class DaikinBRP084(Appliance):
         # Mode-specific paths for temperature settings
         "temp_settings": {
             "cool": E_1002_E_3001_PATH + ["p_02"],
-            "heat": E_1002_E_3001_PATH + ["p_03"],
+            "hot": E_1002_E_3001_PATH + ["p_03"],
             "auto": E_1002_E_3001_PATH + ["p_1D"],
         },
         # Fan settings organized by mode
         "fan_settings": {
             "auto": E_1002_E_3001_PATH + ["p_26"],
             "cool": E_1002_E_3001_PATH + ["p_09"],
-            "heat": E_1002_E_3001_PATH + ["p_0A"],
+            "hot": E_1002_E_3001_PATH + ["p_0A"],
             "fan": E_1002_E_3001_PATH + ["p_28"],
         },
         # Swing settings organized by mode
@@ -119,7 +119,7 @@ class DaikinBRP084(Appliance):
                 "vertical": E_1002_E_3001_PATH + ["p_05"],
                 "horizontal": E_1002_E_3001_PATH + ["p_06"],
             },
-            "heat": {
+            "hot": {
                 "vertical": E_1002_E_3001_PATH + ["p_07"],
                 "horizontal": E_1002_E_3001_PATH + ["p_08"],
             },
@@ -162,42 +162,11 @@ class DaikinBRP084(Appliance):
         },
     }
 
-    TRANSLATIONS = {
-        'mode': {
-            '0300': 'auto',
-            '0200': 'cool',
-            '0100': 'heat',
-            '0000': 'fan',
-            '0500': 'dry',
-            '00': 'off',
-            '01': 'on',
-        },
-        'f_rate': {
-            '0A00': 'auto',
-            '0B00': 'quiet',
-            '0300': '1',
-            '0400': '2',
-            '0500': '3',
-            '0600': '4',
-            '0700': '5',
-        },
-        'f_dir': {
-            'off': 'off',
-            'vertical': 'vertical',
-            'horizontal': 'horizontal',
-            'both': '3d',
-        },
-        'en_hol': {
-            '0': 'off',
-            '1': 'on',
-        },
-    }
-
     # Mapping between the values from firmware 2.8.0 to traditional API values
     MODE_MAP = {
         '0300': 'auto',
         '0200': 'cool',
-        '0100': 'heat',
+        '0100': 'hot',
         '0000': 'fan',
         '0500': 'dry',
     }
@@ -212,7 +181,24 @@ class DaikinBRP084(Appliance):
         '0700': '5',
     }
 
-    # These mappings are now handled by the API_PATHS dictionary
+    TRANSLATIONS: dict[str, dict[str, str]] = {
+        'mode': MODE_MAP
+        | {
+            '00': 'off',
+            '01': 'on',
+        },
+        'f_rate': FAN_MODE_MAP,
+        'f_dir': {
+            'off': 'off',
+            'vertical': 'vertical',
+            'horizontal': 'horizontal',
+            'both': '3d',
+        },
+        'en_hol': {
+            '0': 'off',
+            '1': 'on',
+        },
+    }
 
     # The values for turning swing axis on/off
     TURN_OFF_SWING_AXIS = "000000"
@@ -223,7 +209,7 @@ class DaikinBRP084(Appliance):
 
     INFO_RESOURCES = []
 
-    def get_path(self, *keys):
+    def get_path(self, *keys) -> list[str]:
         """Get API path from the nested dictionary structure.
 
         Args:
@@ -235,14 +221,19 @@ class DaikinBRP084(Appliance):
             List of path components to use with find_value_by_pn.
 
         Raises:
-            DaikinException: If the path is not found in the API_PATHS dictionary.
+            DaikinException: If the path is not found in the API_PATHS dictionary or
+                the resolved value is not a list.
         """
         current = self.API_PATHS
         for key in keys:
             if key not in current:
-                raise DaikinException(f"Path key {key} not found")
+                raise DaikinException(
+                    f"Path key {key} not found in path: {'/'.join(map(str, keys))}"
+                )
             current = current[key]
-        return current
+        if isinstance(current, list):
+            return current
+        raise DaikinException(f"Resolved path is not a list: {current}")
 
     def __init__(self, device_id, session: Optional[ClientSession] = None) -> None:
         """Initialize the Daikin appliance for firmware 2.8.0."""
@@ -311,6 +302,23 @@ class DaikinBRP084(Appliance):
 
         return 'off'  # Default return value
 
+    def _safe_extract(self, response: dict, *keys) -> Optional[str]:
+        """Extract a value from the response, returning None if not found."""
+        try:
+            return self.find_value_by_pn(response, *keys)
+        except DaikinException:
+            return None
+
+    def _safe_hex_temp(self, response: dict, path_key: str, divisor: int = 2) -> str:
+        """Extract a temperature value, returning '--' if missing or null."""
+        try:
+            raw = self.find_value_by_pn(response, *self.get_path(path_key))
+            if raw is not None:
+                return str(self.hex_to_temp(raw, divisor))
+        except DaikinException:
+            pass
+        return "--"
+
     async def init(self):
         """Initialize the device and fetch initial state."""
         # Only update if values haven't been populated yet (e.g., by factory detection)
@@ -346,9 +354,12 @@ class DaikinBRP084(Appliance):
 
         # Extract basic info
         try:
-            # Get MAC address
+            # Get MAC address and firmware version
             mac = self.find_value_by_pn(response, *self.get_path("mac_address"))
             self.values['mac'] = mac
+            self.values['ver'] = self._safe_extract(
+                response, "/dsiot/edge.adp_i", "adp_i", "ver"
+            )
 
             # Get power state
             is_off = self.find_value_by_pn(response, *self.get_path("power")) == "00"
@@ -360,11 +371,7 @@ class DaikinBRP084(Appliance):
             self.values['mode'] = 'off' if is_off else self.MODE_MAP[mode_value]
 
             # Get temperatures
-            self.values['otemp'] = str(
-                self.hex_to_temp(
-                    self.find_value_by_pn(response, *self.get_path("outdoor_temp"))
-                )
-            )
+            self.values['otemp'] = self._safe_hex_temp(response, "outdoor_temp")
 
             self.values['htemp'] = str(
                 self.hex_to_temp(
@@ -565,11 +572,29 @@ class DaikinBRP084(Appliance):
         requests.append(DaikinAttribute(path[-1], value, path[2:4], path[0]))
 
     def _handle_power_setting(self, settings, requests):
-        """Handle power-related settings."""
+        """Handle power-related settings.
+
+        Mirrors BRP069's contract (see daikin_brp069.py _update_settings,
+        the ``'mode' in settings or not settings → pow='1'`` branch):
+          - device.set({})             → power ON  (HA's toggle-switch path)
+          - device.set({'mode':'off'}) → power OFF
+          - device.set({'mode': X})    → power ON + set mode X
+          - device.set({'stemp': X})   → temperature only, leave power as-is
+                                          (so changing setpoint on a powered-
+                                          off unit does NOT turn it on).
+        """
+        # Truly empty settings → HA's "turn on" path. Only this empty case
+        # forces a power write; other partial settings (e.g. just stemp)
+        # leave power untouched.
+        if not settings:
+            self.add_request(requests, self.get_path("power"), "01")
+            return
+
+        # Settings present but no mode key → no power write.
         if 'mode' not in settings:
             return
 
-        # Turn off/on
+        # Mode change → write power explicitly.
         power_path = self.get_path("power")
         self.add_request(
             requests, power_path, "00" if settings['mode'] == 'off' else "01"
@@ -578,11 +603,16 @@ class DaikinBRP084(Appliance):
         if settings['mode'] == 'off':
             return
 
-        # Set mode
+        # Set mode.
         mode_value = self.REVERSE_MODE_MAP.get(settings['mode'])
         if mode_value:
             mode_path = self.get_path("mode")
             self.add_request(requests, mode_path, mode_value)
+        else:
+            _LOGGER.warning(
+                "Unrecognized mode %r; no mode write will be sent",
+                settings['mode'],
+            )
 
     def _handle_temperature_setting(self, settings, requests):
         """Handle temperature-related settings."""
