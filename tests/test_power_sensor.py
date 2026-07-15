@@ -1,6 +1,6 @@
 """Test for Daikin AC power & energy sensors."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import random
 from unittest.mock import patch
 
@@ -141,17 +141,17 @@ def relative_error(measured, expected):
     "initial_date,duration,tick_step",
     [
         (
-            datetime.utcnow().replace(hour=10, minute=0),
+            datetime.now(UTC).replace(hour=10, minute=0),
             timedelta(hours=5, minutes=20),
             timedelta(minutes=2),
         ),
         (
-            datetime.utcnow().replace(hour=23, minute=5),
+            datetime.now(UTC).replace(hour=23, minute=5),
             timedelta(hours=3, minutes=30),
             timedelta(seconds=30),
         ),
         (
-            datetime.utcnow().replace(hour=20, minute=0),
+            datetime.now(UTC).replace(hour=20, minute=0),
             timedelta(hours=28),
             timedelta(minutes=4),
         ),
