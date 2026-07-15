@@ -40,11 +40,53 @@ class Appliance(DaikinPowerMixin):
     session: Optional[ClientSession]
     ssl_context: Optional[SSLContext] = None
 
-    TRANSLATIONS = {}
-    VALUES_TRANSLATION = {}
-    VALUES_SUMMARY = []
-    INFO_RESOURCES = []
+    # Class attributes for subclasses to override
+    # Maps Daikin internal values to human-readable strings (e.g., mode: {'3': 'cool'})
+    TRANSLATIONS: dict[str, dict[str, str]] = {}
+
+    # Maps internal keys to display names (e.g., {'f_rate': 'Fan Rate'})
+    VALUES_TRANSLATION: dict[str, str] = {}
+
+    # List of keys to display in summary output (overridden by subclasses)
+    VALUES_SUMMARY: list[str] = []
+
+    # List of HTTP resource paths to fetch during status updates (overridden by subclasses)
+    INFO_RESOURCES: list[str] = []
+
+    # Maximum number of concurrent HTTP requests to device
     MAX_CONCURRENT_REQUESTS = 4
+
+    def __init_subclass__(cls, **kwargs):
+        """Validate that concrete subclasses override required class attributes."""
+        super().__init_subclass__(**kwargs)
+
+        # Only validate direct subclasses of Appliance (not grand-children)
+        # This allows DaikinAirBase(DaikinBRP069) to inherit properly
+        if cls.__bases__[0] == Appliance:
+            required_overrides = [
+                'TRANSLATIONS',
+                'VALUES_TRANSLATION',
+                'VALUES_SUMMARY',
+                'INFO_RESOURCES',
+            ]
+            for attr in required_overrides:
+                if attr not in cls.__dict__:
+                    raise TypeError(
+                        f"{cls.__name__} must override class attribute '{attr}' "
+                        f"(inherited from {cls.__bases__[0].__name__})"
+                    )
+
+            # Validate that critical attributes are not empty
+            if not cls.TRANSLATIONS:
+                raise ValueError(
+                    f"{cls.__name__}.TRANSLATIONS must not be empty - "
+                    f"at minimum define 'mode' translations"
+                )
+            if not cls.INFO_RESOURCES:
+                raise ValueError(
+                    f"{cls.__name__}.INFO_RESOURCES must not be empty - "
+                    f"define at least one HTTP resource path to fetch"
+                )
 
     @classmethod
     def daikin_to_human(cls, dimension, value):
