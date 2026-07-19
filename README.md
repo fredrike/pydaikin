@@ -21,6 +21,7 @@ The following Daikin WiFi modules are currently supported:
 * **BRP072B/Cxx** - Requires HTTPS access and an authentication key
 * **BRP084** - Devices with firmware version 2.8.0 (uses a different API structure)
 * **SKYFi** - Uses a different protocol and requires a password
+* **BRP15B61 (AirBase) heat pump hot water** - Uses the local AirBase hot water API
 
 ## Quick Start
 
