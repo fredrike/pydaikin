@@ -16,7 +16,7 @@ PyDaikin is a Python library for controlling Daikin air conditioners. It provide
 
 The following Daikin WiFi modules are currently supported:
 
-* **BRP069Axx/BRP069Bxx/BRP072Axx** - Standard WiFi adapters
+* **BRP069Axx/BRP069Bxx/BRP069B4x/BRP072Axx** - Standard WiFi adapters
 * **BRP15B61 (AirBase)** - Uses a similar protocol to BRP069Axx
 * **BRP072B/Cxx** - Requires HTTPS access and an authentication key
 * **BRP084** - Devices with firmware version 2.8.0 (uses a different API structure)
