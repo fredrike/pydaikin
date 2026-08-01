@@ -314,7 +314,7 @@ class DaikinBRP084(Appliance):
         """Decode a hex-encoded ASCII string (model/serial), trimming padding."""
         try:
             return bytes.fromhex(value).decode('ascii').strip()
-        except (ValueError, UnicodeDecodeError):
+        except (TypeError, ValueError, UnicodeDecodeError):
             return value
 
     @staticmethod
