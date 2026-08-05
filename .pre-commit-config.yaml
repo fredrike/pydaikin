@@ -13,7 +13,7 @@ repos:
       - id: pylint
         additional_dependencies:
         - aiohttp==3.7.3
-        - psutil
+        - psutil==7.2.2
         - urllib3==1.26.3
         - tenacity==8.2.3
         exclude: 'tests/'
