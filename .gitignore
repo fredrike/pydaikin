@@ -8,6 +8,7 @@ __pycache__
 .idea/
 *.pyc
 venv/
+.venv/
 .coverage
 .vscode
 .python-version
