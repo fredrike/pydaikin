@@ -218,6 +218,10 @@ async def test_daikin_brp084(aresponses, client_session):
     assert device.support_compressor_temperature is True
     assert device.model == 'AMVA17MXTF'
     assert device.outdoor_model == 'AMVA17MXR'
+    assert device.values.get('datas') == '100/200/300/400/500/600/700'
+    assert device.today_total_energy_consumption == 0.7
+    assert device.today_energy_consumption == 0.7
+    assert device._energy_consumption_history['total'][0].today == 0.7
 
     # New feature toggles: comfort/econo/outdoor_quiet/powerful
     assert device.comfort_mode == 'off' and device.support_comfort_mode
@@ -538,6 +542,18 @@ def test_support_humidity(values, expected):
     device = DaikinBRP084('127.0.0.1', session=mock_session)
     device.values.update(values)
     assert device.support_humidity is expected
+
+
+def test_aggregate_energy_used_when_split_energy_is_unavailable():
+    """BRP084 exposes aggregate daily energy without cool/heat split counters."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values.update({'datas': '7300/8400/9900/7000/3000/900/900'})
+
+    assert device.today_cool_energy_consumption is None
+    assert device.today_heat_energy_consumption is None
+    assert device.today_total_energy_consumption == 0.9
+    assert device.today_energy_consumption == 0.9
 
 
 @pytest.mark.parametrize(
