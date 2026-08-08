@@ -60,6 +60,16 @@ def test_appliance_values_get_invalidate():
     assert values.should_resource_be_updated('resource1') is False
 
 
+def test_appliance_values_iter():
+    """Test __iter__ method."""
+    values = ApplianceValues()
+    values['mode'] = '2'
+    values['temp'] = '25'
+
+    assert sorted(values) == ['mode', 'temp']
+    assert sorted(list(iter(values))) == ['mode', 'temp']
+
+
 def test_appliance_values_getitem_invalidates():
     """Test that __getitem__ invalidates resource."""
     values = ApplianceValues()

@@ -6,7 +6,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from pydaikin.discovery import DISCOVERY_MSG, UDP_DST_PORT, Discovery
+from pydaikin.discovery import (
+    DISCOVERY_MSG,
+    UDP_DST_PORT,
+    Discovery,
+    get_devices,
+    get_name,
+)
 
 
 def _addr(family, address, broadcast):
@@ -117,3 +123,41 @@ def test_poll_ignores_invalid_responses(response):
         devices = list(discovery.poll())
 
     assert devices == []
+
+
+def test_get_devices():
+    """get_devices() returns the devices found via broadcast."""
+    sock = _fake_socket()
+    with (
+        patch("psutil.net_if_addrs", return_value={}),
+        patch("socket.socket", return_value=sock),
+    ):
+        assert list(get_devices()) == []
+
+
+def test_get_name_returns_matching_device():
+    """get_name returns the discovered device matching the requested name."""
+    response = b"ret=OK,type=aircon,mac=409F38D107AC,name=Living Room,port=30050"
+    sock = _fake_socket()
+    sock.recvfrom.side_effect = [(response, ("192.168.1.10", 30050))]
+    addrs = {"en0": [_addr(socket.AF_INET, "192.168.1.5", "192.168.1.255")]}
+    with (
+        patch("psutil.net_if_addrs", return_value=addrs),
+        patch("socket.socket", return_value=sock),
+    ):
+        device = get_name("living room")
+
+    assert device["mac"] == "409F38D107AC"
+    assert device["name"] == "Living Room"
+
+
+def test_get_name_permission_error(monkeypatch):
+    """get_name returns None when polling raises PermissionError."""
+
+    def raise_permission_error(*args, **kwargs):
+        raise PermissionError("Permission denied")
+
+    monkeypatch.setattr(Discovery, "poll", raise_permission_error)
+    monkeypatch.setattr(socket, "socket", lambda *args, **kwargs: Mock())
+
+    assert get_name("Living Room") is None

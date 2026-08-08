@@ -1,0 +1,20 @@
+{
+  "requests": [
+    {
+      "op": 2,
+      "to": "/dsiot/edge/adr_0100.dgc_status?filter=pv,pt,md"
+    },
+    {
+      "op": 2,
+      "to": "/dsiot/edge/adr_0200.dgc_status?filter=pv,pt,md"
+    },
+    {
+      "op": 2,
+      "to": "/dsiot/edge/adr_0100.i_power.week_power?filter=pv,pt,md"
+    },
+    {
+      "op": 2,
+      "to": "/dsiot/edge.adp_i"
+    }
+  ]
+}
