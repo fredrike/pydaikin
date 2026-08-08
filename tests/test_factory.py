@@ -11,6 +11,7 @@ from pydaikin.daikin_brp069 import DaikinBRP069
 from pydaikin.daikin_brp072c import DaikinBRP072C
 from pydaikin.daikin_brp084 import DaikinBRP084
 from pydaikin.daikin_skyfi import DaikinSkyFi
+from pydaikin.exceptions import DaikinException
 from pydaikin.factory import DaikinFactory
 
 
@@ -663,3 +664,68 @@ async def test_factory_does_not_close_external_session(aresponses, client_sessio
 
     aresponses.assert_all_requests_matched()
     aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
+async def test_factory_closes_session_on_unsupported_device(aresponses, monkeypatch):
+    """The factory closes the session it created when device creation fails."""
+    closed_sessions = []
+    original_close = ClientSession.close
+
+    async def recording_close(self):
+        closed_sessions.append(self)
+        await original_close(self)
+
+    monkeypatch.setattr(ClientSession, "close", recording_close)
+
+    # Mock 404 for firmware 2.8.0 attempt (to force fallback)
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(status=404, text="Not Found"),
+    )
+
+    # Mock 404 for BRP069 attempt (to force fallback to AirBase)
+    aresponses.add(
+        path_pattern="/common/basic_info",
+        method_pattern="GET",
+        response=aresponses.Response(status=404, text="Not Found"),
+    )
+
+    # Mock AirBase responses that report no mode -> device is unsupported
+    aresponses.add(
+        path_pattern="/skyfi/common/get_datetime",
+        method_pattern="GET",
+        response="ret=OK,sta=2,cur=2023/8/27 21:54:1,reg=eu,dst=1,zone=313",
+    )
+    aresponses.add(
+        path_pattern="/skyfi/common/basic_info",
+        method_pattern="GET",
+        response="ret=OK,type=aircon,reg=eu,dst=1,ver=1_2_54,rev=203DE8C,pow=1,err=0,location=0,name=%4e%6f%74%74%65",
+    )
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_control_info",
+        method_pattern="GET",
+        response="ret=OK,pow=0",
+    )
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_model_info",
+        method_pattern="GET",
+        response="ret=OK,model=0000",
+    )
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_sensor_info",
+        method_pattern="GET",
+        response="ret=OK,htemp=25.0",
+    )
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_zone_setting",
+        method_pattern="GET",
+        response="ret=OK",
+    )
+
+    with pytest.raises(DaikinException, match="not supported"):
+        await DaikinFactory("192.168.1.100")
+
+    assert len(closed_sessions) == 1
+    assert closed_sessions[0].closed
