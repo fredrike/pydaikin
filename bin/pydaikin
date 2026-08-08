@@ -17,6 +17,7 @@ from pydaikin.factory import DaikinFactory
 async def list_all_devices():
     """Print all discovered devices."""
     for dev in discovery.get_devices():
+        appl = None
         try:
             appl = await DaikinFactory(dev['ip'])
             support_energy_consumption = (
@@ -24,6 +25,9 @@ async def list_all_devices():
             )
         except ClientError:
             support_energy_consumption = "Unknown"
+        finally:
+            if appl:
+                await appl.aclose()
         print(
             f"{dev['ip'][:18]}"
             f" ({dev['mac']}): {dev['name']}"
@@ -138,26 +142,31 @@ async def main():  # pylint: disable=too-many-branches
     else:
         daikin = await DaikinFactory(args.device, key=args.key, password=args.password)
 
-        if not _settings:
-            daikin.show_values(not args.all)
-        else:
-            await daikin.set(_settings)
+        try:
+            if not _settings:
+                daikin.show_values(not args.all)
+            else:
+                await daikin.set(_settings)
 
-        if args.sensor:
-            print('\nPress CTRL+C to stop logging sensor data...\n')
+            if args.sensor:
+                print('\nPress CTRL+C to stop logging sensor data...\n')
 
-            with (
-                open(args.file, 'a', encoding='utf-8') if args.file else nullcontext()
-            ) as file:
-                try:
-                    while True:
-                        await daikin.update_status()
-                        daikin.show_sensors()
-                        if args.file:
-                            daikin.log_sensors(file)
-                        await sleep(30)
-                except KeyboardInterrupt:
-                    pass
+                with (
+                    open(args.file, 'a', encoding='utf-8')
+                    if args.file
+                    else nullcontext()
+                ) as file:
+                    try:
+                        while True:
+                            await daikin.update_status()
+                            daikin.show_sensors()
+                            if args.file:
+                                daikin.log_sensors(file)
+                            await sleep(30)
+                    except KeyboardInterrupt:
+                        pass
+        finally:
+            await daikin.aclose()
 
 
 run(main())
