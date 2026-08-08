@@ -729,3 +729,68 @@ async def test_factory_closes_session_on_unsupported_device(aresponses, monkeypa
 
     assert len(closed_sessions) == 1
     assert closed_sessions[0].closed
+
+
+@pytest.mark.asyncio
+async def test_factory_brp084_without_mode_initializes_off(monkeypatch, client_session):
+    """A BRP084 that reports no mode value is initialized to 'off'."""
+    from pydaikin.daikin_brp084 import DaikinBRP084
+
+    async def fake_update_status(self, *args, **kwargs):
+        self.values["mac"] = "112233445566"
+
+    monkeypatch.setattr(DaikinBRP084, "update_status", fake_update_status)
+
+    device = await DaikinFactory("192.168.1.100", session=client_session)
+
+    assert isinstance(device, DaikinBRP084)
+    assert device.values.get("mode", invalidate=False) == "off"
+    assert device.values.get("pow", invalidate=False) == "0"
+
+
+@pytest.mark.asyncio
+async def test_factory_brp072c_init_fails_falls_back(monkeypatch, client_session):
+    """Factory falls back to the next device type when BRP072C init fails."""
+    from pydaikin.daikin_brp072c import DaikinBRP072C
+    from pydaikin.daikin_brp084 import DaikinBRP084
+
+    async def fail_init(self):
+        raise TimeoutError("connection timeout")
+
+    async def brp084_success(self, *args, **kwargs):
+        self.values["mac"] = "112233445566"
+        self.values["mode"] = "cool"
+
+    monkeypatch.setattr(DaikinBRP072C, "init", fail_init)
+    monkeypatch.setattr(DaikinBRP084, "update_status", brp084_success)
+
+    device = await DaikinFactory("192.168.1.100", session=client_session, key="testkey")
+
+    assert isinstance(device, DaikinBRP084)
+
+
+def test_extract_ip_port_from_discovery(monkeypatch):
+    """Port is taken from the discovery lookup when no port is in the id."""
+    monkeypatch.setattr(
+        "pydaikin.factory.get_name",
+        lambda name: {"ip": "10.0.0.5", "port": "30050", "name": name},
+    )
+
+    device_ip, port = DaikinFactory._extract_ip_port("livingroom")
+
+    assert device_ip == "10.0.0.5"
+    assert port == 30050
+
+
+def test_extract_ip_port_discovery_error(monkeypatch):
+    """A failing discovery lookup falls back to the raw device id."""
+
+    def raise_keyerror(name):
+        raise KeyError("not found")
+
+    monkeypatch.setattr("pydaikin.factory.get_name", raise_keyerror)
+
+    device_ip, port = DaikinFactory._extract_ip_port("livingroom")
+
+    assert device_ip == "livingroom"
+    assert port is None

@@ -8,6 +8,7 @@ import pytest
 import pytest_asyncio
 
 from pydaikin.daikin_brp084 import DaikinBRP084
+from pydaikin.exceptions import DaikinException
 
 
 @pytest_asyncio.fixture
@@ -556,6 +557,17 @@ def test_aggregate_energy_used_when_split_energy_is_unavailable():
     assert device.today_energy_consumption == 0.9
 
 
+def test_split_energy_used_when_cool_heat_available():
+    """BRP084 sums the cool/heat split counters when they are present."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values.update({'curr_day_cool': '10/20', 'curr_day_heat': '30/40'})
+
+    assert device.today_cool_energy_consumption == 3.0
+    assert device.today_heat_energy_consumption == 7.0
+    assert device.today_energy_consumption == 10.0
+
+
 @pytest.mark.parametrize(
     'value, expected',
     [
@@ -1041,3 +1053,248 @@ def test_extract_optional_readings_guards_missing_containers():
 
     for key in ('comfort', 'econo', 'outdoor_quiet', 'powerful', 'vane_vertical'):
         assert key not in device.values
+
+
+@pytest.mark.parametrize(
+    'key, message',
+    [
+        ('nonexistent', "Path key nonexistent not found"),
+        ('temp_settings', "Resolved path is not a list"),
+    ],
+)
+def test_get_path_errors(key, message):
+    """get_path raises for missing keys and non-list resolutions."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+
+    with pytest.raises(DaikinException, match=message):
+        device.get_path(key)
+
+
+def test_find_value_by_pn_no_keys():
+    """find_value_by_pn with no keys returns None."""
+    assert DaikinBRP084.find_value_by_pn({'responses': []}, 'fr') is None
+
+
+def _swing_state_response(vertical, horizontal):
+    """Build a minimal adr_0100 response exposing cool-mode swing values."""
+    return {
+        "responses": [
+            {
+                "fr": "/dsiot/edge/adr_0100.dgc_status",
+                "pc": {
+                    "pn": "dgc_status",
+                    "pch": [
+                        {
+                            "pn": "e_1002",
+                            "pch": [
+                                {
+                                    "pn": "e_3001",
+                                    "pch": [
+                                        {"pn": "p_05", "pv": vertical},
+                                        {"pn": "p_06", "pv": horizontal},
+                                    ],
+                                }
+                            ],
+                        }
+                    ],
+                },
+            }
+        ]
+    }
+
+
+@pytest.mark.parametrize(
+    'vertical, horizontal, expected',
+    [
+        ("0F0000", "000000", 'vertical'),
+        ("000000", "0F0000", 'horizontal'),
+        ("0F0000", "0F0000", 'both'),
+        ("000000", "000000", 'off'),
+    ],
+)
+def test_swing_state(vertical, horizontal, expected):
+    """Each combination of swing axes maps to the expected state."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values['mode'] = 'cool'
+
+    result = device.get_swing_state(_swing_state_response(vertical, horizontal))
+    assert result == expected
+
+
+def test_swing_state_exception_returns_off():
+    """A missing swing container falls back to 'off'."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values['mode'] = 'cool'
+
+    assert device.get_swing_state({'responses': []}) == 'off'
+
+
+def test_safe_hex_temp_missing():
+    """A missing temperature sensor yields '--'."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+
+    assert device._safe_hex_temp({'responses': []}, 'outdoor_temp') == '--'
+
+
+@pytest.mark.asyncio
+async def test_update_status_dry_mode():
+    """Dry mode (no temp/fan/swing settings, no sensors) degrades gracefully."""
+    device = DaikinBRP084('ip', session=MagicMock())
+    device._get_resource = AsyncMock(
+        return_value={
+            "responses": [
+                {
+                    "fr": "/dsiot/edge/adr_0100.dgc_status",
+                    "pc": {
+                        "pn": "dgc_status",
+                        "pch": [
+                            {
+                                "pn": "e_1002",
+                                "pch": [
+                                    {
+                                        "pn": "e_A002",
+                                        "pch": [{"pn": "p_01", "pv": "01"}],
+                                    },
+                                    {
+                                        "pn": "e_3001",
+                                        "pch": [{"pn": "p_01", "pv": "0500"}],
+                                    },
+                                    {
+                                        "pn": "e_A00B",
+                                        "pch": [{"pn": "p_01", "pv": "18"}],
+                                    },
+                                ],
+                            }
+                        ],
+                    },
+                },
+                {
+                    "fr": "/dsiot/edge.adp_i",
+                    "pc": {
+                        "pn": "adp_i",
+                        "pch": [{"pn": "mac", "pv": "112233445566"}],
+                    },
+                },
+            ]
+        }
+    )
+
+    await device.update_status()
+
+    assert device.values['mode'] == 'dry'
+    assert device.values['stemp'] == '--'
+    assert device.values['f_rate'] == 'auto'
+    assert device.values['otemp'] == '--'
+    assert device.values['hhum'] == '--'
+    assert device.values['f_dir'] == 'off'
+
+
+@pytest.mark.asyncio
+async def test_update_status_missing_mac_raises(caplog):
+    """A missing MAC address aborts the status update with a logged error."""
+    device = DaikinBRP084('ip', session=MagicMock())
+    device._get_resource = AsyncMock(
+        return_value={
+            "responses": [
+                {
+                    "fr": "/dsiot/edge/adr_0100.dgc_status",
+                    "pc": {"pn": "dgc_status", "pch": []},
+                }
+            ]
+        }
+    )
+
+    with pytest.raises(DaikinException):
+        await device.update_status()
+
+    assert "Error extracting values" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_update_status_invalid_response_raises(caplog):
+    """A response without 'responses' raises DaikinException."""
+    import logging
+
+    device = DaikinBRP084('ip', session=MagicMock())
+    device._get_resource = AsyncMock(return_value={})
+
+    with caplog.at_level(logging.INFO):
+        with pytest.raises(DaikinException, match="Invalid response from device"):
+            await device.update_status()
+
+    assert "Error communicating with device" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_update_settings_mode_off():
+    """_update_settings turns the power flag off when mode is 'off'."""
+    device = DaikinBRP084('ip', session=MagicMock())
+
+    await device._update_settings({'mode': 'off'})
+
+    assert device.values['pow'] == '0'
+
+
+def test_handle_temperature_setting_unsupported_mode():
+    """Temperature setting is skipped when the mode has no temp path."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values['mode'] = 'fan'
+
+    requests = []
+    device._handle_temperature_setting({'stemp': '25.0'}, requests)
+
+    assert len(requests) == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'method, args, message',
+    [
+        ('set_streamer', ('on',), "Streamer mode not supported"),
+        ('set_holiday', ('on',), "Holiday mode not supported"),
+        ('set_advanced_mode', ('powerful', '1'), "Advanced mode not supported"),
+    ],
+)
+async def test_unsupported_firmware_features(caplog, method, args, message):
+    """Unsupported firmware 2.8.0 features log a debug notice."""
+    import logging
+
+    device = DaikinBRP084('127.0.0.1', session=MagicMock())
+
+    with caplog.at_level(logging.DEBUG):
+        await getattr(device, method)(*args)
+
+    assert message in caplog.text
+
+
+@pytest.mark.parametrize(
+    'prop',
+    ['support_away_mode', 'support_advanced_modes', 'support_zone_count'],
+)
+def test_unsupported_support_flags(prop):
+    """Away/advanced/zone support are all False on firmware 2.8.0."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+
+    assert getattr(device, prop) is False
+
+
+@pytest.mark.asyncio
+async def test_get_resource_http_error(aresponses, client_session):
+    """A non-2xx response raises the underlying exception."""
+    from aiohttp.client_exceptions import ClientResponseError
+
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(status=500, text="error"),
+    )
+
+    device = DaikinBRP084('ip', session=client_session)
+    with pytest.raises(ClientResponseError):
+        await device._get_resource("")

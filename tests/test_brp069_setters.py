@@ -90,26 +90,22 @@ async def test_set_clock(aresponses, client_session):
     aresponses.assert_all_requests_matched()
 
 
-@pytest.mark.skip(
-    reason="Error handling with aresponses is tricky - error paths tested indirectly"
-)
 @pytest.mark.asyncio
 async def test_set_clock_error_handling(aresponses, client_session):
     """Test set_clock error handling."""
-    # Mock error response - the error is caught so request completes
-    aresponses.add(
-        path_pattern="/common/notify_date_time",
-        method_pattern="GET",
-        response=aresponses.Response(status=500, text="Error"),
-    )
+    # Mock error response - the error is caught so request completes.
+    # The retry logic makes 3 attempts, so register the route 3 times.
+    for _ in range(3):
+        aresponses.add(
+            path_pattern="/common/notify_date_time",
+            method_pattern="GET",
+            response=aresponses.Response(status=500, text="Error"),
+        )
 
     device = DaikinBRP069("192.168.1.100", session=client_session)
 
     # Should not raise exception, just log error
-    try:
-        await device.set_clock()
-    except Exception:
-        pass  # Exception is expected and handled
+    await device.set_clock()
 
     aresponses.assert_all_requests_matched()
 
@@ -130,26 +126,22 @@ async def test_auto_set_clock(aresponses, client_session):
     aresponses.assert_all_requests_matched()
 
 
-@pytest.mark.skip(
-    reason="Error handling with aresponses is tricky - error paths tested indirectly"
-)
 @pytest.mark.asyncio
 async def test_auto_set_clock_error_handling(aresponses, client_session):
     """Test auto_set_clock error handling."""
-    # Mock error response - the error is caught so request completes
-    aresponses.add(
-        path_pattern="/common/get_datetime",
-        method_pattern="GET",
-        response=aresponses.Response(status=500, text="Error"),
-    )
+    # Mock error response - the error is caught so request completes.
+    # The retry logic makes 3 attempts, so register the route 3 times.
+    for _ in range(3):
+        aresponses.add(
+            path_pattern="/common/get_datetime",
+            method_pattern="GET",
+            response=aresponses.Response(status=500, text="Error"),
+        )
 
     device = DaikinBRP069("192.168.1.100", session=client_session)
 
     # Should not raise exception, just log error
-    try:
-        await device.auto_set_clock()
-    except Exception:
-        pass  # Exception is expected and handled
+    await device.auto_set_clock()
 
     aresponses.assert_all_requests_matched()
 

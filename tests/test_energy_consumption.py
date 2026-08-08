@@ -385,3 +385,12 @@ def test_current_power_consumption_type_errors():
     # Invalid exp_diff_time_margin_factor type
     with pytest.raises(TypeError):
         device.current_power_consumption(exp_diff_time_margin_factor="invalid")
+
+
+def test_get_info_resources_without_energy_support():
+    """Test get_info_resources when no energy consumption is reported."""
+    mock_session = MagicMock()
+    device = DaikinBRP069('127.0.0.1', session=mock_session)
+
+    assert device.support_energy_consumption is False
+    assert device.get_info_resources() == DaikinBRP069.INFO_RESOURCES

@@ -178,7 +178,31 @@ pytest --cov=pydaikin --cov-report=html
 - Use descriptive test names that explain what is being tested
 - Use `pytest-asyncio` for testing async functions
 - Mock external API calls using `aresponses` or similar tools
-- Aim for good test coverage of your changes
+- Aim for good test coverage of your changes (the CI job reports coverage to Codecov)
+
+**Pytest-asyncio gotchas:**
+
+- Every async test needs an explicit `@pytest.mark.asyncio` decorator. Without it the test is **silently skipped**, not failed.
+- Mark async fixtures with `@pytest_asyncio.fixture` (see `tests/test_daikin_brp084.py` for a session fixture example).
+
+**Mocking HTTP with `aresponses`:**
+
+- Register `path_pattern`, `method_pattern` and `response` per endpoint, and assert every registered route was used (`aresponses.assert_all_requests_matched()`).
+- The `tenacity` retry wrapper retries failed requests 3 times (`stop_after_attempt(3)`), so error-path tests must register the route once per attempt, otherwise the final `assert_all_requests_matched()` fails (see `tests/test_brp069_setters.py`).
+
+**Test isolation:**
+
+- Run pytest **single-process**. Parallel workers (e.g. `pytest-xdist`) reuse the same loopback ports as `aresponses` and cause flaky failures.
+- For tests that spin up a fake HTTP server, bind to an ephemeral port (`port=0`) and read the actual bound port afterwards instead of hard-coding one that may already be in use. If the device class hard-codes a port, monkeypatch its base URL to the ephemeral port (see `tests/test_multiple_devices.py`).
+
+**Time-dependent code (power/energy estimation):**
+
+- Use `freezegun.freeze_time` together with `ft.tick(...)` to simulate hours of real-time consumption in a few seconds (see `tests/test_power_sensor.py`).
+- Prefer asserting invariants that hold by construction over exact values when the code under test is inherently stochastic (e.g. the slope-based power estimate is only exact for regular tick intervals).
+
+**Keeping test data in sync:**
+
+- The mock responses used by the tests mirror real device traffic; when you touch the API parsing, keep `docs/sample_requests/` in sync with the mocks so samples stay reproducible (see `docs/sample_requests/brp084/`).
 
 Example test structure:
 ```python
