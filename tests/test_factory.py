@@ -1,6 +1,7 @@
 """Test the DaikinFactory for proper device type detection."""
 
 import json
+from types import SimpleNamespace
 
 from aiohttp import ClientSession
 import pytest
@@ -334,7 +335,7 @@ async def test_factory_unsupported_unknown_device_reports_details(
     aresponses.add(
         path_pattern="/common/basic_info",
         method_pattern="GET",
-        response="ret=OK,type=aircon,reg=eu,dst=1,ver=1_2_54,rev=203DE8C,pow=1,err=0,location=0,name=%4e%6f%74%74%65,icon=3,method=home only,port=30050,id=,pw=,lpw_flag=0,adp_kind=3,pv=3.20,cpv=3,cpv_minor=20,led=1,en_setzone=1,mac=409F38D107AC,adp_mode=run,en_hol=0,ssid1=Pinguino Curioso,radio1=-35,grp_name=,en_grp=0",
+        response="ret=OK,type=aircon,subtype=qa,reg=eu,dst=1,ver=1_2_54,rev=203DE8C,pow=1,err=0,location=0,name=%4e%6f%74%74%65,icon=3,method=home only,port=30050,id=,pw=,lpw_flag=0,adp_kind=3,pv=3.20,cpv=3,cpv_minor=20,led=1,en_setzone=1,mac=409F38D107AC,adp_mode=run,en_hol=0,ssid1=Pinguino Curioso,radio1=-35,grp_name=,en_grp=0",
     )
     aresponses.add(
         path_pattern="/common/get_datetime",
@@ -355,11 +356,30 @@ async def test_factory_unsupported_unknown_device_reports_details(
             response=aresponses.Response(status=404, text="Page Not Found"),
         )
 
+    # subtype=qa alone is not the unsupported fingerprint (firmware is 1.2.x),
+    # but it is still reported in the error details.
     with pytest.raises(
         DaikinException,
-        match="detected type=aircon, firmware 1.2.54, adp_kind=3.*not supported",
+        match="detected type=aircon, subtype=qa, firmware 1.2.54, adp_kind=3.*not supported",
     ):
         await DaikinFactory("192.168.1.100", session=client_session)
+
+
+def test_unsupported_device_message_without_identity():
+    """The fallback message is used when no device identity was detected."""
+    fake_values = SimpleNamespace(
+        get=lambda key, default=None, *, invalidate=True: default
+    )
+    fake_device = SimpleNamespace(values=fake_values)
+
+    assert (
+        DaikinFactory._unsupported_device_message(fake_device, "192.168.1.100")
+        == "Error creating device, 192.168.1.100 is not supported."
+    )
+
+
+@pytest.mark.asyncio
+async def test_factory_detects_airbase(aresponses, client_session):
     """Test that factory correctly detects AirBase device (fallback from BRP069)."""
     # Mock 404 response for firmware 2.8.0 attempt
     aresponses.add(
