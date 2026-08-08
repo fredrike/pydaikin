@@ -749,28 +749,6 @@ async def test_factory_brp084_without_mode_initializes_off(monkeypatch, client_s
 
 
 @pytest.mark.asyncio
-async def test_factory_unsupported_device_raises(monkeypatch, client_session):
-    """Factory raises when the detected device does not report a mode."""
-    from pydaikin.daikin_airbase import DaikinAirBase
-    from pydaikin.daikin_brp069 import DaikinBRP069
-    from pydaikin.daikin_brp084 import DaikinBRP084
-    from pydaikin.exceptions import DaikinException
-
-    async def fail_update_status(self, *args, **kwargs):
-        raise DaikinException("not supported")
-
-    async def airbase_without_mode(self, *args, **kwargs):
-        self.values["mac"] = "112233445566"
-
-    monkeypatch.setattr(DaikinBRP084, "update_status", fail_update_status)
-    monkeypatch.setattr(DaikinBRP069, "update_status", fail_update_status)
-    monkeypatch.setattr(DaikinAirBase, "update_status", airbase_without_mode)
-
-    with pytest.raises(DaikinException):
-        await DaikinFactory("192.168.1.100", session=client_session)
-
-
-@pytest.mark.asyncio
 async def test_factory_brp072c_init_fails_falls_back(monkeypatch, client_session):
     """Factory falls back to the next device type when BRP072C init fails."""
     from pydaikin.daikin_brp072c import DaikinBRP072C

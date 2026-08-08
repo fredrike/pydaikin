@@ -557,6 +557,17 @@ def test_aggregate_energy_used_when_split_energy_is_unavailable():
     assert device.today_energy_consumption == 0.9
 
 
+def test_split_energy_used_when_cool_heat_available():
+    """BRP084 sums the cool/heat split counters when they are present."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values.update({'curr_day_cool': '10/20', 'curr_day_heat': '30/40'})
+
+    assert device.today_cool_energy_consumption == 3.0
+    assert device.today_heat_energy_consumption == 7.0
+    assert device.today_energy_consumption == 10.0
+
+
 @pytest.mark.parametrize(
     'value, expected',
     [

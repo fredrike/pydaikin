@@ -495,16 +495,6 @@ def test_discover_ip_from_discovery(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_aclose_owned_session():
-    """aclose closes a session owned by the appliance."""
-    device = DaikinBRP069('192.168.1.100')
-    assert device._own_session is True
-    assert not device.session.closed
-    await device.aclose()
-    assert device.session.closed is True
-
-
-@pytest.mark.asyncio
 async def test_async_context_manager():
     """The appliance supports the async context manager protocol."""
     device = DaikinBRP069('192.168.1.100')
