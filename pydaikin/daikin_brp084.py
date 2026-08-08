@@ -505,6 +505,8 @@ class DaikinBRP084(Appliance):
             _LOGGER.error("Error extracting values: %s", e)
             raise
 
+        self._register_energy_consumption_history()
+
     def _extract_optional_readings(self, response):
         """Extract optional values that not all firmware/models expose.
 
@@ -892,6 +894,15 @@ class DaikinBRP084(Appliance):
     def support_powerful_mode(self) -> bool:
         """Return True if the device exposes Powerful mode."""
         return 'powerful' in self.values
+
+    @property
+    def today_energy_consumption(self):
+        """Return today's energy consumption in kWh."""
+        cool = self.today_cool_energy_consumption
+        heat = self.today_heat_energy_consumption
+        if cool is None and heat is None:
+            return self.today_total_energy_consumption or 0
+        return (cool or 0) + (heat or 0)
 
     @property
     def powerful_mode(self) -> Optional[str]:
