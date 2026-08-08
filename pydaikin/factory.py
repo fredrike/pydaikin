@@ -105,9 +105,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
             if not already_initialized:
                 await obj.init()
             if not obj.values.get("mode"):
-                raise DaikinException(
-                    f"Error creating device, {device_id} is not supported."
-                )
+                raise DaikinException(self._unsupported_device_message(obj, device_id))
         except Exception:
             if own_session:
                 await obj.aclose()
@@ -142,6 +140,50 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
         except (DaikinException, aiohttp.ClientError, TimeoutError, OSError) as err:
             _LOGGER.debug(err)
             return None
+
+    @staticmethod
+    def _unsupported_device_message(obj: Appliance, device_id: str) -> str:
+        """Build a clear error message for a detected but unsupported device.
+
+        Some adapters answer /common/basic_info (so type, subtype and firmware
+        are known) but expose no control API. A known example is the BRP069C8x
+        running firmware 2.3.x, which returns 404 for every /aircon endpoint.
+        """
+        values = obj.values
+        device_type = values.get("type", invalidate=False)
+        subtype = values.get("subtype", invalidate=False)
+        firmware = values.get("ver", invalidate=False)
+
+        if (
+            device_type == "aircon"
+            and subtype == "qa"
+            and firmware
+            and firmware.startswith("2_3_")
+        ):
+            return (
+                f"Error creating device, {device_id} is not supported: "
+                f"BRP069C8x with firmware {firmware.replace('_', '.')} is not "
+                "supported by pydaikin."
+            )
+
+        details = []
+        if device_type:
+            details.append(f"type={device_type}")
+        if subtype:
+            details.append(f"subtype={subtype}")
+        if firmware:
+            details.append(f"firmware {firmware.replace('_', '.')}")
+        if adp_kind := values.get("adp_kind", invalidate=False):
+            details.append(f"adp_kind={adp_kind}")
+
+        if details:
+            return (
+                f"Error creating device, {device_id} is not supported: "
+                f"detected {', '.join(details)}, but its control API is not "
+                "available. This device/firmware combination is not supported "
+                "by pydaikin."
+            )
+        return f"Error creating device, {device_id} is not supported."
 
     @staticmethod
     def _extract_ip_port(device_id: str) -> Tuple[str, Optional[int]]:

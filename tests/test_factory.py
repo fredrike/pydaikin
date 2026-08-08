@@ -277,7 +277,89 @@ async def test_factory_detects_brp069(aresponses, client_session):
 
 
 @pytest.mark.asyncio
-async def test_factory_detects_airbase(aresponses, client_session):
+async def test_factory_unsupported_brp069c8x_firmware_230(aresponses, client_session):
+    """BRP069C8x firmware 2.3.0 (type=aircon, subtype=qa) reports a clear error."""
+    # Mock 404 response for firmware 2.8.0 attempt (to force fallback)
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(status=404, text="Not Found"),
+    )
+
+    # BRP069C8x answers /common/basic_info but all /aircon endpoints 404
+    aresponses.add(
+        path_pattern="/common/basic_info",
+        method_pattern="GET",
+        response="ret=OK,type=aircon,subtype=qa,reg=eu,dst=1,ver=2_3_0,rev=F45236EA,pow=0,err=0,location=0,name=%44%61%69%6b%69%6e%20%52%45,icon=31,method=polling,port=30050,id=,lpw_flag=0,adp_kind=4,pv=0,cpv=0,led=1,en_setzone=1,mac=409F38D107AC,ssid=Daikin,adp_mode=ap_run,en_hol=0,grp_name=,en_grp=0,edid=0000000003708559,sw_id=19002959,pw=,ssid1=Daikin,radio1=-52",
+    )
+    aresponses.add(
+        path_pattern="/common/get_datetime",
+        method_pattern="GET",
+        response="ret=OK,sta=2,cur=2026/5/27 15:16:44,reg=eu,dst=1,zone=211",
+    )
+    for endpoint in (
+        "/aircon/get_sensor_info",
+        "/aircon/get_model_info",
+        "/aircon/get_control_info",
+        "/aircon/get_day_power_ex",
+        "/aircon/get_week_power",
+        "/aircon/get_year_power",
+    ):
+        aresponses.add(
+            path_pattern=endpoint,
+            method_pattern="GET",
+            response=aresponses.Response(status=404, text="Page Not Found"),
+        )
+
+    with pytest.raises(
+        DaikinException, match="BRP069C8x with firmware 2.3.0 is not supported"
+    ):
+        await DaikinFactory("192.168.1.100", session=client_session)
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
+async def test_factory_unsupported_unknown_device_reports_details(
+    aresponses, client_session
+):
+    """An unsupported device without known fingerprint still reports detected info."""
+    # Mock 404 response for firmware 2.8.0 attempt (to force fallback)
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(status=404, text="Not Found"),
+    )
+    aresponses.add(
+        path_pattern="/common/basic_info",
+        method_pattern="GET",
+        response="ret=OK,type=aircon,reg=eu,dst=1,ver=1_2_54,rev=203DE8C,pow=1,err=0,location=0,name=%4e%6f%74%74%65,icon=3,method=home only,port=30050,id=,pw=,lpw_flag=0,adp_kind=3,pv=3.20,cpv=3,cpv_minor=20,led=1,en_setzone=1,mac=409F38D107AC,adp_mode=run,en_hol=0,ssid1=Pinguino Curioso,radio1=-35,grp_name=,en_grp=0",
+    )
+    aresponses.add(
+        path_pattern="/common/get_datetime",
+        method_pattern="GET",
+        response="ret=OK,sta=2,cur=2023/8/27 21:54:1,reg=eu,dst=1,zone=313",
+    )
+    for endpoint in (
+        "/aircon/get_sensor_info",
+        "/aircon/get_model_info",
+        "/aircon/get_control_info",
+        "/aircon/get_day_power_ex",
+        "/aircon/get_week_power",
+        "/aircon/get_year_power",
+    ):
+        aresponses.add(
+            path_pattern=endpoint,
+            method_pattern="GET",
+            response=aresponses.Response(status=404, text="Page Not Found"),
+        )
+
+    with pytest.raises(
+        DaikinException,
+        match="detected type=aircon, firmware 1.2.54, adp_kind=3.*not supported",
+    ):
+        await DaikinFactory("192.168.1.100", session=client_session)
     """Test that factory correctly detects AirBase device (fallback from BRP069)."""
     # Mock 404 response for firmware 2.8.0 attempt
     aresponses.add(
