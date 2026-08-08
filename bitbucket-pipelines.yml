@@ -18,7 +18,7 @@ definitions:
           - pip install -r requirements-test.txt
           - ruff format --check .
           - ruff check .
-          - pylint --extension-pkg-whitelist=netifaces bin/pydaikin pydaikin/*.py
+          - pylint bin/pydaikin pydaikin/*.py
 
 pipelines:
   default:

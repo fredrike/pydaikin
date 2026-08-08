@@ -3,7 +3,7 @@
 import logging
 import socket
 
-import netifaces
+import psutil
 
 from .response import parse_response
 
@@ -36,18 +36,13 @@ class Discovery:  # pylint: disable=too-few-public-methods
         if ip:
             broadcast_ips = [ip]
         else:
-            # get all IPv4 definitions in the system
-            net_groups = [
-                netifaces.ifaddresses(i)[netifaces.AF_INET]
-                for i in netifaces.interfaces()
-                if netifaces.AF_INET in netifaces.ifaddresses(i)
+            # get all IPv4 broadcast addresses in the system
+            broadcast_ips = [
+                addr.broadcast
+                for addrs in psutil.net_if_addrs().values()
+                for addr in addrs
+                if addr.family == socket.AF_INET and addr.broadcast
             ]
-
-            # flatten the previous list
-            net_ips = [item for sublist in net_groups for item in sublist]
-
-            # from those, get the broadcast IPs, if available
-            broadcast_ips = [i['broadcast'] for i in net_ips if 'broadcast' in i.keys()]
 
         # send a daikin broadcast to each one of the ips
         for ip_address in broadcast_ips:

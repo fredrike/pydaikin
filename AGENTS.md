@@ -4,7 +4,7 @@
 pydaikin is a Python (>=3.12) library for interfacing with Daikin HVAC appliances.
 
 ## Dependencies
-- Core: `netifaces`, `aiohttp`, `urllib3`, `tenacity`
+- Core: `psutil`, `aiohttp`, `urllib3`, `tenacity`
 - Avoid adding new dependencies without discussion.
 
 ## Setup
@@ -25,7 +25,7 @@ pre-commit run --all-files
 Individual hooks:
 - **ruff check** — linting with auto-fix (`--fix`), replaces flake8/isort/pylint for most rules
 - **ruff format** — formatter (line length 88, target py312+), replaces black
-- **pylint** — static analysis (excludes `tests/`, extends `netifaces`)
+- **pylint** — static analysis (excludes `tests/`)
 
 Configuration for ruff lives in `pyproject.toml` under `[tool.ruff]`.
 
