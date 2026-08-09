@@ -51,6 +51,8 @@ class DaikinSkyFi(Appliance):
         },
     }
 
+    VALUES_TRANSLATION = {}
+    VALUES_SUMMARY = []
     MAX_CONCURRENT_REQUESTS = 1
 
     def __init__(

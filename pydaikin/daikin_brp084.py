@@ -244,6 +244,10 @@ class DaikinBRP084(Appliance):
     # On/off feature toggles handled together (share mutual-exclusion rules).
     POWER_TOGGLES = ('comfort', 'econo', 'outdoor_quiet', 'powerful')
 
+    VALUES_TRANSLATION = {}
+    VALUES_SUMMARY = []
+    # BRP084 polls all status via its own update_status (JSON multireq), so no
+    # individual HTTP resources are fetched.
     INFO_RESOURCES = []
 
     def get_path(self, *keys) -> list[str]:
