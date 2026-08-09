@@ -153,3 +153,113 @@ async def test_set_zone(aresponses, client_session):
 
     # Should not fail, just do nothing
     await device.set_zone(1, 'key', 'value')
+
+
+@pytest.mark.asyncio
+async def test_get_demand_control(aresponses, client_session):
+    """Test get_demand_control method."""
+    aresponses.add(
+        path_pattern="/aircon/get_demand_control",
+        method_pattern="GET",
+        response="ret=OK,type=1,en_demand=1,mode=0,max_pow=45,scdl_per_day=4,moc=0,tuc=0,wec=0,thc=0,frc=0,sac=0,suc=0",
+    )
+
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    # Unit advertises demand control capability via model_info (dmnd)
+    device.values["dmnd"] = "1"
+    response = await device.get_demand_control()
+
+    assert response["max_pow"] == "45"
+    assert device.values.get("en_demand", invalidate=False) == "1"
+    assert device.values.get("max_pow", invalidate=False) == "45"
+    assert device.support_demand_control is True
+
+    aresponses.assert_all_requests_matched()
+
+
+@pytest.mark.asyncio
+async def test_get_demand_control_unsupported(aresponses, client_session):
+    """Test get_demand_control on a device that does not support it."""
+    aresponses.add(
+        path_pattern="/aircon/get_demand_control",
+        method_pattern="GET",
+        response=aresponses.Response(status=404, text="Not Found"),
+    )
+
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    # Unit does not advertise demand control capability via model_info (dmnd)
+    device.values["dmnd"] = "0"
+    response = await device.get_demand_control()
+
+    assert response == {}
+    assert device.support_demand_control is False
+
+    aresponses.assert_all_requests_matched()
+
+
+@pytest.mark.asyncio
+async def test_set_demand_control(aresponses, client_session):
+    """Test set_demand_control method."""
+    aresponses.add(
+        path_pattern="/aircon/set_demand_control",
+        method_pattern="GET",
+        response="ret=OK",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_demand_control",
+        method_pattern="GET",
+        response="ret=OK,type=1,en_demand=1,mode=0,max_pow=40,scdl_per_day=4,moc=0,tuc=0,wec=0,thc=0,frc=0,sac=0,suc=0",
+    )
+
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    await device.set_demand_control(en_demand="1", max_pow=40, mode="0")
+
+    # Verify the set request carried the right query params
+    request = aresponses.history[0].request
+    assert request.path == "/aircon/set_demand_control"
+    assert request.query["en_demand"] == "1"
+    assert request.query["max_pow"] == "40"
+    assert request.query["mode"] == "0"
+
+    # State should be refreshed from the follow-up get request
+    assert device.values.get("max_pow", invalidate=False) == "40"
+
+    aresponses.assert_all_requests_matched()
+
+
+@pytest.mark.asyncio
+async def test_set_demand_control_human_values(aresponses, client_session):
+    """Test set_demand_control maps human values to Daikin values."""
+    aresponses.add(
+        path_pattern="/aircon/set_demand_control",
+        method_pattern="GET",
+        response="ret=OK",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_demand_control",
+        method_pattern="GET",
+        response="ret=OK,type=1,en_demand=1,mode=0,max_pow=30,scdl_per_day=4,moc=0,tuc=0,wec=0,thc=0,frc=0,sac=0,suc=0",
+    )
+
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    await device.set_demand_control(en_demand="on", max_pow=30)
+
+    request = aresponses.history[0].request
+    assert request.query["en_demand"] == "1"
+    assert request.query["max_pow"] == "30"
+
+    aresponses.assert_all_requests_matched()
+
+
+@pytest.mark.asyncio
+async def test_get_info_resources_demand_control(aresponses, client_session):
+    """Test get_info_resources includes demand control when supported."""
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+
+    assert "aircon/get_demand_control" not in device.get_info_resources()
+
+    device.values["dmnd"] = "1"
+    assert "aircon/get_demand_control" in device.get_info_resources()
+
+    device.values["dmnd"] = "0"
+    assert "aircon/get_demand_control" not in device.get_info_resources()
