@@ -1194,6 +1194,309 @@ async def test_update_status_dry_mode():
 
 
 @pytest.mark.asyncio
+async def test_update_status_auto_mode_missing_temp_setpoint(
+    aresponses, client_session
+):
+    """Auto mode without an auto setpoint (e_3001/p_1D) degrades gracefully.
+
+    Regression test for https://github.com/fredrike/pydaikin/issues/72: units
+    that only expose cool/hot setpoints (e.g. Urusara X) report no p_1D while
+    in auto mode, which used to abort init with "Key p_1D not found".
+    """
+    auto_mode_pc = {
+        "pn": "dgc_status",
+        "pch": [
+            {
+                "pn": "last_ope",
+                "pch": [
+                    {"pn": "type", "pv": 1},
+                    {"pn": "time", "pv": "2025-09-24T17:14:59Z"},
+                    {"pn": "chg_flg", "pv": 0},
+                ],
+            },
+            {"pn": "data_model_code", "pv": 26},
+            {"pn": "root_entity_name", "pv": "e_1002"},
+            {
+                "pn": "e_1002",
+                "pch": [
+                    {
+                        "pn": "e_A001",
+                        "pch": [
+                            {
+                                "pn": "p_01",
+                                "pv": "0000000000000000000000000000000000000000572D5352544133323246",
+                            },
+                            {"pn": "p_02", "pv": "000000000000000039373732303043"},
+                            {"pn": "p_03", "pv": "1600"},
+                            {"pn": "p_07", "pv": "00"},
+                            {"pn": "p_08", "pv": "1A000000"},
+                            {"pn": "p_09", "pv": "3330"},
+                            {"pn": "p_0C", "pv": "00"},
+                            {"pn": "p_0D", "pv": "30323631"},
+                            {"pn": "p_0E", "pv": "00"},
+                            {"pn": "p_0F", "pv": "324337353039383630313844"},
+                            {"pn": "p_10", "pv": "3A00"},
+                            {"pn": "p_11", "pv": "30"},
+                            {"pn": "p_12", "pv": "30"},
+                            {"pn": "p_13", "pv": "3432353033323032"},
+                            {"pn": "p_14", "pv": "333238303030343235303332"},
+                            {
+                                "pn": "p_18",
+                                "pv": "0000000000000000000000000000000000000000572D5352544133323246",
+                            },
+                        ],
+                    },
+                    {
+                        "pn": "e_A010",
+                        "pch": [
+                            {"pn": "p_07", "pv": "00"},
+                            {"pn": "p_09", "pv": "05"},
+                        ],
+                    },
+                    {
+                        "pn": "e_A004",
+                        "pch": [
+                            {"pn": "p_02", "pv": "30302D3030"},
+                            {"pn": "p_03", "pv": "00"},
+                            {"pn": "p_04", "pv": "00"},
+                            {"pn": "p_05", "pv": "00"},
+                            {"pn": "p_09", "pv": "30302D3030"},
+                            {"pn": "p_0A", "pv": "00"},
+                            {"pn": "p_0B", "pv": "00"},
+                            {"pn": "p_0C", "pv": "00"},
+                        ],
+                    },
+                    {
+                        "pn": "e_A002",
+                        "pch": [
+                            {"pn": "p_01", "pv": "01"},  # Power on
+                        ],
+                    },
+                    {"pn": "e_200B", "pch": []},
+                    {
+                        "pn": "e_A00B",
+                        "pch": [
+                            {"pn": "p_01", "pv": "17"},  # Room temp (23°C)
+                            {"pn": "p_02", "pv": "37"},  # Humidity (55%)
+                            {"pn": "p_05", "pv": "2F00"},
+                            {"pn": "p_06", "pv": "3100"},
+                            {"pn": "p_10", "pv": "2F00"},
+                            {"pn": "p_19", "pv": "3000"},
+                            {"pn": "p_1A", "pv": "F8"},
+                            {"pn": "p_1B", "pv": "3100"},
+                        ],
+                    },
+                    {
+                        "pn": "e_2016",
+                        "pch": [
+                            {"pn": "p_01", "pv": "037E0022"},
+                        ],
+                    },
+                    {
+                        "pn": "e_2015_01",
+                        "pch": [
+                            {"pn": "p_02", "pv": "0021"},
+                            {"pn": "p_03", "pv": "0021"},
+                        ],
+                    },
+                    {
+                        "pn": "e_2015_02",
+                        "pch": [
+                            {"pn": "p_02", "pv": "0026"},
+                            {"pn": "p_03", "pv": "0026"},
+                        ],
+                    },
+                    {
+                        "pn": "e_2025_01",
+                        "pch": [
+                            {"pn": "p_02", "pv": "A001"},
+                            {"pn": "p_03", "pv": "A001"},
+                        ],
+                    },
+                    {
+                        "pn": "e_2025_02",
+                        "pch": [
+                            {"pn": "p_02", "pv": "5001"},
+                            {"pn": "p_03", "pv": "5001"},
+                        ],
+                    },
+                    {
+                        "pn": "e_2028",
+                        "pch": [
+                            {"pn": "p_03", "pv": "3F00"},
+                            {"pn": "p_04", "pv": "4000"},
+                            {
+                                "pn": "e_2007",
+                                "pch": [
+                                    {"pn": "p_02", "pv": "2F0000"},
+                                    {"pn": "p_03", "pv": "756E00"},
+                                ],
+                            },
+                        ],
+                    },
+                    {
+                        "pn": "e_2029",
+                        "pch": [
+                            {"pn": "p_02", "pv": "0B00"},
+                        ],
+                    },
+                    {
+                        "pn": "e_3003",
+                        "pch": [
+                            {"pn": "p_01", "pv": "05"},
+                            {"pn": "p_02", "pv": "01"},
+                            {"pn": "p_0C", "pv": "35"},
+                            {"pn": "p_1A", "pv": "37"},
+                            {"pn": "p_1B", "pv": "00"},
+                            {"pn": "p_1C", "pv": "00"},
+                            {"pn": "p_20", "pv": "01"},
+                            {"pn": "p_21", "pv": "00"},
+                            {"pn": "p_22", "pv": "00"},
+                            {"pn": "p_25", "pv": "00"},
+                            {"pn": "p_26", "pv": "00"},
+                            {"pn": "p_27", "pv": "00"},
+                            {"pn": "p_28", "pv": "00"},
+                            {"pn": "p_29", "pv": "00"},
+                            {"pn": "p_2A", "pv": "01"},
+                            {"pn": "p_2C", "pv": "00"},
+                            {"pn": "p_2D", "pv": "00"},
+                            {"pn": "p_2E", "pv": "F8"},
+                            {"pn": "p_2F", "pv": "0500"},
+                            {"pn": "p_30", "pv": "00"},
+                            {"pn": "p_36", "pv": "00"},
+                            {"pn": "p_37", "pv": "03"},
+                            {"pn": "p_38", "pv": "010000"},
+                            {"pn": "p_3A", "pv": "C901"},
+                            {"pn": "p_3B", "pv": "0502"},
+                            {"pn": "p_3C", "pv": "00"},
+                            {"pn": "p_3D", "pv": "00"},
+                            {"pn": "p_3E", "pv": "00"},
+                            {"pn": "p_41", "pv": "000000324337353039383630313844"},
+                            {"pn": "p_4D", "pv": "01"},
+                            {"pn": "p_52", "pv": "00"},
+                            {"pn": "p_64", "pv": "00"},
+                            {"pn": "p_65", "pv": "00"},
+                            {"pn": "p_31", "pv": "00002D3030"},
+                            {"pn": "p_32", "pv": "00"},
+                            {"pn": "p_33", "pv": "00"},
+                            {"pn": "p_34", "pv": "00"},
+                        ],
+                    },
+                    {
+                        "pn": "e_3001",
+                        "pch": [
+                            {"pn": "p_01", "pv": "0300"},  # Mode: auto
+                            {"pn": "p_02", "pv": "34"},  # Cool setpoint (26°C)
+                            {"pn": "p_03", "pv": "32"},  # Hot setpoint (25°C)
+                            {"pn": "p_05", "pv": "10000000"},
+                            {"pn": "p_06", "pv": "100000"},
+                            {"pn": "p_07", "pv": "03000000"},
+                            {"pn": "p_08", "pv": "0B0000"},
+                            {"pn": "p_09", "pv": "0A00"},
+                            {"pn": "p_0A", "pv": "0A00"},
+                            {"pn": "p_0B", "pv": "0A"},
+                            {"pn": "p_0C", "pv": "06"},
+                            {"pn": "p_15", "pv": "00"},
+                            {"pn": "p_1C", "pv": "02"},
+                            {"pn": "p_1F", "pv": "00"},
+                            {"pn": "p_20", "pv": "10000000"},
+                            {"pn": "p_21", "pv": "100000"},
+                            {"pn": "p_22", "pv": "10000000"},
+                            {"pn": "p_23", "pv": "100000"},
+                            {"pn": "p_24", "pv": "03000000"},
+                            {"pn": "p_25", "pv": "0B0000"},
+                            {"pn": "p_26", "pv": "0A00"},  # Auto fan speed
+                            {"pn": "p_27", "pv": "0A00"},
+                            {"pn": "p_28", "pv": "0A00"},
+                            {"pn": "p_29", "pv": "03000000"},
+                            {"pn": "p_2A", "pv": "0B0000"},
+                            {"pn": "p_2B", "pv": "0A00"},
+                            {"pn": "p_2C", "pv": "0A"},
+                            {"pn": "p_2D", "pv": "00"},
+                            {"pn": "p_2F", "pv": "02"},
+                            {"pn": "p_30", "pv": "0B"},
+                            {"pn": "p_31", "pv": "01"},
+                            {"pn": "p_32", "pv": "0A"},
+                            {"pn": "p_33", "pv": "01"},
+                            {"pn": "p_36", "pv": "01"},
+                            {"pn": "p_45", "pv": "02"},
+                        ],
+                    },
+                    {
+                        "pn": "e_A011",
+                        "pch": [
+                            {"pn": "p_01", "pv": "01"},
+                            {"pn": "p_02", "pv": "01"},
+                            {"pn": "p_03", "pv": "00"},
+                            {"pn": "p_06", "pv": "0000"},
+                            {"pn": "p_07", "pv": "0000"},
+                            {"pn": "p_08", "pv": "0000"},
+                            {"pn": "p_09", "pv": "0000"},
+                            {"pn": "p_0A", "pv": "0000"},
+                            {"pn": "p_0B", "pv": "0000"},
+                            {"pn": "p_0C", "pv": "0000"},
+                        ],
+                    },
+                    {
+                        "pn": "e_A006",
+                        "pch": [
+                            {"pn": "p_0E", "pv": "0000"},
+                            {"pn": "p_0F", "pv": "00"},
+                            {"pn": "p_10", "pv": "44303030323032303030"},
+                            {"pn": "p_11", "pv": "5900"},
+                            {"pn": "p_13", "pv": "0F"},
+                            {"pn": "p_14", "pv": "01"},
+                            {"pn": "p_15", "pv": "30303030303030303030"},
+                            {"pn": "p_16", "pv": "0000"},
+                            {"pn": "p_1A", "pv": "0000"},
+                            {"pn": "p_1B", "pv": "0100"},
+                            {"pn": "p_1C", "pv": "0200"},
+                        ],
+                    },
+                ],
+            },
+        ],
+    }
+    mock_response = {
+        "responses": [
+            {"fr": "/dsiot/edge/adr_0100.dgc_status", "pc": auto_mode_pc, "rsc": 2000},
+            {
+                "fr": "/dsiot/edge.adp_i",
+                "pc": {
+                    "pn": "adp_i",
+                    "pch": [{"pn": "mac", "pv": "112233445566"}],
+                },
+                "rsc": 2000,
+            },
+        ]
+    }
+
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(
+            status=200,
+            text=json.dumps(mock_response),
+            headers={"Content-Type": "application/json"},
+        ),
+    )
+
+    device = DaikinBRP084('ip', session=client_session)
+    await device.init()
+    aresponses.assert_all_requests_matched()
+
+    assert device.values['mode'] == 'auto'
+    assert device.values['pow'] == '1'
+    assert device.values['stemp'] == '--'
+    assert device.values['f_rate'] == 'auto'
+    assert device.values['f_dir'] == 'off'
+    assert device.values['htemp'] == '23.0'
+    assert device.values['hhum'] == '55'
+    assert device.values['otemp'] == '--'
+    assert device.values['mac'] == '112233445566'
+
+
+@pytest.mark.asyncio
 async def test_update_status_missing_mac_raises(caplog):
     """A missing MAC address aborts the status update with a logged error."""
     device = DaikinBRP084('ip', session=MagicMock())

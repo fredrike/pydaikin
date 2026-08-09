@@ -459,14 +459,17 @@ class DaikinBRP084(Appliance):
 
             # Get target temperature
             if self.values['mode'] in self.API_PATHS["temp_settings"]:
-                self.values['stemp'] = str(
-                    self.hex_to_temp(
-                        self.find_value_by_pn(
-                            response,
-                            *self.get_path("temp_settings", self.values['mode']),
+                try:
+                    self.values['stemp'] = str(
+                        self.hex_to_temp(
+                            self.find_value_by_pn(
+                                response,
+                                *self.get_path("temp_settings", self.values['mode']),
+                            )
                         )
                     )
-                )
+                except DaikinException:
+                    self.values['stemp'] = "--"
             else:
                 self.values['stemp'] = "--"
 
