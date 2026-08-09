@@ -43,3 +43,17 @@ def test_support_humidity(values, expected):
     device = DaikinBRP072C('127.0.0.1', session=mock_session, key='dummy_key')
     device.values.update(values)
     assert device.support_humidity is expected
+
+
+def test_init_cipher_sslerror(monkeypatch):
+    """Test __init__ when set_ciphers raises ssl.SSLError."""
+    import ssl
+
+    mock_session = MagicMock()
+
+    def raise_sslerror(self, ciphers):
+        raise ssl.SSLError('cipher not supported')
+
+    monkeypatch.setattr(ssl.SSLContext, 'set_ciphers', raise_sslerror)
+    device = DaikinBRP072C('127.0.0.1', session=mock_session, key='dummy_key')
+    assert device._key == 'dummy_key'

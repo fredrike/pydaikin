@@ -16,7 +16,7 @@ PyDaikin is a Python library for controlling Daikin air conditioners. It provide
 
 The following Daikin WiFi modules are currently supported:
 
-* **BRP069Axx/BRP069Bxx/BRP072Axx** - Standard WiFi adapters
+* **BRP069Axx/BRP069Bxx/BRP069B4x/BRP072Axx** - Standard WiFi adapters
 * **BRP15B61 (AirBase)** - Uses a similar protocol to BRP069Axx
 * **BRP072B/Cxx** - Requires HTTPS access and an authentication key
 * **BRP084** - Devices with firmware version 2.8.0 (uses a different API structure)
@@ -53,6 +53,33 @@ The `DaikinFactory` automatically detects your device type and firmware version,
 ## Firmware Version 2.8.0 Support
 
 Firmware version 2.8.0 introduces a different API structure compared to earlier versions. PyDaikin automatically detects and handles this firmware version.
+
+### API structure
+
+Unlike the older CGI-based adapters (BRP069 family), firmware 2.8.0 exposes a single JSON endpoint, `POST /dsiot/multireq`:
+
+* **Status reads** are batch requests containing four `op: 2` entries (indoor unit, outdoor unit, weekly energy and adapter info).
+* **Writes** are `op: 3` entries that walk the `dgc_status` tree down to the parameter to change.
+
+Full request/response examples are in [`docs/sample_requests/brp084/`](docs/sample_requests/brp084/README.md).
+
+### Power semantics
+
+The behaviour of `device.set(...)` was validated against the unit's behaviour (see `tests/test_daikin_brp084.py`):
+
+* `device.set({})` turns the unit **on** (the Home Assistant toggle-switch path)
+* `device.set({'mode': 'off'})` turns the unit **off**
+* `device.set({'mode': 'cool'})` turns the unit **on** and switches mode
+* `device.set({'stemp': 25.0})` sets the temperature only; a powered-off unit stays off
+
+### Supported features
+
+* **Comfort airflow, Econo, Outdoor-quiet and Powerful toggles** - Powerful and the trio (Comfort/Econo/Outdoor-quiet) are mutually exclusive, matching the remote's last-button-pressed-wins behaviour
+* **Discrete vertical vane control** - `off`, `down` (floor) and `swing`
+* **Swing** on the vertical and horizontal axes, per mode
+* **Sensors** - indoor/outdoor temperature, humidity, compressor temperature, decoded indoor/outdoor model strings and adapter firmware/API version
+* **Energy data** - daily runtime and weekly consumption
+* **Sub-zero outdoor temperatures** - sensor values are decoded as little-endian signed hex, so negative readings are handled correctly
 
 **Confirmed working with:**
 

@@ -4,6 +4,7 @@ import logging
 import re
 from typing import Optional, Tuple
 
+import aiohttp
 from aiohttp import ClientSession
 from aiohttp.web_exceptions import HTTPNotFound
 
@@ -30,7 +31,7 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
         await instance.__init__(*a, **kw)
         return instance._generated_object
 
-    async def __init__(
+    async def __init__(  # pylint: disable=too-many-branches,too-many-statements,broad-exception-caught
         self,
         device_id: str,
         session: Optional[ClientSession] = None,
@@ -43,17 +44,22 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
         # Check if this is a device with optional port from discovery
         device_ip, device_port = self._extract_ip_port(device_id)
         obj = None
+        already_initialized = False
+
+        # Create a single session for all detection trials if the caller did not
+        # provide one, so that failed trials do not leak their own sessions.
+        if session is None:
+            session = ClientSession()
+            own_session = True
+        else:
+            own_session = False
 
         if password:
             obj = DaikinSkyFi(device_ip, session, password)
         elif key:
-            obj = DaikinBRP072C(
-                device_ip,
-                session,
-                key=key,
-                uuid=kwargs.get('uuid'),
-                ssl_context=kwargs.get('ssl_context'),
-            )
+            obj = await self._try_brp072c(device_ip, session, key, kwargs)
+            if obj is not None:
+                already_initialized = True
         # Try BRP084, firmware 2.8.0
         if not obj:
             try:
@@ -93,13 +99,91 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 _LOGGER.debug("Using custom port %s for AirBase", device_port)
                 obj.base_url = f"http://{device_ip}:{device_port}"
 
-        await obj.init()
-        if not obj.values.get("mode"):
-            raise DaikinException(
-                f"Error creating device, {device_id} is not supported."
-            )
+        if own_session:
+            setattr(obj, "_own_session", True)
+        try:
+            if not already_initialized:
+                await obj.init()
+            if not obj.values.get("mode"):
+                raise DaikinException(self._unsupported_device_message(obj, device_id))
+        except Exception:
+            if own_session:
+                await obj.aclose()
+            raise
         _LOGGER.debug("Daikin generated object: %s", type(obj))
         self._generated_object = obj
+
+    @staticmethod
+    async def _try_brp072c(
+        device_ip: str,
+        session: Optional[ClientSession],
+        key: str,
+        kwargs: dict,
+    ) -> Optional[DaikinBRP072C]:
+        """Try to connect as BRP072C; return None if it fails."""
+        obj = DaikinBRP072C(
+            device_ip,
+            session,
+            key=key,
+            uuid=kwargs.get("uuid"),
+            ssl_context=kwargs.get("ssl_context"),
+        )
+        try:
+            # Some BRP069 units also use keys to auth.
+            # If treated as a BRP072 we won't be able to connect,
+            # since this will force https on a unit that expects
+            # connection to port 80. We do a preliminary attempt at
+            # initialization to catch connection errors and then
+            # fallback to the following cases.
+            await obj.init()
+            return obj
+        except (DaikinException, aiohttp.ClientError, TimeoutError, OSError) as err:
+            _LOGGER.debug(err)
+            return None
+
+    @staticmethod
+    def _unsupported_device_message(obj: Appliance, device_id: str) -> str:
+        """Build a clear error message for a detected but unsupported device.
+
+        Some adapters answer /common/basic_info (so type, subtype and firmware
+        are known) but expose no control API. A known example is the BRP069C8x
+        running firmware 2.3.x, which returns 404 for every /aircon endpoint.
+        """
+        values = obj.values
+        device_type = values.get("type", invalidate=False)
+        subtype = values.get("subtype", invalidate=False)
+        firmware = values.get("ver", invalidate=False)
+
+        if (
+            device_type == "aircon"
+            and subtype == "qa"
+            and firmware
+            and firmware.startswith("2_3_")
+        ):
+            return (
+                f"Error creating device, {device_id} is not supported: "
+                f"BRP069C8x with firmware {firmware.replace('_', '.')} is not "
+                "supported by pydaikin."
+            )
+
+        details = []
+        if device_type:
+            details.append(f"type={device_type}")
+        if subtype:
+            details.append(f"subtype={subtype}")
+        if firmware:
+            details.append(f"firmware {firmware.replace('_', '.')}")
+        if adp_kind := values.get("adp_kind", invalidate=False):
+            details.append(f"adp_kind={adp_kind}")
+
+        if details:
+            return (
+                f"Error creating device, {device_id} is not supported: "
+                f"detected {', '.join(details)}, but its control API is not "
+                "available. This device/firmware combination is not supported "
+                "by pydaikin."
+            )
+        return f"Error creating device, {device_id} is not supported."
 
     @staticmethod
     def _extract_ip_port(device_id: str) -> Tuple[str, Optional[int]]:

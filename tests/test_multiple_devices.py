@@ -1,8 +1,9 @@
-import asyncio
 import logging
 
 from aiohttp import web
+import pytest
 
+from pydaikin import daikin_base
 from pydaikin.daikin_airbase import DaikinAirBase
 from pydaikin.daikin_brp069 import DaikinBRP069
 from pydaikin.daikin_brp084 import DaikinBRP084
@@ -229,13 +230,13 @@ class FakeDaikinServer:
         """Handle 404 response."""
         return web.Response(status=404)
 
-    async def start(self, host="127.0.0.1", port=8080):
-        """Start the fake server."""
+    async def start(self, host="127.0.0.1", port=0):
+        """Start the fake server on an ephemeral port."""
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
         self.site = web.TCPSite(self.runner, host, port)
         await self.site.start()
-        return f"http://{host}:{port}"
+        return self.site.name
 
     async def stop(self):
         """Stop the fake server."""
@@ -245,84 +246,50 @@ class FakeDaikinServer:
             await self.runner.cleanup()
 
 
-async def test_device_factory():
+@pytest.mark.parametrize(
+    "device_type,expected_class,password",
+    [
+        ("firmware280", DaikinBRP084, None),
+        ("brp069", DaikinBRP069, None),
+        ("airbase", DaikinAirBase, None),
+        ("skyfi", DaikinSkyFi, "password"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_device_factory(device_type, expected_class, password, monkeypatch):
     """Test that the factory correctly identifies different device types."""
-    results = []
+    server = FakeDaikinServer(device_type)
+    base_url = await server.start()
+    port = server.site.port
+    device_id = base_url.replace("http://", "")
 
-    # Test each device type
-    for device_type in ["firmware280", "brp069", "airbase", "skyfi"]:
-        server = FakeDaikinServer(device_type)
-        base_url = await server.start()
+    original_appliance_init = daikin_base.Appliance.__init__
 
-        try:
-            device = None
-            # SkyFi needs a password
-            if device_type == "skyfi":
-                device = await DaikinFactory(
-                    base_url.replace("http://", ""), password="password"
-                )
-            else:
-                device = await DaikinFactory(base_url.replace("http://", ""))
+    def patched_appliance_init(self, device_ip, session=None):
+        original_appliance_init(self, device_ip, session)
+        self.base_url = f"http://{device_ip}:{port}"
 
-            # Check that the correct device type was created
-            device_class_name = type(device).__name__
-            print(f"Device type '{device_type}' was identified as: {device_class_name}")
-
-            expected_class = None
-            if device_type == "firmware280":
-                expected_class = DaikinBRP084
-            elif device_type == "brp069":
-                expected_class = DaikinBRP069
-            elif device_type == "airbase":
-                expected_class = DaikinAirBase
-            elif device_type == "skyfi":
-                expected_class = DaikinSkyFi
-
-            assert isinstance(
-                device, expected_class
-            ), f"Expected {expected_class.__name__}, got {device_class_name}"
-
-            # Check that we can read basic info
-            print(f"Device values: {list(device.values.keys())}")
-            assert "mode" in device.values, "Basic mode value not found"
-
-            results.append(
-                {
-                    "device_type": device_type,
-                    "identified_as": device_class_name,
-                    "success": isinstance(device, expected_class),
-                }
+    try:
+        if device_type == "firmware280":
+            # BRP084 always connects to port 80 by default, point it at the
+            # fake server instead.
+            monkeypatch.setattr(
+                daikin_base.Appliance, "__init__", patched_appliance_init
             )
+        elif device_type == "skyfi":
+            # SkyFi always connects to port 2000 by default, point it at the
+            # fake server instead.
+            original_skyfi_init = DaikinSkyFi.__init__
 
-        except Exception as e:
-            print(f"Error testing {device_type}: {e}")
-            results.append(
-                {
-                    "device_type": device_type,
-                    "error": str(e),
-                    "success": False,
-                }
-            )
-        finally:
-            await server.stop()
+            def patched_skyfi_init(self, device_ip, session, password_):
+                original_skyfi_init(self, device_ip, session, password_)
+                self.base_url = f"http://{device_ip}:{port}"
 
-    # Print summary
-    print("\n=== Factory Test Results ===")
-    for result in results:
-        status = "✅ SUCCESS" if result.get("success") else "❌ FAILED"
-        if "error" in result:
-            print(f"{status} - {result['device_type']}: {result['error']}")
-        else:
-            print(
-                f"{status} - {result['device_type']}: Identified as {result['identified_as']}"
-            )
+            monkeypatch.setattr(DaikinSkyFi, "__init__", patched_skyfi_init)
 
-    # Overall success
-    overall_success = all(result.get("success", False) for result in results)
-    print(f"\nOverall Test {'✅ PASSED' if overall_success else '❌ FAILED'}")
+        device = await DaikinFactory(device_id, password=password)
 
-    return overall_success
-
-
-if __name__ == "__main__":
-    asyncio.run(test_device_factory())
+        assert isinstance(device, expected_class)
+        assert "mode" in device.values
+    finally:
+        await server.stop()

@@ -68,7 +68,7 @@ class DaikinRequest:
         return payload
 
 
-# pylint: disable=abstract-method
+# pylint: disable=abstract-method,too-many-public-methods
 class DaikinBRP084(Appliance):
     """Daikin class for BRP devices with firmware 2.8.0."""
 
@@ -79,6 +79,13 @@ class DaikinBRP084(Appliance):
         "e_1002",
     ]
     E_1002_E_3001_PATH = E_1002_PATH + ["e_3001"]
+    E_1002_E_3003_PATH = E_1002_PATH + ["e_3003"]
+    E_1003_PATH = [
+        "/dsiot/edge/adr_0200.dgc_status",
+        "dgc_status",
+        "e_1003",
+    ]
+    ADP_I_PATH = ["/dsiot/edge.adp_i", "adp_i"]
 
     API_PATHS = {
         # Basic paths
@@ -93,18 +100,35 @@ class DaikinBRP084(Appliance):
             "e_A00D",
             "p_01",
         ],
-        "mac_address": ["/dsiot/edge.adp_i", "adp_i", "mac"],
+        "mac_address": ADP_I_PATH + ["mac"],
+        # Adapter info / capability flags
+        "firmware_ver": ADP_I_PATH + ["ver"],
+        "api_ver": ADP_I_PATH + ["api_ver"],
+        # Comfort airflow (e_3003/p_1D): 00=off, 01=on
+        "comfort": E_1002_E_3003_PATH + ["p_1D"],
+        # Econo (e_3003/p_24): 00=off, 01=on. Verified live read+write.
+        "econo": E_1002_E_3003_PATH + ["p_24"],
+        # Outdoor unit quiet (outdoor e_3002/p_3D): 00=off, 01=on.
+        "outdoor_quiet": E_1003_PATH + ["e_3002", "p_3D"],
+        # Powerful (outdoor e_3002/p_44): 00=off, 01=on. Verified live
+        # read+write; the unit also auto-cancels after ~20 min.
+        "powerful": E_1003_PATH + ["e_3002", "p_44"],
+        # Outdoor unit sensors (read-only)
+        "compressor_temp": E_1003_PATH + ["e_A005", "p_01"],
+        "discharge_temp": E_1003_PATH + ["e_A005", "p_02"],
+        "indoor_model": E_1002_PATH + ["e_A001", "p_01"],
+        "outdoor_model": E_1003_PATH + ["e_A001", "p_01"],
         # Mode-specific paths for temperature settings
         "temp_settings": {
             "cool": E_1002_E_3001_PATH + ["p_02"],
-            "heat": E_1002_E_3001_PATH + ["p_03"],
+            "hot": E_1002_E_3001_PATH + ["p_03"],
             "auto": E_1002_E_3001_PATH + ["p_1D"],
         },
         # Fan settings organized by mode
         "fan_settings": {
             "auto": E_1002_E_3001_PATH + ["p_26"],
             "cool": E_1002_E_3001_PATH + ["p_09"],
-            "heat": E_1002_E_3001_PATH + ["p_0A"],
+            "hot": E_1002_E_3001_PATH + ["p_0A"],
             "fan": E_1002_E_3001_PATH + ["p_28"],
         },
         # Swing settings organized by mode
@@ -117,7 +141,7 @@ class DaikinBRP084(Appliance):
                 "vertical": E_1002_E_3001_PATH + ["p_05"],
                 "horizontal": E_1002_E_3001_PATH + ["p_06"],
             },
-            "heat": {
+            "hot": {
                 "vertical": E_1002_E_3001_PATH + ["p_07"],
                 "horizontal": E_1002_E_3001_PATH + ["p_08"],
             },
@@ -145,42 +169,22 @@ class DaikinBRP084(Appliance):
         },
     }
 
-    TRANSLATIONS = {
-        'mode': {
-            '0300': 'auto',
-            '0200': 'cool',
-            '0100': 'heat',
-            '0000': 'fan',
-            '0500': 'dry',
-            '00': 'off',
-            '01': 'on',
-        },
-        'f_rate': {
-            '0A00': 'auto',
-            '0B00': 'quiet',
-            '0300': '1',
-            '0400': '2',
-            '0500': '3',
-            '0600': '4',
-            '0700': '5',
-        },
-        'f_dir': {
-            'off': 'off',
-            'vertical': 'vertical',
-            'horizontal': 'horizontal',
-            'both': '3d',
-        },
-        'en_hol': {
-            '0': 'off',
-            '1': 'on',
-        },
+    # Discrete vertical vane states. Only byte-0 has physical effect on this
+    # firmware (verified live): 'off'=neutral, 'swing'=oscillate, 'down'=floor.
+    # There is no continuous angle and no distinct "up" preset over wifi -
+    # byte-1 is accepted but inert, so 00800000 ("up") is NOT included.
+    VERTICAL_VANE_MAP = {
+        '00000000': 'off',
+        '17000000': 'down',
+        '0F000000': 'swing',
     }
+    REVERSE_VERTICAL_VANE_MAP = {v: k for k, v in VERTICAL_VANE_MAP.items()}
 
     # Mapping between the values from firmware 2.8.0 to traditional API values
     MODE_MAP = {
         '0300': 'auto',
         '0200': 'cool',
-        '0100': 'heat',
+        '0100': 'hot',
         '0000': 'fan',
         '0500': 'dry',
     }
@@ -195,7 +199,40 @@ class DaikinBRP084(Appliance):
         '0700': '5',
     }
 
-    # These mappings are now handled by the API_PATHS dictionary
+    TRANSLATIONS: dict[str, dict[str, str]] = {
+        'mode': MODE_MAP
+        | {
+            '00': 'off',
+            '01': 'on',
+        },
+        'f_rate': FAN_MODE_MAP,
+        'f_dir': {
+            'off': 'off',
+            'vertical': 'vertical',
+            'horizontal': 'horizontal',
+            'both': '3d',
+        },
+        'en_hol': {
+            '0': 'off',
+            '1': 'on',
+        },
+        'comfort': {
+            '00': 'off',
+            '01': 'on',
+        },
+        'econo': {
+            '00': 'off',
+            '01': 'on',
+        },
+        'outdoor_quiet': {
+            '00': 'off',
+            '01': 'on',
+        },
+        'powerful': {
+            '00': 'off',
+            '01': 'on',
+        },
+    }
 
     # The values for turning swing axis on/off
     TURN_OFF_SWING_AXIS = "000000"
@@ -208,8 +245,12 @@ class DaikinBRP084(Appliance):
     VALUES_SUMMARY = []
     # BRP084 uses custom update_status with JSON polling, not individual HTTP resources
     INFO_RESOURCES = ['dgc_status']  # Placeholder for validation
+    # On/off feature toggles handled together (share mutual-exclusion rules).
+    POWER_TOGGLES = ('comfort', 'econo', 'outdoor_quiet', 'powerful')
 
-    def get_path(self, *keys):
+    INFO_RESOURCES = []
+
+    def get_path(self, *keys) -> list[str]:
         """Get API path from the nested dictionary structure.
 
         Args:
@@ -221,14 +262,19 @@ class DaikinBRP084(Appliance):
             List of path components to use with find_value_by_pn.
 
         Raises:
-            DaikinException: If the path is not found in the API_PATHS dictionary.
+            DaikinException: If the path is not found in the API_PATHS dictionary or
+                the resolved value is not a list.
         """
         current = self.API_PATHS
         for key in keys:
             if key not in current:
-                raise DaikinException(f"Path key {key} not found")
+                raise DaikinException(
+                    f"Path key {key} not found in path: {'/'.join(map(str, keys))}"
+                )
             current = current[key]
-        return current
+        if isinstance(current, list):
+            return current
+        raise DaikinException(f"Resolved path is not a list: {current}")
 
     def __init__(self, device_id, session: Optional[ClientSession] = None) -> None:
         """Initialize the Daikin appliance for firmware 2.8.0."""
@@ -249,6 +295,31 @@ class DaikinBRP084(Appliance):
     def hex_to_int(value: str) -> int:
         """Convert hexadecimal string to integer."""
         return int(value, 16)
+
+    @staticmethod
+    def hex_le_to_int(value: str, signed: bool = False) -> int:
+        """Convert a little-endian hex string (byte pairs) to an integer.
+
+        Multi-byte dgc_status values (e.g. outdoor temperature ``0D00`` or
+        compressor temperature ``8C0000``) are little-endian. Reading only the
+        first byte breaks for values that spill into the second byte or that are
+        negative (two's complement), e.g. a sub-zero outdoor temperature.
+        """
+        raw = bytes.fromhex(value)
+        return int.from_bytes(raw, byteorder='little', signed=signed)
+
+    @classmethod
+    def hex_le_to_temp(cls, value: str, divisor=2) -> float:
+        """Convert a little-endian signed hex temperature to degrees Celsius."""
+        return cls.hex_le_to_int(value, signed=True) / divisor
+
+    @staticmethod
+    def hex_to_ascii(value: str) -> str:
+        """Decode a hex-encoded ASCII string (model/serial), trimming padding."""
+        try:
+            return bytes.fromhex(value).decode('ascii').strip()
+        except (TypeError, ValueError, UnicodeDecodeError):
+            return value
 
     @staticmethod
     def find_value_by_pn(data: dict, fr: str, *keys):
@@ -297,6 +368,28 @@ class DaikinBRP084(Appliance):
 
         return 'off'  # Default return value
 
+    def _safe_extract(self, response: dict, *keys) -> Optional[str]:
+        """Extract a value from the response, returning None if not found."""
+        try:
+            return self.find_value_by_pn(response, *keys)
+        except DaikinException:
+            return None
+
+    def _safe_hex_temp(self, response: dict, path_key: str, divisor: int = 2) -> str:
+        """Extract a temperature value, returning '--' if missing or null.
+
+        Decodes as a little-endian signed value so sub-zero outdoor readings
+        (two's complement, e.g. a negative outdoor temperature) are handled
+        correctly rather than being read from the first byte only.
+        """
+        try:
+            raw = self.find_value_by_pn(response, *self.get_path(path_key))
+            if raw is not None:
+                return str(self.hex_le_to_temp(raw, divisor))
+        except DaikinException:
+            pass
+        return "--"
+
     async def init(self):
         """Initialize the device and fetch initial state."""
         # Only update if values haven't been populated yet (e.g., by factory detection)
@@ -328,9 +421,12 @@ class DaikinBRP084(Appliance):
 
         # Extract basic info
         try:
-            # Get MAC address
+            # Get MAC address and firmware version
             mac = self.find_value_by_pn(response, *self.get_path("mac_address"))
             self.values['mac'] = mac
+            self.values['ver'] = self._safe_extract(
+                response, *self.get_path("firmware_ver")
+            )
 
             # Get power state
             is_off = self.find_value_by_pn(response, *self.get_path("power")) == "00"
@@ -341,12 +437,10 @@ class DaikinBRP084(Appliance):
             self.values['pow'] = "0" if is_off else "1"
             self.values['mode'] = 'off' if is_off else self.MODE_MAP[mode_value]
 
-            # Get temperatures
-            self.values['otemp'] = str(
-                self.hex_to_temp(
-                    self.find_value_by_pn(response, *self.get_path("outdoor_temp"))
-                )
-            )
+            # Get temperatures. Outdoor temp is decoded as a little-endian
+            # signed value (see _safe_hex_temp) to handle sub-zero readings, and
+            # guarded so a missing/null sensor yields '--' rather than crashing.
+            self.values['otemp'] = self._safe_hex_temp(response, "outdoor_temp")
 
             self.values['htemp'] = str(
                 self.hex_to_temp(
@@ -392,6 +486,10 @@ class DaikinBRP084(Appliance):
             # Get swing mode
             self.values['f_dir'] = self.get_swing_state(response)
 
+            # Optional feature toggles, vane position, capability flags and
+            # outdoor sensors (each guarded - not all firmware exposes them).
+            self._extract_optional_readings(response)
+
             # Get energy data
             try:
                 self.values['today_runtime'] = self.find_value_by_pn(
@@ -403,12 +501,75 @@ class DaikinBRP084(Appliance):
                 )
                 if isinstance(energy_data, list) and len(energy_data) > 0:
                     self.values['datas'] = '/'.join(map(str, energy_data))
+
             except DaikinException:
                 pass
 
         except DaikinException as e:
             _LOGGER.error("Error extracting values: %s", e)
             raise
+
+        self._register_energy_consumption_history()
+
+    def _extract_optional_readings(self, response):
+        """Extract optional values that not all firmware/models expose.
+
+        Covers the on/off feature toggles, the active-mode vertical vane
+        position, adapter capability/firmware info and outdoor-unit sensors.
+        Each read is guarded individually so a missing container just leaves
+        that value unset rather than failing the whole status update.
+        """
+        # On/off feature toggles (comfort/econo/outdoor_quiet/powerful).
+        for key in self.POWER_TOGGLES:
+            try:
+                raw = self.find_value_by_pn(response, *self.get_path(key))
+                self.values[key] = self.TRANSLATIONS[key].get(raw, 'off')
+            except DaikinException:
+                pass
+
+        # Current vertical vane position for the active mode.
+        try:
+            if self.values['mode'] in self.API_PATHS["swing_settings"]:
+                vane_raw = self.find_value_by_pn(
+                    response,
+                    *self.get_path("swing_settings", self.values['mode'], "vertical"),
+                )
+                self.values['vane_vertical'] = self.VERTICAL_VANE_MAP.get(
+                    vane_raw, 'off'
+                )
+        except DaikinException:
+            pass
+
+        # Adapter capability flags. The firmware version ('ver') is already
+        # read in update_status from the same adp_i path.
+        try:
+            self.values['api_ver'] = str(
+                self.find_value_by_pn(response, *self.get_path("api_ver"))
+            )
+        except DaikinException:
+            pass
+
+        # Outdoor-unit compressor temperature.
+        try:
+            self.values['cmp_temp'] = str(
+                self.hex_le_to_temp(
+                    self.find_value_by_pn(response, *self.get_path("compressor_temp"))
+                )
+            )
+        except DaikinException:
+            pass
+
+        # Decoded model strings.
+        for key, path_key in (
+            ('model', 'indoor_model'),
+            ('outdoor_model', 'outdoor_model'),
+        ):
+            try:
+                self.values[key] = self.hex_to_ascii(
+                    self.find_value_by_pn(response, *self.get_path(path_key))
+                )
+            except DaikinException:
+                pass
 
     async def _get_resource(self, path: str, params: Optional[Dict] = None):
         """Make the HTTP request to the device."""
@@ -455,11 +616,29 @@ class DaikinBRP084(Appliance):
         requests.append(DaikinAttribute(path[-1], value, path[2:4], path[0]))
 
     def _handle_power_setting(self, settings, requests):
-        """Handle power-related settings."""
+        """Handle power-related settings.
+
+        Mirrors BRP069's contract (see daikin_brp069.py _update_settings,
+        the ``'mode' in settings or not settings → pow='1'`` branch):
+          - device.set({})             → power ON  (HA's toggle-switch path)
+          - device.set({'mode':'off'}) → power OFF
+          - device.set({'mode': X})    → power ON + set mode X
+          - device.set({'stemp': X})   → temperature only, leave power as-is
+                                          (so changing setpoint on a powered-
+                                          off unit does NOT turn it on).
+        """
+        # Truly empty settings → HA's "turn on" path. Only this empty case
+        # forces a power write; other partial settings (e.g. just stemp)
+        # leave power untouched.
+        if not settings:
+            self.add_request(requests, self.get_path("power"), "01")
+            return
+
+        # Settings present but no mode key → no power write.
         if 'mode' not in settings:
             return
 
-        # Turn off/on
+        # Mode change → write power explicitly.
         power_path = self.get_path("power")
         self.add_request(
             requests, power_path, "00" if settings['mode'] == 'off' else "01"
@@ -468,11 +647,16 @@ class DaikinBRP084(Appliance):
         if settings['mode'] == 'off':
             return
 
-        # Set mode
+        # Set mode.
         mode_value = self.REVERSE_MODE_MAP.get(settings['mode'])
         if mode_value:
             mode_path = self.get_path("mode")
             self.add_request(requests, mode_path, mode_value)
+        else:
+            _LOGGER.warning(
+                "Unrecognized mode %r; no mode write will be sent",
+                settings['mode'],
+            )
 
     def _handle_temperature_setting(self, settings, requests):
         """Handle temperature-related settings."""
@@ -514,17 +698,21 @@ class DaikinBRP084(Appliance):
         ):
             return
 
-        # Set vertical swing
-        vertical_path = self.get_path("swing_settings", self.values['mode'], "vertical")
-        self.add_request(
-            requests,
-            vertical_path,
-            (
-                self.TURN_OFF_SWING_AXIS
-                if settings['f_dir'] in ('off', 'horizontal')
-                else self.TURN_ON_SWING_AXIS
-            ),
-        )
+        # Set vertical swing, unless an explicit vane position is also being
+        # set (that takes precedence for the vertical axis, handled separately).
+        if 'vane_vertical' not in settings:
+            vertical_path = self.get_path(
+                "swing_settings", self.values['mode'], "vertical"
+            )
+            self.add_request(
+                requests,
+                vertical_path,
+                (
+                    self.TURN_OFF_SWING_AXIS
+                    if settings['f_dir'] in ('off', 'horizontal')
+                    else self.TURN_ON_SWING_AXIS
+                ),
+            )
 
         # Set horizontal swing
         horizontal_path = self.get_path(
@@ -540,6 +728,60 @@ class DaikinBRP084(Appliance):
             ),
         )
 
+    def _handle_feature_toggles(self, settings, requests):
+        """Handle comfort/econo/outdoor_quiet/powerful on-off toggles.
+
+        Each accepts human ('on'/'off') or raw ('01'/'00') values. Enforces
+        the hardware mutual-exclusion documented in the unit's manual: Powerful
+        and {Comfort, Econo, Outdoor Quiet} cannot be active at the same time,
+        so enabling one side clears the other (mirroring the remote's
+        last-button-pressed-wins behaviour).
+        """
+        requested = {}
+        for key in self.POWER_TOGGLES:
+            if key not in settings:
+                continue
+            raw = self.human_to_daikin(key, settings[key])
+            if raw in ('00', '01'):
+                requested[key] = raw
+
+        if not requested:
+            return
+
+        trio = ('comfort', 'econo', 'outdoor_quiet')
+        # Turning Powerful on clears any currently-active trio member...
+        if requested.get('powerful') == '01':
+            for k in trio:
+                if self.values.get(k) == 'on' and k not in requested:
+                    requested[k] = '00'
+        # ...and turning on any trio member clears an active Powerful.
+        if any(requested.get(k) == '01' for k in trio):
+            if self.values.get('powerful') == 'on' and 'powerful' not in requested:
+                requested['powerful'] = '00'
+
+        for key, raw in requested.items():
+            self.add_request(requests, self.get_path(key), raw)
+
+    def _handle_vane_setting(self, settings, requests):
+        """Handle discrete vertical vane position settings.
+
+        Distinct from swing (f_dir): pins the vane to the floor ('down') or
+        restores 'off'/'swing'. Mode-specific, like swing. Only these byte-0
+        states have physical effect on this firmware.
+        """
+        if (
+            'vane_vertical' not in settings
+            or self.values['mode'] not in self.API_PATHS["swing_settings"]
+        ):
+            return
+
+        raw = self.REVERSE_VERTICAL_VANE_MAP.get(settings['vane_vertical'])
+        if raw is None:
+            return
+
+        path = self.get_path("swing_settings", self.values['mode'], "vertical")
+        self.add_request(requests, path, raw)
+
     async def set(self, settings):
         """Set settings on Daikin device."""
         await self._update_settings(settings)
@@ -549,7 +791,11 @@ class DaikinBRP084(Appliance):
         self._handle_power_setting(settings, requests)
         self._handle_temperature_setting(settings, requests)
         self._handle_fan_setting(settings, requests)
+        # vane_vertical takes precedence over swing for the vertical axis, so
+        # handle swing first and let an explicit vane position override it.
         self._handle_swing_setting(settings, requests)
+        self._handle_vane_setting(settings, requests)
+        self._handle_feature_toggles(settings, requests)
 
         if requests:
             request_payload = DaikinRequest(requests).serialize()
@@ -589,3 +835,105 @@ class DaikinBRP084(Appliance):
     def support_zone_count(self) -> bool:
         """Zones mode not supported in firmware 2.8.0"""
         return False
+
+    async def set_comfort_mode(self, mode):
+        """Enable or disable comfort airflow ('on'/'off')."""
+        await self.set({'comfort': mode})
+
+    @property
+    def support_comfort_mode(self) -> bool:
+        """Return True if the device exposes comfort airflow."""
+        return 'comfort' in self.values
+
+    @property
+    def comfort_mode(self) -> Optional[str]:
+        """Return current comfort airflow state ('on'/'off')."""
+        return self.values.get('comfort')
+
+    @property
+    def vertical_vane(self) -> Optional[str]:
+        """Return current vertical vane position ('off'/'down'/'swing')."""
+        return self.values.get('vane_vertical')
+
+    async def set_vertical_vane(self, position):
+        """Set the vertical vane position ('off'/'down'/'swing')."""
+        await self.set({'vane_vertical': position})
+
+    async def set_econo_mode(self, mode):
+        """Enable or disable Econo mode ('on'/'off')."""
+        await self.set({'econo': mode})
+
+    @property
+    def support_econo_mode(self) -> bool:
+        """Return True if the device exposes Econo mode."""
+        return 'econo' in self.values
+
+    @property
+    def econo_mode(self) -> Optional[str]:
+        """Return current Econo state ('on'/'off')."""
+        return self.values.get('econo')
+
+    async def set_outdoor_quiet_mode(self, mode):
+        """Enable or disable outdoor-unit quiet mode ('on'/'off')."""
+        await self.set({'outdoor_quiet': mode})
+
+    @property
+    def support_outdoor_quiet_mode(self) -> bool:
+        """Return True if the device exposes outdoor-unit quiet mode."""
+        return 'outdoor_quiet' in self.values
+
+    @property
+    def outdoor_quiet_mode(self) -> Optional[str]:
+        """Return current outdoor-unit quiet state ('on'/'off')."""
+        return self.values.get('outdoor_quiet')
+
+    async def set_powerful_mode(self, mode):
+        """Enable or disable Powerful mode ('on'/'off').
+
+        The unit also auto-cancels Powerful after ~20 minutes on its own.
+        """
+        await self.set({'powerful': mode})
+
+    @property
+    def support_powerful_mode(self) -> bool:
+        """Return True if the device exposes Powerful mode."""
+        return 'powerful' in self.values
+
+    @property
+    def today_energy_consumption(self):
+        """Return today's energy consumption in kWh."""
+        cool = self.today_cool_energy_consumption
+        heat = self.today_heat_energy_consumption
+        if cool is None and heat is None:
+            return self.today_total_energy_consumption or 0
+        return (cool or 0) + (heat or 0)
+
+    @property
+    def powerful_mode(self) -> Optional[str]:
+        """Return current Powerful state ('on'/'off')."""
+        return self.values.get('powerful')
+
+    @property
+    def support_compressor_temperature(self) -> bool:
+        """Return True if the device reports outdoor compressor temperature."""
+        return 'cmp_temp' in self.values
+
+    @property
+    def compressor_temperature(self) -> Optional[float]:
+        """Return outdoor compressor temperature in Celsius (approximate)."""
+        return self._parse_number('cmp_temp')
+
+    @property
+    def model(self) -> Optional[str]:
+        """Return the decoded indoor unit model string."""
+        return self.values.get('model')
+
+    @property
+    def outdoor_model(self) -> Optional[str]:
+        """Return the decoded outdoor unit model string."""
+        return self.values.get('outdoor_model')
+
+    @property
+    def firmware_version(self) -> Optional[str]:
+        """Return the adapter firmware version."""
+        return self.values.get('ver')

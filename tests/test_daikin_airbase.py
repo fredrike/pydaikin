@@ -5,6 +5,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from pydaikin.daikin_airbase import DaikinAirBase
+from pydaikin.daikin_brp069 import DaikinBRP069
+from pydaikin.exceptions import DaikinException
 
 from .test_init import client_session
 
@@ -194,3 +196,178 @@ def test_outside_temperature(values, expected):
     device = DaikinAirBase('127.0.0.1', session=mock_session)
     device.values.update(values)
     assert device.outside_temperature == expected
+
+
+def test_fan_rate_steps2_no_auto():
+    """fan_rate with frate_steps=2 and no auto fan."""
+    device = DaikinAirBase('127.0.0.1', session=MagicMock())
+    device.values.update({"frate_steps": "2", "en_frate_auto": "0"})
+    assert device.fan_rate == ["Low", "High"]
+
+
+def test_fan_rate_steps2_with_auto():
+    """fan_rate with frate_steps=2 and auto fan enabled."""
+    device = DaikinAirBase('127.0.0.1', session=MagicMock())
+    device.values.update({"frate_steps": "2", "en_frate_auto": "1"})
+    assert device.fan_rate == ["Auto", "Mid", "High", "Mid/Auto"]
+
+
+def test_fan_rate_no_auto():
+    """fan_rate when the auto fan speed is disabled."""
+    device = DaikinAirBase('127.0.0.1', session=MagicMock())
+    device.values.update({"en_frate_auto": "0"})
+    assert device.fan_rate == ["Low", "Mid", "High"]
+
+
+@pytest.mark.asyncio
+async def test_init_empty_values_raises(monkeypatch):
+    """init raises DaikinException when no values were fetched."""
+    device = DaikinAirBase('127.0.0.1', session=MagicMock())
+
+    async def noop_init(self):
+        pass
+
+    monkeypatch.setattr(DaikinBRP069, "init", noop_init)
+    with pytest.raises(DaikinException):
+        await device.init()
+
+
+@pytest.mark.asyncio
+async def test_update_settings_f_rate_updates_f_auto(aresponses, client_session):
+    """Setting f_rate updates the f_auto flag accordingly."""
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_control_info",
+        method_pattern="GET",
+        response="ret=OK,pow=1,mode=0,stemp=25.0,shum=50,f_rate=A,f_dir=0,f_auto=0",
+    )
+
+    device = DaikinAirBase('ip', session=client_session)
+    await device._update_settings({"f_rate": "1a"})
+    aresponses.assert_all_requests_matched()
+
+    assert device.values["f_auto"] == "1"
+
+
+@pytest.mark.asyncio
+async def test_update_settings_f_auto_restores_suffix(aresponses, client_session):
+    """The auto mode in the response reinstates the 'a' suffix on f_rate."""
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_control_info",
+        method_pattern="GET",
+        response="ret=OK,pow=1,mode=2,stemp=25.0,shum=50,f_rate=A,f_dir=0,f_auto=0,auto2=1",
+    )
+
+    device = DaikinAirBase('ip', session=client_session)
+    await device._update_settings({"stemp": "25.0"})
+    aresponses.assert_all_requests_matched()
+
+    assert device.values["f_auto"] == "1"
+    assert device.values["f_rate"] == "Aa"
+
+
+def test_zones_without_zone_name():
+    """zones returns None when no zone_name is reported."""
+    device = DaikinAirBase('127.0.0.1', session=MagicMock())
+    assert device.zones is None
+
+
+def test_zones_with_zone_count():
+    """zones is sliced to the number of enabled zones."""
+    device = DaikinAirBase('127.0.0.1', session=MagicMock())
+    device.values.update(
+        {
+            "zone_name": "Zone 1;Zone 2;Zone 3",
+            "zone_onoff": "1;0;1",
+            "en_zone": "2",
+        }
+    )
+    assert device.zones == [("Zone 1", "1", 0), ("Zone 2", "0", 0)]
+
+
+@pytest.mark.parametrize(
+    "values, expected",
+    [
+        (
+            {"mode": "1"},
+            [("Zone 1", "1", 20.0), ("Zone 2", "0", 21.0), ("Zone 3", "1", 22.0)],
+        ),
+        (
+            {"mode": "2"},
+            [("Zone 1", "1", 25.0), ("Zone 2", "0", 26.0), ("Zone 3", "1", 27.0)],
+        ),
+        (
+            {"mode": "3", "operate": "2"},
+            [("Zone 1", "1", 25.0), ("Zone 2", "0", 26.0), ("Zone 3", "1", 27.0)],
+        ),
+        (
+            {"mode": "3", "operate": "1"},
+            [("Zone 1", "1", 20.0), ("Zone 2", "0", 21.0), ("Zone 3", "1", 22.0)],
+        ),
+        (
+            {"mode": "0"},
+            [("Zone 1", "1", 24.0), ("Zone 2", "0", 24.0), ("Zone 3", "1", 24.0)],
+        ),
+    ],
+)
+def test_zones_with_zone_temperature(values, expected):
+    """zones reports per-zone temperatures when supported."""
+    device = DaikinAirBase('127.0.0.1', session=MagicMock())
+    device.values.update(
+        {
+            "zone_name": "Zone 1;Zone 2;Zone 3",
+            "zone_onoff": "1;0;1",
+            "lztemp_c": "25;26;27",
+            "lztemp_h": "20;21;22",
+            "stemp": "24",
+            **values,
+        }
+    )
+    assert device.zones == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mode, expected_key",
+    [
+        ("1", "lztemp_h"),
+        ("2", "lztemp_c"),
+        ("3", "lztemp_h"),
+    ],
+)
+async def test_set_zone_temperature(aresponses, client_session, mode, expected_key):
+    """set_zone maps the temperature to the active mode's zone list."""
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_zone_setting",
+        method_pattern="GET",
+        response="ret=OK,zone_name=Zone%201;Zone%202,zone_onoff=1;0,lztemp_c=25.0;25.0,lztemp_h=20.0;20.0",
+    )
+    aresponses.add(
+        path_pattern="/skyfi/aircon/set_zone_setting",
+        method_pattern="GET",
+        response="ret=OK",
+    )
+
+    device = DaikinAirBase('ip', session=client_session)
+    device.values["mode"] = mode
+    if mode == "3":
+        device.values["operate"] = "1"
+    await device.set_zone(0, "lztemp", "26")
+    aresponses.assert_all_requests_matched()
+
+    assert "26" in device.values[expected_key]
+
+
+@pytest.mark.asyncio
+async def test_set_zone_unknown_key_raises(aresponses, client_session):
+    """set_zone raises KeyError for an unsupported key."""
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_zone_setting",
+        method_pattern="GET",
+        response="ret=OK,zone_name=Zone%201;Zone%202,zone_onoff=1;0",
+    )
+
+    device = DaikinAirBase('ip', session=client_session)
+    device.values["mode"] = "0"
+    with pytest.raises(KeyError):
+        await device.set_zone(0, "lztemp", "26")
+    aresponses.assert_all_requests_matched()

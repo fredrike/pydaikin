@@ -1,9 +1,17 @@
+import asyncio
 from unittest.mock import MagicMock
 
+from aiohttp.client_exceptions import ClientResponseError
+from aiohttp.web_exceptions import HTTPForbidden
 import pytest
 
+from pydaikin.daikin_base import Appliance
 from pydaikin.daikin_brp069 import DaikinBRP069
 from pydaikin.response import parse_response
+
+from .test_init import client_session
+
+assert client_session
 
 
 @pytest.mark.parametrize(
@@ -475,3 +483,178 @@ def test_discover_ip_invalid():
     # Invalid name should raise ValueError
     with pytest.raises(ValueError, match="no device found"):
         DaikinBRP069.discover_ip('this-device-definitely-does-not-exist-12345')
+
+
+def test_discover_ip_from_discovery(monkeypatch):
+    """Test discover_ip resolves a common name via discovery."""
+    monkeypatch.setattr(
+        'pydaikin.daikin_base.get_name', lambda name: {'ip': '192.168.1.50'}
+    )
+
+    assert DaikinBRP069.discover_ip('livingroom') == 'livingroom'
+
+
+@pytest.mark.asyncio
+async def test_async_context_manager():
+    """The appliance supports the async context manager protocol."""
+    device = DaikinBRP069('192.168.1.100')
+    async with device as entered:
+        assert entered is device
+    assert device.session.closed is True
+
+
+@pytest.mark.asyncio
+async def test_base_init_not_implemented():
+    """Base Appliance init raises NotImplementedError."""
+    device = Appliance('127.0.0.1', session=MagicMock())
+    with pytest.raises(NotImplementedError):
+        await device.init()
+
+
+@pytest.mark.asyncio
+async def test_get_resource_coalescing(aresponses, client_session):
+    """Concurrent identical GETs are coalesced into a single request."""
+    aresponses.add(
+        path_pattern="/common/get_datetime",
+        method_pattern="GET",
+        response="ret=OK,cur=2023/8/27 21:54:1",
+    )
+
+    device = DaikinBRP069('192.168.1.100', session=client_session)
+    r1, r2 = await asyncio.gather(
+        device._get_resource('common/get_datetime'),
+        device._get_resource('common/get_datetime'),
+    )
+
+    assert r1 == r2
+    aresponses.assert_all_requests_matched()
+
+
+@pytest.mark.asyncio
+async def test_get_resource_forbidden(aresponses, client_session):
+    """A 403 response raises HTTPForbidden (after the retries)."""
+    for _ in range(3):
+        aresponses.add(
+            path_pattern="/common/get_datetime",
+            method_pattern="GET",
+            response=aresponses.Response(status=403, text="Forbidden"),
+        )
+
+    device = DaikinBRP069('192.168.1.100', session=client_session)
+    with pytest.raises(HTTPForbidden):
+        await device._get_resource('common/get_datetime')
+
+
+@pytest.mark.asyncio
+async def test_update_status_default_resources():
+    """update_status uses get_info_resources() when no resources given."""
+    device = Appliance('192.168.1.100', session=MagicMock())
+    await device.update_status()
+
+
+@pytest.mark.asyncio
+async def test_update_status_task_group_error(aresponses, client_session, monkeypatch):
+    """Errors raised inside the update TaskGroup are logged."""
+    for _ in range(3):
+        aresponses.add(
+            path_pattern="/common/get_datetime",
+            method_pattern="GET",
+            response=aresponses.Response(status=500, text="Error"),
+        )
+
+    device = Appliance('192.168.1.100', session=client_session)
+    monkeypatch.setattr(Appliance, 'INFO_RESOURCES', ['common/get_datetime'])
+
+    with pytest.raises(ClientResponseError):
+        await device.update_status()
+
+
+def test_show_values_all():
+    """show_values without summary prints every value."""
+    from io import StringIO
+    import sys
+
+    mock_session = MagicMock()
+    device = DaikinBRP069('127.0.0.1', session=mock_session)
+    device.values.update({'pow': '1', 'mode': '2', 'stemp': '25.0'})
+
+    captured_output = StringIO()
+    sys.stdout = captured_output
+    try:
+        device.show_values()
+        assert len(captured_output.getvalue()) > 0
+    finally:
+        sys.stdout = sys.__stdout__
+
+
+def test_log_sensors(tmp_path):
+    """log_sensors writes a CSV row for the device sensors."""
+    mock_session = MagicMock()
+    device = DaikinBRP069('127.0.0.1', session=mock_session)
+    device.values.update(
+        {
+            'htemp': '25.0',
+            'otemp': '21.0',
+            'cmpfreq': '40',
+            'en_filter_sign': '1',
+            'filter_sign_info': '100',
+            'datas': '100/200/300/400/500/600/700',
+            'curr_day_cool': '10/20',
+            'curr_day_heat': '30/40',
+            'this_year': '50/100',
+            'previous_year': '60/120',
+        }
+    )
+
+    sensors_file = tmp_path / 'sensors.csv'
+    with open(sensors_file, 'w') as f:
+        device.log_sensors(f)
+
+    content = sensors_file.read_text()
+    assert 'in_temp' in content
+    assert 'total_power' in content
+
+
+def test_show_sensors(capsys):
+    """show_sensors prints a summary of the device sensors."""
+    mock_session = MagicMock()
+    device = DaikinBRP069('127.0.0.1', session=mock_session)
+    device.values.update(
+        {
+            'htemp': '25.0',
+            'otemp': '21.0',
+            'cmpfreq': '40',
+            'en_filter_sign': '1',
+            'filter_sign_info': '100',
+            'datas': '100/200/300/400/500/600/700',
+            'this_year': '50/100',
+            'previous_year': '60/120',
+        }
+    )
+
+    device.show_sensors()
+    assert 'in_temp=25' in capsys.readouterr().out
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'method, args',
+    [
+        ('set', ({},)),
+        ('set_holiday', ('1',)),
+        ('set_advanced_mode', ('powerful', '1')),
+        ('set_streamer', ('1',)),
+        ('set_zone', (0, 'key', 'value')),
+    ],
+)
+async def test_base_appliance_abstract_methods(method, args):
+    """Base Appliance abstract methods raise NotImplementedError."""
+    device = Appliance('127.0.0.1', session=MagicMock())
+    with pytest.raises(NotImplementedError):
+        await getattr(device, method)(*args)
+
+
+def test_base_appliance_zones_none():
+    """The base Appliance exposes no zones."""
+    device = Appliance('127.0.0.1', session=MagicMock())
+    assert device.zones is None

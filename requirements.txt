@@ -1,4 +1,4 @@
-netifaces
+psutil
 aiohttp
 urllib3
 tenacity
