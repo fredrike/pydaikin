@@ -60,33 +60,29 @@ class Appliance(DaikinPowerMixin):
         """Validate that concrete subclasses override required class attributes."""
         super().__init_subclass__(**kwargs)
 
-        # Only validate direct subclasses of Appliance (not grand-children)
-        # This allows DaikinAirBase(DaikinBRP069) to inherit properly
-        if cls.__bases__[0] == Appliance:
-            required_overrides = [
-                "TRANSLATIONS",
-                "VALUES_TRANSLATION",
-                "VALUES_SUMMARY",
-                "INFO_RESOURCES",
-            ]
-            for attr in required_overrides:
-                if attr not in cls.__dict__:
-                    raise TypeError(
-                        f"{cls.__name__} must override class attribute '{attr}' "
-                        f"(inherited from {cls.__bases__[0].__name__})"
-                    )
+        # Only validate classes that inherit directly from Appliance. Intermediate
+        # subclasses (e.g. DaikinAirBase(DaikinBRP069)) inherit the overrides.
+        if Appliance not in cls.__bases__:
+            return
 
-            # Validate that critical attributes are not empty
-            if not cls.TRANSLATIONS:
-                raise ValueError(
-                    f"{cls.__name__}.TRANSLATIONS must not be empty - "
-                    f"at minimum define 'mode' translations"
+        required_overrides = (
+            "TRANSLATIONS",
+            "VALUES_TRANSLATION",
+            "VALUES_SUMMARY",
+            "INFO_RESOURCES",
+        )
+        for attr in required_overrides:
+            if attr not in cls.__dict__:
+                raise TypeError(
+                    f"{cls.__name__} must override class attribute '{attr}' "
+                    "(inherited from Appliance)"
                 )
-            if not cls.INFO_RESOURCES:
-                raise ValueError(
-                    f"{cls.__name__}.INFO_RESOURCES must not be empty - "
-                    f"define at least one HTTP resource path to fetch"
-                )
+
+        if not cls.TRANSLATIONS:
+            raise ValueError(
+                f"{cls.__name__}.TRANSLATIONS must not be empty - "
+                "define at least one translation"
+            )
 
     @classmethod
     def daikin_to_human(cls, dimension, value):
