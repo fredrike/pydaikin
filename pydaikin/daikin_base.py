@@ -41,10 +41,10 @@ class Appliance(DaikinPowerMixin):
     ssl_context: Optional[SSLContext] = None
 
     # Class attributes for subclasses to override
-    # Maps Daikin internal values to human-readable strings (e.g., mode: {'3': 'cool'})
+    # Maps Daikin internal values to human-readable strings (e.g., mode: {"3": "cool"})
     TRANSLATIONS: dict[str, dict[str, str]] = {}
 
-    # Maps internal keys to display names (e.g., {'f_rate': 'Fan Rate'})
+    # Maps internal keys to display names (e.g., {"f_rate": "Fan Rate"})
     VALUES_TRANSLATION: dict[str, str] = {}
 
     # List of keys to display in summary output (overridden by subclasses)
@@ -64,10 +64,10 @@ class Appliance(DaikinPowerMixin):
         # This allows DaikinAirBase(DaikinBRP069) to inherit properly
         if cls.__bases__[0] == Appliance:
             required_overrides = [
-                'TRANSLATIONS',
-                'VALUES_TRANSLATION',
-                'VALUES_SUMMARY',
-                'INFO_RESOURCES',
+                "TRANSLATIONS",
+                "VALUES_TRANSLATION",
+                "VALUES_SUMMARY",
+                "INFO_RESOURCES",
             ]
             for attr in required_overrides:
                 if attr not in cls.__dict__:
