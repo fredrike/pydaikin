@@ -658,3 +658,53 @@ def test_base_appliance_zones_none():
     """The base Appliance exposes no zones."""
     device = Appliance('127.0.0.1', session=MagicMock())
     assert device.zones is None
+
+
+def test_subclass_missing_override_raises():
+    """Direct subclasses must override the required class attributes."""
+    with pytest.raises(
+        TypeError, match="must override class attribute 'INFO_RESOURCES'"
+    ):
+
+        class MissingInfoResources(Appliance):
+            TRANSLATIONS = {"mode": {"1": "auto"}}
+            VALUES_TRANSLATION = {}
+            VALUES_SUMMARY = []
+
+
+def test_subclass_empty_translations_raises():
+    """Direct subclasses with empty TRANSLATIONS are rejected."""
+    with pytest.raises(ValueError, match="TRANSLATIONS must not be empty"):
+
+        class EmptyTranslations(Appliance):
+            TRANSLATIONS = {}
+            VALUES_TRANSLATION = {}
+            VALUES_SUMMARY = []
+            INFO_RESOURCES = ["aircon/getinfo"]
+
+
+def test_subclass_with_overrides_accepted():
+    """Direct subclasses overriding all attributes are accepted."""
+
+    class ValidSubclass(Appliance):
+        TRANSLATIONS = {"mode": {"1": "auto"}}
+        VALUES_TRANSLATION = {}
+        VALUES_SUMMARY = []
+        INFO_RESOURCES = []
+
+    assert ValidSubclass.TRANSLATIONS == {"mode": {"1": "auto"}}
+
+
+def test_indirect_subclass_not_validated():
+    """Intermediate subclasses inherit the overrides without validation."""
+
+    class Child(Appliance):
+        TRANSLATIONS = {"mode": {"1": "auto"}}
+        VALUES_TRANSLATION = {}
+        VALUES_SUMMARY = []
+        INFO_RESOURCES = ["aircon/getinfo"]
+
+    class GrandChild(Child):
+        pass
+
+    assert GrandChild.INFO_RESOURCES == ["aircon/getinfo"]
