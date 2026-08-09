@@ -451,6 +451,11 @@ class Appliance(DaikinPowerMixin):
         return super().support_energy_consumption
 
     @property
+    def support_demand_control(self) -> bool:
+        """Return True if the device supports demand control."""
+        return False
+
+    @property
     def outside_temperature(self) -> Optional[float]:
         """Return current outside temperature."""
         return self._parse_number('otemp')
@@ -573,6 +578,20 @@ class Appliance(DaikinPowerMixin):
 
     async def set_streamer(self, mode):
         """Enable or disable the streamer."""
+        raise NotImplementedError
+
+    async def get_demand_control(self):
+        """Get demand control settings from the device."""
+        raise NotImplementedError
+
+    async def set_demand_control(self, en_demand=None, max_pow=None, mode=None):
+        """Set demand control (max power limit) on the device.
+
+        Args:
+            en_demand: Enable ("on") or disable ("off") demand control.
+            max_pow: Maximum power as a percentage of the unit's nominal power.
+            mode: Demand control mode.
+        """
         raise NotImplementedError
 
     @property

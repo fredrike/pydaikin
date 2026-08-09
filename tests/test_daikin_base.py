@@ -644,6 +644,8 @@ def test_show_sensors(capsys):
         ('set_holiday', ('1',)),
         ('set_advanced_mode', ('powerful', '1')),
         ('set_streamer', ('1',)),
+        ('get_demand_control', ()),
+        ('set_demand_control', ({},)),
         ('set_zone', (0, 'key', 'value')),
     ],
 )
@@ -658,6 +660,12 @@ def test_base_appliance_zones_none():
     """The base Appliance exposes no zones."""
     device = Appliance('127.0.0.1', session=MagicMock())
     assert device.zones is None
+
+
+def test_base_appliance_support_demand_control_false():
+    """The base Appliance does not support demand control."""
+    device = Appliance('127.0.0.1', session=MagicMock())
+    assert device.support_demand_control is False
 
 
 def test_subclass_missing_override_raises():
