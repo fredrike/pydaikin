@@ -80,6 +80,7 @@ The behaviour of `device.set(...)` was validated against the unit's behaviour (s
 * **Sensors** - indoor/outdoor temperature, humidity, compressor temperature, decoded indoor/outdoor model strings and adapter firmware/API version
 * **Energy data** - daily runtime and weekly consumption
 * **Sub-zero outdoor temperatures** - sensor values are decoded as little-endian signed hex, so negative readings are handled correctly
+* **Auto mode without a setpoint** - some units (e.g. the Urusara X, model `W-SRTA322F`) only expose cool/hot setpoints and report no auto setpoint (`e_3001/p_1D`); the target temperature then degrades to `--` instead of failing `init()` (issue [#72](https://github.com/fredrike/pydaikin/issues/72))
 
 **Confirmed working with:**
 
