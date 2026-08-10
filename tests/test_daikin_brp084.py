@@ -50,6 +50,10 @@ async def test_daikin_brp084(aresponses, client_session):
                                             "pn": "p_06",
                                             "pv": "000000",
                                         },  # Horizontal swing OFF
+                                        {
+                                            "pn": "p_34",
+                                            "pv": "FD",
+                                        },  # Dry comfort offset (-1.5°C)
                                     ],
                                 },
                                 {
@@ -208,6 +212,9 @@ async def test_daikin_brp084(aresponses, client_session):
     assert device.values.get('mac') == '112233445566'
 
     # New reads: comfort airflow, capabilities, outdoor sensors, models
+    assert device.values.get('dry_comfort_offset') == '-1.5'
+    assert device.support_dry_comfort_offset is True
+    assert device.dry_comfort_offset == -1.5
     assert device.values.get('comfort') == 'off'
     assert device.support_comfort_mode is True
     assert device.comfort_mode == 'off'
@@ -585,6 +592,41 @@ def test_hex_le_to_temp(value, expected):
 @pytest.mark.parametrize(
     'value, expected',
     [
+        ('FA', -3.0),
+        ('FD', -1.5),
+        ('FE', -1.0),
+        ('00', 0.0),
+    ],
+)
+def test_hex_to_dry_comfort_offset(value, expected):
+    """Dry comfort offset is a signed one-byte half-degree value."""
+    assert DaikinBRP084.hex_to_dry_comfort_offset(value) == expected
+
+
+@pytest.mark.parametrize(
+    'offset, expected',
+    [
+        (-3.0, 'FA'),
+        (-1.5, 'FD'),
+        (-1.0, 'FE'),
+        (0.0, '00'),
+    ],
+)
+def test_dry_comfort_offset_to_hex(offset, expected):
+    """Dry comfort offset encoding matches observed BRP084 values."""
+    assert DaikinBRP084.dry_comfort_offset_to_hex(offset) == expected
+
+
+@pytest.mark.parametrize('offset', [-3.5, 0.5, -1.25, 'bogus'])
+def test_invalid_dry_comfort_offset(offset):
+    """Dry comfort offset is limited to -3.0..0.0 in half-degree steps."""
+    with pytest.raises(ValueError):
+        DaikinBRP084.dry_comfort_offset_to_hex(offset)
+
+
+@pytest.mark.parametrize(
+    'value, expected',
+    [
         ('2020202020414D564131374D585446', 'AMVA17MXTF'),
         ('202020202020202031313230303045', '112000E'),
         ('notvalidhex', 'notvalidhex'),  # falls back to input
@@ -690,6 +732,53 @@ def test_handle_vane_setting():
     requests = []
     device._handle_vane_setting({'vane_vertical': 'down'}, requests)
     assert len(requests) == 0
+
+
+def test_handle_dry_comfort_offset_setting():
+    """Dry comfort offset writes the BRP084 dry-mode bias field."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values.update({'mode': 'dry'})
+
+    requests = []
+    device._handle_dry_comfort_offset_setting({'dry_comfort_offset': -1.5}, requests)
+
+    assert len(requests) == 1
+    assert requests[0].name == 'p_34'
+    assert requests[0].value == 'FD'
+    assert requests[0].path == ['e_1002', 'e_3001']
+    assert requests[0].to == '/dsiot/edge/adr_0100.dgc_status'
+
+
+def test_dry_comfort_offset_no_write_outside_dry_mode():
+    """Dry comfort offset is only written while the device mode is dry."""
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values.update({'mode': 'cool'})
+
+    requests = []
+    device._handle_dry_comfort_offset_setting({'dry_comfort_offset': -1.5}, requests)
+
+    assert len(requests) == 0
+
+
+@pytest.mark.parametrize('offset', [-3.5, 0.5, -1.25, 'bogus'])
+def test_invalid_dry_comfort_offset_setting_no_write(offset, caplog):
+    """Invalid dry comfort offset settings do not send malformed requests."""
+    import logging
+
+    mock_session = MagicMock()
+    device = DaikinBRP084('127.0.0.1', session=mock_session)
+    device.values.update({'mode': 'dry'})
+    requests = []
+
+    with caplog.at_level(logging.WARNING):
+        device._handle_dry_comfort_offset_setting(
+            {'dry_comfort_offset': offset}, requests
+        )
+
+    assert len(requests) == 0
+    assert "Invalid dry comfort offset" in caplog.text
 
 
 def test_vane_overrides_swing_vertical():
@@ -990,6 +1079,7 @@ def test_unrecognized_mode_logs_warning(client_session, caplog):
         ('set_outdoor_quiet_mode', 'on', {'outdoor_quiet': 'on'}),
         ('set_powerful_mode', 'on', {'powerful': 'on'}),
         ('set_vertical_vane', 'down', {'vane_vertical': 'down'}),
+        ('set_dry_comfort_offset', -1.5, {'dry_comfort_offset': -1.5}),
     ],
 )
 async def test_feature_convenience_setters(method, arg, expected):
@@ -1014,6 +1104,11 @@ async def test_feature_convenience_setters(method, arg, expected):
             'on',
         ),
         ({'powerful': 'on'}, ('support_powerful_mode', 'powerful_mode'), 'on'),
+        (
+            {'dry_comfort_offset': '-1.5'},
+            ('support_dry_comfort_offset', 'dry_comfort_offset'),
+            -1.5,
+        ),
     ],
 )
 def test_feature_support_and_current(values, support, current):
@@ -1051,7 +1146,14 @@ def test_extract_optional_readings_guards_missing_containers():
     # DaikinException and is swallowed.
     device._extract_optional_readings({'responses': []})
 
-    for key in ('comfort', 'econo', 'outdoor_quiet', 'powerful', 'vane_vertical'):
+    for key in (
+        'comfort',
+        'econo',
+        'outdoor_quiet',
+        'powerful',
+        'vane_vertical',
+        'dry_comfort_offset',
+    ):
         assert key not in device.values
 
 
@@ -1161,7 +1263,10 @@ async def test_update_status_dry_mode():
                                     },
                                     {
                                         "pn": "e_3001",
-                                        "pch": [{"pn": "p_01", "pv": "0500"}],
+                                        "pch": [
+                                            {"pn": "p_01", "pv": "0500"},
+                                            {"pn": "p_34", "pv": "FE"},
+                                        ],
                                     },
                                     {
                                         "pn": "e_A00B",
@@ -1191,6 +1296,9 @@ async def test_update_status_dry_mode():
     assert device.values['otemp'] == '--'
     assert device.values['hhum'] == '--'
     assert device.values['f_dir'] == 'off'
+    assert device.target_temperature is None
+    assert device.dry_comfort_offset == -1.0
+    assert device.support_dry_comfort_offset is True
 
 
 @pytest.mark.asyncio

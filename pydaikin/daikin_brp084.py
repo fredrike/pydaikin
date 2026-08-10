@@ -113,6 +113,7 @@ class DaikinBRP084(Appliance):
         # Powerful (outdoor e_3002/p_44): 00=off, 01=on. Verified live
         # read+write; the unit also auto-cancels after ~20 min.
         "powerful": E_1003_PATH + ["e_3002", "p_44"],
+        "dry_comfort_offset": E_1002_E_3001_PATH + ["p_34"],
         # Outdoor unit sensors (read-only)
         "compressor_temp": E_1003_PATH + ["e_A005", "p_01"],
         "discharge_temp": E_1003_PATH + ["e_A005", "p_02"],
@@ -312,6 +313,23 @@ class DaikinBRP084(Appliance):
     def hex_le_to_temp(cls, value: str, divisor=2) -> float:
         """Convert a little-endian signed hex temperature to degrees Celsius."""
         return cls.hex_le_to_int(value, signed=True) / divisor
+
+    @staticmethod
+    def hex_to_dry_comfort_offset(value: str) -> float:
+        """Convert a signed one-byte dry comfort offset to degrees Celsius."""
+        raw = bytes.fromhex(value[:2])
+        return int.from_bytes(raw, byteorder='big', signed=True) / 2
+
+    @staticmethod
+    def dry_comfort_offset_to_hex(offset: float) -> str:
+        """Convert a dry comfort offset in degrees Celsius to signed hex."""
+        value = float(offset)
+        doubled = value * 2
+        if value < -3.0 or value > 0.0 or abs(doubled - round(doubled)) > 1e-9:
+            raise ValueError("Dry comfort offset must be -3.0..0.0 in 0.5 steps")
+        return (
+            int(round(doubled)).to_bytes(1, byteorder='big', signed=True).hex().upper()
+        )
 
     @staticmethod
     def hex_to_ascii(value: str) -> str:
@@ -540,6 +558,18 @@ class DaikinBRP084(Appliance):
         except DaikinException:
             pass
 
+        # Dry-mode comfort offset (STD +/- bias), not a normal target temp.
+        try:
+            self.values['dry_comfort_offset'] = str(
+                self.hex_to_dry_comfort_offset(
+                    self.find_value_by_pn(
+                        response, *self.get_path("dry_comfort_offset")
+                    )
+                )
+            )
+        except (DaikinException, ValueError):
+            pass
+
         # Adapter capability flags. The firmware version ('ver') is already
         # read in update_status from the same adp_i path.
         try:
@@ -670,6 +700,22 @@ class DaikinBRP084(Appliance):
         temp_hex = self.temp_to_hex(float(settings['stemp']))
         self.add_request(requests, path, temp_hex)
 
+    def _handle_dry_comfort_offset_setting(self, settings, requests):
+        """Handle dry-mode comfort offset settings."""
+        if 'dry_comfort_offset' not in settings or self.values.get('mode') != 'dry':
+            return
+
+        path = self.get_path("dry_comfort_offset")
+        try:
+            offset_hex = self.dry_comfort_offset_to_hex(settings['dry_comfort_offset'])
+        except (TypeError, ValueError):
+            _LOGGER.warning(
+                "Invalid dry comfort offset %r; no write will be sent",
+                settings['dry_comfort_offset'],
+            )
+            return
+        self.add_request(requests, path, offset_hex)
+
     def _handle_fan_setting(self, settings, requests):
         """Handle fan-related settings."""
         if (
@@ -790,6 +836,7 @@ class DaikinBRP084(Appliance):
         # Handle different types of settings
         self._handle_power_setting(settings, requests)
         self._handle_temperature_setting(settings, requests)
+        self._handle_dry_comfort_offset_setting(settings, requests)
         self._handle_fan_setting(settings, requests)
         # vane_vertical takes precedence over swing for the vertical axis, so
         # handle swing first and let an explicit vane position override it.
@@ -858,6 +905,20 @@ class DaikinBRP084(Appliance):
     async def set_vertical_vane(self, position):
         """Set the vertical vane position ('off'/'down'/'swing')."""
         await self.set({'vane_vertical': position})
+
+    @property
+    def dry_comfort_offset(self) -> Optional[float]:
+        """Return dry-mode comfort offset in degrees Celsius."""
+        return self._parse_number('dry_comfort_offset')
+
+    @property
+    def support_dry_comfort_offset(self) -> bool:
+        """Return True if the device exposes dry-mode comfort offset."""
+        return 'dry_comfort_offset' in self.values
+
+    async def set_dry_comfort_offset(self, offset):
+        """Set the dry-mode comfort offset in degrees Celsius."""
+        await self.set({'dry_comfort_offset': offset})
 
     async def set_econo_mode(self, mode):
         """Enable or disable Econo mode ('on'/'off')."""
