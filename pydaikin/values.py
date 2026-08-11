@@ -17,6 +17,7 @@ class ApplianceValues(MutableMapping):
         self._data = {}
         self._last_update_by_resource = {}
         self._resource_by_key = {}
+        self._raw_by_resource = {}
 
     # --- Implementation of abstract methods ---
 
@@ -76,13 +77,12 @@ class ApplianceValues(MutableMapping):
         """Update the values and keep track of which resource provided them."""
         self._data.update(data)
         self._last_update_by_resource[resource] = datetime.now(timezone.utc)
+        self._raw_by_resource[resource] = dict(data)
         for k in data.keys():
             self._resource_by_key[k] = resource
 
     def values_for_resource(self, resource: str, *, invalidate: bool = True):
-        """Return the values that were last updated by the given resource."""
-        return {
-            key: self.get(key, invalidate=invalidate)
-            for key, res in self._resource_by_key.items()
-            if res == resource
-        }
+        """Return the raw values of the last response of the given resource."""
+        if invalidate:
+            self.invalidate_resource(resource)
+        return dict(self._raw_by_resource.get(resource, {}))
