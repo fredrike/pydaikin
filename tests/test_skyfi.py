@@ -120,5 +120,5 @@ async def test_demand_control_methods_noop():
     """Test that demand control methods are no-ops for DaikinSkyFi."""
     mock_session = MagicMock()
     device = DaikinSkyFi('127.0.0.1', session=mock_session, password='dummy_password')
-    assert await device.get_demand_control() is None
+    assert device.get_demand_control() is None
     assert await device.set_demand_control(en_demand="on", max_pow=50, mode="1") is None

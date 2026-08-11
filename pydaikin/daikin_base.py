@@ -580,7 +580,7 @@ class Appliance(DaikinPowerMixin):
         """Enable or disable the streamer."""
         raise NotImplementedError
 
-    async def get_demand_control(self):
+    def get_demand_control(self):
         """Get demand control settings from the device."""
         raise NotImplementedError
 

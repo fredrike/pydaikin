@@ -78,3 +78,11 @@ class ApplianceValues(MutableMapping):
         self._last_update_by_resource[resource] = datetime.now(timezone.utc)
         for k in data.keys():
             self._resource_by_key[k] = resource
+
+    def values_for_resource(self, resource: str, *, invalidate: bool = True):
+        """Return the values that were last updated by the given resource."""
+        return {
+            key: self.get(key, invalidate=invalidate)
+            for key, res in self._resource_by_key.items()
+            if res == resource
+        }

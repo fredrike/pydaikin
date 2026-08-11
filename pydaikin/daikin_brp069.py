@@ -374,12 +374,15 @@ class DaikinBRP069(Appliance):
         """
         return self.values.get("dmnd", invalidate=False) == "1"
 
-    async def get_demand_control(self):
-        """Get demand control settings from the device."""
-        path = "aircon/get_demand_control"
-        response = await self._get_resource(path)
-        self.values.update_by_resource(path, response)
-        return response
+    def get_demand_control(self):
+        """Return cached demand control settings from the device.
+
+        ``aircon/get_demand_control`` is part of the info resources when
+        demand control is supported, so the data is fetched by
+        :meth:`update_status` and cached. Reading the values marks the
+        resource for refresh on the next update.
+        """
+        return self.values.values_for_resource("aircon/get_demand_control")
 
     async def set_demand_control(self, en_demand=None, max_pow=None, mode=None):
         """Set demand control (max power limit) on the device.
@@ -402,4 +405,6 @@ class DaikinBRP069(Appliance):
         )
         await self._get_resource("aircon/set_demand_control", params)
         # The set response only returns ret=OK, so fetch the new state
-        await self.get_demand_control()
+        path = "aircon/get_demand_control"
+        response = await self._get_resource(path)
+        self.values.update_by_resource(path, response)

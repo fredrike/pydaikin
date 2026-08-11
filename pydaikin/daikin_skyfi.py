@@ -84,7 +84,7 @@ class DaikinSkyFi(Appliance):
     async def set_streamer(self, mode):
         """Set streamer mode."""
 
-    async def get_demand_control(self):
+    def get_demand_control(self):
         """Get demand control settings from the device."""
 
     async def set_demand_control(self, en_demand=None, max_pow=None, mode=None):
