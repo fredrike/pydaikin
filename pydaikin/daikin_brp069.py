@@ -381,6 +381,14 @@ class DaikinBRP069(Appliance):
         demand control is supported, so the data is fetched by
         :meth:`update_status` and cached. Reading the values marks the
         resource for refresh on the next update.
+
+        Returns the raw response of the endpoint, which includes:
+        - ``en_demand``: "0" or "1", whether demand control is enabled.
+        - ``mode``: "0" (manual), "1" (scheduled) or "2" (auto).
+        - ``max_pow``: maximum power as a percentage (0-100).
+        - schedule data: ``scdl_per_day`` and per-day counts (``moc``,
+          ``tuc``, ...), plus per-event entries (``mo1_en``, ...) when a
+          schedule is set.
         """
         return self.values.values_for_resource("aircon/get_demand_control")
 
@@ -388,9 +396,15 @@ class DaikinBRP069(Appliance):
         """Set demand control (max power limit) on the device.
 
         Args:
-            en_demand: Enable ("on") or disable ("off") demand control.
-            max_pow: Maximum power as a percentage of the unit's nominal power.
-            mode: Demand control mode.
+            en_demand: Enable (``"on"``) or disable (``"off"``) demand control.
+                Disabling is enough to turn it off and resets ``mode`` to 0
+                and ``max_pow`` to 100.
+            max_pow: Maximum power as a percentage of the unit's nominal
+                power (0-100).
+            mode: Demand control mode (int):
+                0 - manual: fixed ``max_pow`` limit,
+                1 - scheduled: applies a previously set schedule,
+                2 - auto: the unit manages the limit by itself.
         """
         params = {}
         if en_demand is not None:

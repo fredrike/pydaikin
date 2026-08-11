@@ -589,8 +589,14 @@ class Appliance(DaikinPowerMixin):
 
         Args:
             en_demand: Enable ("on") or disable ("off") demand control.
-            max_pow: Maximum power as a percentage of the unit's nominal power.
-            mode: Demand control mode.
+                Disabling is enough to turn it off and resets ``mode`` to 0
+                and ``max_pow`` to 100.
+            max_pow: Maximum power as a percentage of the unit's nominal
+                power (0-100).
+            mode: Demand control mode (int):
+                0 - manual: fixed ``max_pow`` limit,
+                1 - scheduled: applies a previously set schedule,
+                2 - auto: the unit manages the limit by itself.
         """
         raise NotImplementedError
 
