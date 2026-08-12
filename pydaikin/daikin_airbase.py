@@ -84,6 +84,15 @@ class DaikinAirBase(DaikinBRP069):
         return False
 
     @property
+    def support_fan_rate(self) -> bool:
+        """Return whether the device supports manual fan-rate control."""
+        return (
+            super().support_fan_rate
+            and self.values.get("en_frate") != "0"
+            and self.values.get("en_linear_zone") != "1"
+        )
+
+    @property
     def support_outside_temperature(self):
         """Return True if the device reports an outside temperature."""
         return 'otemp' in self.values and self.values['otemp'] != '-'
