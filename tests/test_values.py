@@ -197,3 +197,46 @@ def test_appliance_values_multiple_resources():
     _ = values['mode']
     assert values.should_resource_be_updated('basic_info') is True
     assert values.should_resource_be_updated('sensor_info') is False
+
+
+def test_appliance_values_values_for_resource():
+    """Test values_for_resource returns the raw response of the given resource."""
+    values = ApplianceValues()
+
+    values.update_by_resource(
+        "aircon/get_demand_control",
+        {"ret": "OK", "en_demand": "1", "mode": "0", "max_pow": "45"},
+    )
+    values.update_by_resource(
+        "aircon/get_control_info",
+        {"pow": "1", "stemp": "22", "mode": "2"},
+    )
+
+    # mode is shared by both resources: the flat cache only keeps the last one,
+    # but values_for_resource returns the exact response of the resource.
+    assert values["mode"] == "2"
+    assert values.values_for_resource(
+        "aircon/get_demand_control", invalidate=False
+    ) == {
+        "ret": "OK",
+        "en_demand": "1",
+        "mode": "0",
+        "max_pow": "45",
+    }
+    assert values.values_for_resource("aircon/get_control_info", invalidate=False) == {
+        "pow": "1",
+        "stemp": "22",
+        "mode": "2",
+    }
+    assert values.values_for_resource("aircon/unknown", invalidate=False) == {}
+
+
+def test_appliance_values_values_for_resource_invalidates():
+    """Test values_for_resource invalidates the resource by default."""
+    values = ApplianceValues()
+
+    values.update_by_resource("aircon/get_demand_control", {"en_demand": "1"})
+    assert values.should_resource_be_updated("aircon/get_demand_control") is False
+
+    values.values_for_resource("aircon/get_demand_control")
+    assert values.should_resource_be_updated("aircon/get_demand_control") is True

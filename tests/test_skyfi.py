@@ -106,3 +106,19 @@ def test_support_humidity_not_supported():
     # Add a dummy value to ensure it's not being read from the base class
     device.values.update({'hhum': '50'})
     assert device.support_humidity is False
+
+
+def test_support_demand_control_not_supported():
+    """Test that support_demand_control is always False for DaikinSkyFi."""
+    mock_session = MagicMock()
+    device = DaikinSkyFi('127.0.0.1', session=mock_session, password='dummy_password')
+    assert device.support_demand_control is False
+
+
+@pytest.mark.asyncio
+async def test_demand_control_methods_noop():
+    """Test that demand control methods are no-ops for DaikinSkyFi."""
+    mock_session = MagicMock()
+    device = DaikinSkyFi('127.0.0.1', session=mock_session, password='dummy_password')
+    assert device.get_demand_control() is None
+    assert await device.set_demand_control(en_demand="on", max_pow=50, mode="1") is None

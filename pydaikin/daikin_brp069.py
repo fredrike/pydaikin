@@ -62,6 +62,10 @@ class DaikinBRP069(Appliance):
             '0': 'off',
             '1': 'on',
         },
+        "en_demand": {
+            "0": "off",
+            "1": "on",
+        },
     }
 
     # HTTP endpoints fetched during init()
@@ -225,13 +229,17 @@ class DaikinBRP069(Appliance):
 
     def get_info_resources(self):
         """Returns info_resources"""
+        resources = list(super().get_info_resources())
         if self.support_energy_consumption:
-            return self.INFO_RESOURCES + [
+            resources += [
                 'aircon/get_day_power_ex',
                 'aircon/get_week_power',
             ]
 
-        return self.INFO_RESOURCES
+        if self.support_demand_control:
+            resources.append("aircon/get_demand_control")
+
+        return resources
 
     async def _update_settings(self, settings):
         """Update settings to set on Daikin device."""
@@ -356,3 +364,61 @@ class DaikinBRP069(Appliance):
             await self._get_resource('common/get_datetime', {"cur": ""})
         except Exception as exc:  # pylint: disable=broad-except
             _LOGGER.error('Raised "%s" while trying to auto-set internal clock', exc)
+
+    @property
+    def support_demand_control(self) -> bool:
+        """Return True if the device supports demand control.
+
+        The ``dmnd`` field of ``/aircon/get_model_info`` advertises demand
+        control capability (only present on protocol >= v3 devices).
+        """
+        return self.values.get("dmnd", invalidate=False) == "1"
+
+    def get_demand_control(self):
+        """Return cached demand control settings from the device.
+
+        ``aircon/get_demand_control`` is part of the info resources when
+        demand control is supported, so the data is fetched by
+        :meth:`update_status` and cached. Reading the values marks the
+        resource for refresh on the next update.
+
+        Returns the raw response of the endpoint, which includes:
+        - ``en_demand``: "0" or "1", whether demand control is enabled.
+        - ``mode``: "0" (manual), "1" (scheduled) or "2" (auto).
+        - ``max_pow``: maximum power as a percentage (0-100).
+        - schedule data: ``scdl_per_day`` and per-day counts (``moc``,
+          ``tuc``, ...), plus per-event entries (``mo1_en``, ...) when a
+          schedule is set.
+        """
+        return self.values.values_for_resource("aircon/get_demand_control")
+
+    async def set_demand_control(self, en_demand=None, max_pow=None, mode=None):
+        """Set demand control (max power limit) on the device.
+
+        Args:
+            en_demand: Enable (``"on"``) or disable (``"off"``) demand control.
+                Disabling is enough to turn it off and resets ``mode`` to 0
+                and ``max_pow`` to 100.
+            max_pow: Maximum power as a percentage of the unit's nominal
+                power (0-100).
+            mode: Demand control mode (int):
+                0 - manual: fixed ``max_pow`` limit,
+                1 - scheduled: applies a previously set schedule,
+                2 - auto: the unit manages the limit by itself.
+        """
+        params = {}
+        if en_demand is not None:
+            params["en_demand"] = self.human_to_daikin("en_demand", en_demand)
+        if max_pow is not None:
+            params["max_pow"] = str(max_pow)
+        if mode is not None:
+            params["mode"] = str(mode)
+
+        _LOGGER.debug(
+            "Sending request to aircon/set_demand_control with params: %s", params
+        )
+        await self._get_resource("aircon/set_demand_control", params)
+        # The set response only returns ret=OK, so fetch the new state
+        path = "aircon/get_demand_control"
+        response = await self._get_resource(path)
+        self.values.update_by_resource(path, response)

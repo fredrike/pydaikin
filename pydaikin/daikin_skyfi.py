@@ -84,6 +84,12 @@ class DaikinSkyFi(Appliance):
     async def set_streamer(self, mode):
         """Set streamer mode."""
 
+    def get_demand_control(self):
+        """Get demand control settings from the device."""
+
+    async def set_demand_control(self, en_demand=None, max_pow=None, mode=None):
+        """Set demand control (max power limit) on the device."""
+
     @property
     def support_away_mode(self):
         """Return True if the device support away_mode."""
@@ -97,6 +103,11 @@ class DaikinSkyFi(Appliance):
     @property
     def support_swing_mode(self):
         """Return True if the device support setting swing_mode."""
+        return False
+
+    @property
+    def support_demand_control(self) -> bool:
+        """Return True if the device supports demand control."""
         return False
 
     @property
