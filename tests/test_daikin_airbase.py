@@ -181,6 +181,23 @@ def test_support_outside_temperature(values, expected):
 
 
 @pytest.mark.parametrize(
+    "values, expected",
+    [
+        ({"f_rate": "5", "en_frate": "1", "en_linear_zone": "0"}, True),
+        ({"f_rate": "5", "en_frate": "1", "en_linear_zone": "1"}, False),
+        ({"f_rate": "5", "en_frate": "0", "en_linear_zone": "0"}, False),
+        ({"f_rate": "5"}, True),
+        ({"en_frate": "1", "en_linear_zone": "0"}, False),
+    ],
+)
+def test_support_fan_rate(values, expected):
+    """Test manual fan-rate support for AirBase controllers."""
+    device = DaikinAirBase("127.0.0.1", session=MagicMock())
+    device.values.update(values)
+    assert device.support_fan_rate is expected
+
+
+@pytest.mark.parametrize(
     'values, expected',
     [
         ({'otemp': '40'}, 40.0),

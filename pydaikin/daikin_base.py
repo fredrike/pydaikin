@@ -40,11 +40,49 @@ class Appliance(DaikinPowerMixin):
     session: Optional[ClientSession]
     ssl_context: Optional[SSLContext] = None
 
-    TRANSLATIONS = {}
-    VALUES_TRANSLATION = {}
-    VALUES_SUMMARY = []
-    INFO_RESOURCES = []
+    # Class attributes for subclasses to override
+    # Maps Daikin internal values to human-readable strings (e.g., mode: {"3": "cool"})
+    TRANSLATIONS: dict[str, dict[str, str]] = {}
+
+    # Maps internal keys to display names (e.g., {"f_rate": "Fan Rate"})
+    VALUES_TRANSLATION: dict[str, str] = {}
+
+    # List of keys to display in summary output (overridden by subclasses)
+    VALUES_SUMMARY: list[str] = []
+
+    # List of HTTP resource paths to fetch during status updates (overridden by subclasses)
+    INFO_RESOURCES: list[str] = []
+
+    # Maximum number of concurrent HTTP requests to device
     MAX_CONCURRENT_REQUESTS = 4
+
+    def __init_subclass__(cls, **kwargs):
+        """Validate that concrete subclasses override required class attributes."""
+        super().__init_subclass__(**kwargs)
+
+        # Only validate classes that inherit directly from Appliance. Intermediate
+        # subclasses (e.g. DaikinAirBase(DaikinBRP069)) inherit the overrides.
+        if Appliance not in cls.__bases__:
+            return
+
+        required_overrides = (
+            "TRANSLATIONS",
+            "VALUES_TRANSLATION",
+            "VALUES_SUMMARY",
+            "INFO_RESOURCES",
+        )
+        for attr in required_overrides:
+            if attr not in cls.__dict__:
+                raise TypeError(
+                    f"{cls.__name__} must override class attribute '{attr}' "
+                    "(inherited from Appliance)"
+                )
+
+        if not cls.TRANSLATIONS:
+            raise ValueError(
+                f"{cls.__name__}.TRANSLATIONS must not be empty - "
+                "define at least one translation"
+            )
 
     @classmethod
     def daikin_to_human(cls, dimension, value):
@@ -413,6 +451,11 @@ class Appliance(DaikinPowerMixin):
         return super().support_energy_consumption
 
     @property
+    def support_demand_control(self) -> bool:
+        """Return True if the device supports demand control."""
+        return False
+
+    @property
     def outside_temperature(self) -> Optional[float]:
         """Return current outside temperature."""
         return self._parse_number('otemp')
@@ -535,6 +578,26 @@ class Appliance(DaikinPowerMixin):
 
     async def set_streamer(self, mode):
         """Enable or disable the streamer."""
+        raise NotImplementedError
+
+    def get_demand_control(self):
+        """Get demand control settings from the device."""
+        raise NotImplementedError
+
+    async def set_demand_control(self, en_demand=None, max_pow=None, mode=None):
+        """Set demand control (max power limit) on the device.
+
+        Args:
+            en_demand: Enable ("on") or disable ("off") demand control.
+                Disabling is enough to turn it off and resets ``mode`` to 0
+                and ``max_pow`` to 100.
+            max_pow: Maximum power as a percentage of the unit's nominal
+                power (0-100).
+            mode: Demand control mode (int):
+                0 - manual: fixed ``max_pow`` limit,
+                1 - scheduled: applies a previously set schedule,
+                2 - auto: the unit manages the limit by itself.
+        """
         raise NotImplementedError
 
     @property
