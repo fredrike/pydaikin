@@ -1,5 +1,7 @@
 """Pydaikin appliance, represent a Daikin BRP device with firmware 2.8.0."""
 
+# pylint: disable=too-many-lines
+
 from dataclasses import dataclass, field
 import json
 import logging
