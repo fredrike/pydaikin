@@ -91,6 +91,51 @@ def get_devices():
     return discovery.poll()
 
 
+def get_discovery_info(ip):
+    """Best-effort lookup of discovery attributes for a device IP.
+
+    Returns None if discovery fails or the device does not answer.
+    """
+    try:
+        return next(iter(Discovery().poll(ip=ip)), None)
+    except Exception as err:  # pylint: disable=broad-exception-caught
+        _LOGGER.debug("Error looking up device via discovery: %s", err)
+        return None
+
+
+# Adapter firmware 2.8.0 introduced the local JSON API. Onecta-generation
+# adapters (protocol DGC) below this version answer UDP discovery but expose
+# no local control endpoints at all.
+MIN_LOCAL_API_FIRMWARE = (2, 8)
+
+
+def parse_firmware_version(ver):
+    """Parse an adapter version string such as ``2_6_1`` into ``(2, 6)``."""
+    try:
+        major, minor = (int(part) for part in ver.split("_")[:2])
+    except (AttributeError, ValueError):
+        return None
+    return (major, minor)
+
+
+def is_unsupported(device):
+    """Return True if a discovered device has no local control API.
+
+    Onecta-generation adapters (``protocol=DGC``) without local control answer
+    UDP discovery but return 404 for every local HTTP endpoint. This covers
+    BRP069C4x/C8x gateways below firmware 2.8.0 and the built-in WiFi adapters
+    of newer units (e.g. the Stylish FTXA20C2V1BW), whose latest firmware is
+    2.6.3 and which expose no local API at all. Callers can check the result
+    of ``Discovery.poll`` with this to abort early, e.g. in a config flow.
+    """
+    version = parse_firmware_version(device.get("ver"))
+    return (
+        device.get("protocol") == "DGC"
+        and version is not None
+        and version < MIN_LOCAL_API_FIRMWARE
+    )
+
+
 def get_name(name):
     """Returns the name of discovered devices."""
     discovery = Discovery()
