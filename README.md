@@ -97,6 +97,13 @@ If you have a device with firmware 2.8.0 that is not working correctly, please o
 The following device and firmware combinations are not currently supported:
 
 * BRP069C4x with firmware version 2.0.0
+* Adapters with Onecta firmware below 2.8.0 (e.g. the built-in WiFi adapter of
+  newer Stylish units such as FTXA20C2V1BW, and BRP069C4x/C8x gateways running
+  2.3.x-2.6.x). These answer UDP discovery with `type=GPF,protocol=DGC` but
+  return 404 for every local HTTP endpoint - there is no local control API.
+  Local control requires adapter firmware 2.8.0 or later; until then use a
+  cloud-based integration ([#153](https://github.com/fredrike/pydaikin/issues/153),
+  [#83](https://github.com/fredrike/pydaikin/issues/83))
 
 ## About
 
