@@ -2,13 +2,13 @@ default_language_version:
     python: python3.12
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.2
+    rev: v0.16.5
     hooks:
       - id: ruff
         args: [--fix]
       - id: ruff-format
   - repo: https://github.com/pycqa/pylint
-    rev: v4.0.7
+    rev: v4.0.8
     hooks:
       - id: pylint
         additional_dependencies:

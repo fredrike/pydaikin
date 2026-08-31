@@ -39,10 +39,12 @@ HOST = "10.1.1.21"
 logging.basicConfig(level=logging.INFO)
 _LOGGER = logging.getLogger(__name__)
 
+
 async def main():
     async with await DaikinFactory(HOST) as device:
         await device.update_status()
         device.show_sensors()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
