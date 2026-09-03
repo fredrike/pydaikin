@@ -343,22 +343,27 @@ class DaikinBRP084(Appliance):
 
     @staticmethod
     def find_value_by_pn(data: dict, fr: str, *keys):
-        """Find values in nested response data."""
-        data = [x['pc'] for x in data['responses'] if x['fr'] == fr]
+        """Find values in nested response data.
+
+        Tolerates malformed entries: some firmwares (e.g. 3.15.0-g4) return
+        ``pc`` nodes without a ``pn`` (or without a ``pch`` container), which
+        must be skipped instead of raising ``KeyError``.
+        """
+        data = [x["pc"] for x in data["responses"] if x.get("fr") == fr and "pc" in x]
 
         while keys:
             current_key = keys[0]
             keys = keys[1:]
             found = False
             for pcs in data:
-                if pcs['pn'] == current_key:
+                if pcs.get("pn") == current_key:
                     if not keys:
-                        return pcs['pv']
-                    data = pcs['pch']
+                        return pcs["pv"]
+                    data = pcs.get("pch") or []
                     found = True
                     break
             if not found:
-                raise DaikinException(f'Key {current_key} not found')
+                raise DaikinException(f"Key {current_key} not found")
         return None
 
     def get_swing_state(self, data: dict) -> str:
