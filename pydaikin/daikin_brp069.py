@@ -104,6 +104,8 @@ class DaikinBRP069(Appliance):
         'aircon/get_control_info',
     ]
 
+    RESOURCE_KEY_MAP = {"aircon/get_demand_control": {"mode": "dmd_mode"}}
+
     VALUES_SUMMARY = [
         'name',
         'ip',
@@ -385,6 +387,8 @@ class DaikinBRP069(Appliance):
         Returns the raw response of the endpoint, which includes:
         - ``en_demand``: "0" or "1", whether demand control is enabled.
         - ``mode``: "0" (manual), "1" (scheduled) or "2" (auto).
+          Note: stored as ``dmd_mode`` in the flat values dict to avoid
+          collision with the HVAC operating mode from get_control_info.
         - ``max_pow``: maximum power as a percentage (0-100).
         - schedule data: ``scdl_per_day`` and per-day counts (``moc``,
           ``tuc``, ...), plus per-event entries (``mo1_en``, ...) when a
@@ -421,4 +425,6 @@ class DaikinBRP069(Appliance):
         # The set response only returns ret=OK, so fetch the new state
         path = "aircon/get_demand_control"
         response = await self._get_resource(path)
-        self.values.update_by_resource(path, response)
+        self.values.update_by_resource(
+            path, response, key_map=self.RESOURCE_KEY_MAP.get(path)
+        )

@@ -73,12 +73,28 @@ class ApplianceValues(MutableMapping):
         """Mark a resource as needing update, bypassing TTL cache."""
         self._last_update_by_resource.pop(resource, None)
 
-    def update_by_resource(self, resource: str, data: dict):
-        """Update the values and keep track of which resource provided them."""
-        self._data.update(data)
+    def update_by_resource(
+        self, resource: str, data: dict, key_map: dict[str, str] | None = None
+    ):
+        """Update the values and keep track of which resource provided them.
+
+        Args:
+            resource: The resource path that provided the data.
+            data: The response dict from the resource.
+            key_map: Optional mapping of original key names to renamed keys
+                stored in the flat values dict.  The raw response always
+                preserves the original keys.
+        """
         self._last_update_by_resource[resource] = datetime.now(timezone.utc)
         self._raw_by_resource[resource] = dict(data)
-        for k in data.keys():
+
+        if key_map:
+            remapped = {key_map.get(k, k): v for k, v in data.items()}
+        else:
+            remapped = data
+
+        self._data.update(remapped)
+        for k in remapped:
             self._resource_by_key[k] = resource
 
     def values_for_resource(self, resource: str, *, invalidate: bool = True):

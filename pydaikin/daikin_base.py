@@ -53,6 +53,11 @@ class Appliance(DaikinPowerMixin):
     # List of HTTP resource paths to fetch during status updates (overridden by subclasses)
     INFO_RESOURCES: list[str] = []
 
+    # Maps resource paths to key renames applied before storing in the flat
+    # values dict.  Use when different endpoints return the same key name with
+    # different semantics (e.g. "mode" in get_control_info vs get_demand_control).
+    RESOURCE_KEY_MAP: dict[str, dict[str, str]] = {}
+
     # Maximum number of concurrent HTTP requests to device
     MAX_CONCURRENT_REQUESTS = 4
 
@@ -291,7 +296,10 @@ class Appliance(DaikinPowerMixin):
                 _LOGGER.error("Exception in TaskGroup: %s", exc)
 
         for resource, task in zip(resources, tasks):
-            self.values.update_by_resource(resource, task.result())
+            data = task.result()
+            self.values.update_by_resource(
+                resource, data, key_map=self.RESOURCE_KEY_MAP.get(resource)
+            )
 
         self._register_energy_consumption_history()
 
