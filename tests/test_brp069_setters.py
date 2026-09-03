@@ -211,6 +211,8 @@ async def test_set_demand_control(aresponses, client_session):
 
     # State should be refreshed from the follow-up get request
     assert device.values.get("max_pow", invalidate=False) == "40"
+    # Demand control "mode" is remapped to "dmd_mode" in flat values
+    assert device.values.get("dmd_mode", invalidate=False) == "0"
 
     aresponses.assert_all_requests_matched()
 
@@ -251,3 +253,37 @@ async def test_get_info_resources_demand_control(aresponses, client_session):
 
     device.values["dmnd"] = "0"
     assert "aircon/get_demand_control" not in device.get_info_resources()
+
+
+@pytest.mark.asyncio
+async def test_update_status_demand_control_remapping(aresponses, client_session):
+    """Test that update_status remaps demand control 'mode' to 'dmd_mode'."""
+    aresponses.add(
+        path_pattern="/aircon/get_sensor_info",
+        method_pattern="GET",
+        response="ret=OK,htemp=25,otemp=20",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_control_info",
+        method_pattern="GET",
+        response="ret=OK,pow=1,mode=3,stemp=22",
+    )
+    aresponses.add(
+        path_pattern="/aircon/get_demand_control",
+        method_pattern="GET",
+        response="ret=OK,en_demand=1,mode=0,max_pow=45",
+    )
+
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    device.values["dmnd"] = "1"
+    await device.update_status()
+
+    # HVAC mode from get_control_info is stored as "mode"
+    assert device.values.get("mode", invalidate=False) == "3"
+    # Demand control mode is remapped to "dmd_mode"
+    assert device.values.get("dmd_mode", invalidate=False) == "0"
+    # Raw resource response still contains the original "mode" key
+    raw = device.values.values_for_resource(
+        "aircon/get_demand_control", invalidate=False
+    )
+    assert raw["mode"] == "0"
