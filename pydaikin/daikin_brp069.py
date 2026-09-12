@@ -361,11 +361,26 @@ class DaikinBRP069(Appliance):
             _LOGGER.error('Raised "%s" while setting internal clock', exc)
 
     async def auto_set_clock(self):
-        """Tells the AC to auto-set its internal clock."""
+        """Tells the AC to auto-set its internal clock, and sets it when it cannot.
+
+        Adapters that are not connected to the Daikin cloud (``method=home only``)
+        never learn the time by themselves: ``common/get_datetime`` keeps answering
+        ``sta=0`` and every ``aircon/get_*_power_ex`` request fails with
+        ``ret=NG (time is not sync)``, so energy consumption is unavailable. When
+        the adapter reports an unset clock we push the current UTC time ourselves.
+        """
         try:
-            await self._get_resource('common/get_datetime', {"cur": ""})
+            status = await self._get_resource('common/get_datetime', {"cur": ""})
         except Exception as exc:  # pylint: disable=broad-except
             _LOGGER.error('Raised "%s" while trying to auto-set internal clock', exc)
+            return
+
+        if status.get("sta") == "0":
+            _LOGGER.info(
+                "Clock of %s is not set (sta=0), setting it from the host",
+                self.device_ip,
+            )
+            await self.set_clock()
 
     @property
     def support_demand_control(self) -> bool:
