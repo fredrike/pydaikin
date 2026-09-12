@@ -287,3 +287,46 @@ async def test_update_status_demand_control_remapping(aresponses, client_session
         "aircon/get_demand_control", invalidate=False
     )
     assert raw["mode"] == "0"
+
+
+@pytest.mark.asyncio
+async def test_led_unsupported(aresponses, client_session):
+    """Adapters without a ``led`` field report no LED support."""
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    device.values.update_by_resource("common/basic_info", {"mac": "80D21DCCAEE2"})
+
+    assert device.support_led is False
+    assert device.get_led() == "None"
+    assert device.wifi_signal is None
+
+
+@pytest.mark.asyncio
+async def test_set_led(aresponses, client_session):
+    """set_led sends common/set_led and updates the cached value."""
+    aresponses.add(
+        path_pattern="/common/set_led",
+        method_pattern="GET",
+        response="ret=OK",
+    )
+
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    device.values.update_by_resource("common/basic_info", {"led": "1", "radio1": "-45"})
+
+    assert device.support_led is True
+    assert device.get_led() == "on"
+    assert device.wifi_signal == -45
+
+    await device.set_led("off")
+
+    assert device.get_led() == "off"
+    assert device.values["led"] == "0"
+    aresponses.assert_all_requests_matched()
+
+
+@pytest.mark.asyncio
+async def test_wifi_signal_invalid(aresponses, client_session):
+    """A non-numeric radio1 value yields None instead of raising."""
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    device.values.update_by_resource("common/basic_info", {"radio1": "-"})
+
+    assert device.wifi_signal is None

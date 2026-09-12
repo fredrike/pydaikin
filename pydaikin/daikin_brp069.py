@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 import logging
+from typing import Optional
 
 from .daikin_base import Appliance
 
@@ -63,6 +64,10 @@ class DaikinBRP069(Appliance):
             '1': 'on',
         },
         "en_demand": {
+            "0": "off",
+            "1": "on",
+        },
+        "led": {
             "0": "off",
             "1": "on",
         },
@@ -366,6 +371,34 @@ class DaikinBRP069(Appliance):
             await self._get_resource('common/get_datetime', {"cur": ""})
         except Exception as exc:  # pylint: disable=broad-except
             _LOGGER.error('Raised "%s" while trying to auto-set internal clock', exc)
+
+    @property
+    def support_led(self) -> bool:
+        """Return True if the Wi-Fi adapter exposes its status LED.
+
+        The ``led`` field of ``/common/basic_info`` is only present on adapters
+        whose LED can be switched (BRP069A/B/C).
+        """
+        return self.values.get("led", invalidate=False) is not None
+
+    def get_led(self):
+        """Return the cached state of the adapter LED: ``"on"`` or ``"off"``."""
+        return self.daikin_to_human("led", self.values.get("led"))
+
+    async def set_led(self, led):
+        """Switch the status LED of the Wi-Fi adapter ``"on"`` or ``"off"``."""
+        value = self.human_to_daikin("led", led)
+        await self._get_resource("common/set_led", {"led": value})
+        self.values.update_by_resource("common/basic_info", {"led": value})
+
+    @property
+    def wifi_signal(self) -> Optional[int]:
+        """Return the Wi-Fi signal strength of the adapter in dBm (``radio1``)."""
+        radio1 = self.values.get("radio1", invalidate=False)
+        try:
+            return int(radio1)
+        except (TypeError, ValueError):
+            return None
 
     @property
     def support_demand_control(self) -> bool:
