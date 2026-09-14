@@ -209,15 +209,16 @@ Example test structure:
 import pytest
 from pydaikin.daikin_base import Appliance
 
+
 @pytest.mark.asyncio
 async def test_your_feature():
     """Test description of what this test validates."""
     # Arrange
     device = Appliance("192.168.1.1")
-    
+
     # Act
     result = await device.your_method()
-    
+
     # Assert
     assert result == expected_value
 ```
