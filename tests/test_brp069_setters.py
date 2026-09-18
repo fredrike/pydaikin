@@ -127,6 +127,42 @@ async def test_auto_set_clock(aresponses, client_session):
 
 
 @pytest.mark.asyncio
+async def test_auto_set_clock_sets_clock_when_not_synced(aresponses, client_session):
+    """An adapter reporting sta=0 gets its clock set from the host."""
+    aresponses.add(
+        path_pattern="/common/get_datetime",
+        method_pattern="GET",
+        response="ret=OK,sta=0,cur=-,reg=eu,dst=1,zone=197",
+    )
+    aresponses.add(
+        path_pattern="/common/notify_date_time",
+        method_pattern="GET",
+        response="ret=OK",
+    )
+
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    await device.auto_set_clock()
+
+    aresponses.assert_all_requests_matched()
+
+
+@pytest.mark.asyncio
+async def test_auto_set_clock_keeps_synced_clock(aresponses, client_session):
+    """An adapter reporting sta=1 is left alone."""
+    aresponses.add(
+        path_pattern="/common/get_datetime",
+        method_pattern="GET",
+        response="ret=OK,sta=1,cur=2026/9/12 10:0:0,reg=eu,dst=1,zone=197",
+    )
+
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    await device.auto_set_clock()
+
+    # No notify_date_time route was registered: a call would have failed.
+    aresponses.assert_all_requests_matched()
+
+
+@pytest.mark.asyncio
 async def test_auto_set_clock_error_handling(aresponses, client_session):
     """Test auto_set_clock error handling."""
     # Mock error response - the error is caught so request completes.
