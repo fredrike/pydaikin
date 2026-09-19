@@ -378,6 +378,123 @@ def test_unsupported_device_message_without_identity():
     )
 
 
+@pytest.mark.parametrize(
+    ("ver", "expected"),
+    [
+        ("2_0_0", True),
+        ("2_6_1", True),
+        ("2_7_9", True),
+        ("2_8_0", False),
+        ("2_10_0", False),
+        ("3_15_0", False),
+        (None, False),
+        ("bogus", False),
+    ],
+)
+def test_is_pre_multireq_firmware(ver, expected):
+    """Only DGC firmware versions below 2_8_0 match the unsupported fingerprint."""
+    assert DaikinFactory._is_pre_multireq_firmware(ver) is expected
+
+
+@pytest.mark.asyncio
+async def test_factory_unsupported_gpf_dgc_pre280_reports_cloud_only(
+    aresponses, client_session, monkeypatch
+):
+    """GPF/DGC adapters on pre-2.8.0 firmware report a clear cloud-only error (#153)."""
+    monkeypatch.setattr(
+        "pydaikin.factory.get_device_by_ip",
+        lambda ip: {
+            "ip": ip,
+            "port": 30050,
+            "type": "GPF",
+            "cdev": "RA",
+            "protocol": "DGC",
+            "reg": "eu",
+            "ver": "2_6_1",
+            "adp_kind": "4",
+            "mac": "24CD8D99XXXX",
+            "ssid": "DaikinAP54321",
+            "adp_mode": "ap_run",
+            "method": "home_only",
+        },
+    )
+
+    # Nothing answers over HTTP: multireq, legacy CGI and skyfi all 404.
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(status=404, text="Not Found"),
+    )
+    aresponses.add(
+        path_pattern="/common/basic_info",
+        method_pattern="GET",
+        response=aresponses.Response(status=404, text="Not Found"),
+    )
+    for endpoint in (
+        "/skyfi/common/get_datetime",
+        "/skyfi/common/basic_info",
+        "/skyfi/aircon/get_control_info",
+        "/skyfi/aircon/get_model_info",
+        "/skyfi/aircon/get_sensor_info",
+        "/skyfi/aircon/get_zone_setting",
+    ):
+        aresponses.add(
+            path_pattern=endpoint,
+            method_pattern="GET",
+            response=aresponses.Response(status=404, text="Page Not Found"),
+        )
+
+    with pytest.raises(
+        DaikinException,
+        match=(
+            "GPF/DGC adapter with firmware 2\\.6\\.1.*"
+            "requires adapter firmware 2\\.8\\.0"
+        ),
+    ):
+        await DaikinFactory("192.168.127.1", session=client_session)
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
+async def test_factory_unsupported_gpf_dgc_without_discovery_keeps_bare_error(
+    aresponses, client_session, monkeypatch
+):
+    """Without a discovery fingerprint the previous bare error is preserved."""
+    monkeypatch.setattr("pydaikin.factory.get_device_by_ip", lambda ip: None)
+
+    aresponses.add(
+        path_pattern="/dsiot/multireq",
+        method_pattern="POST",
+        response=aresponses.Response(status=404, text="Not Found"),
+    )
+    aresponses.add(
+        path_pattern="/common/basic_info",
+        method_pattern="GET",
+        response=aresponses.Response(status=404, text="Not Found"),
+    )
+    for endpoint in (
+        "/skyfi/common/get_datetime",
+        "/skyfi/common/basic_info",
+        "/skyfi/aircon/get_control_info",
+        "/skyfi/aircon/get_model_info",
+        "/skyfi/aircon/get_sensor_info",
+        "/skyfi/aircon/get_zone_setting",
+    ):
+        aresponses.add(
+            path_pattern=endpoint,
+            method_pattern="GET",
+            response=aresponses.Response(status=404, text="Page Not Found"),
+        )
+
+    with pytest.raises(DaikinException, match="^Empty values\\.$"):
+        await DaikinFactory("192.168.127.1", session=client_session)
+
+    aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
+
+
 @pytest.mark.asyncio
 async def test_factory_detects_airbase(aresponses, client_session):
     """Test that factory correctly detects AirBase device (fallback from BRP069)."""
