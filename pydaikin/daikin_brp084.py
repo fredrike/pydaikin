@@ -116,6 +116,12 @@ class DaikinBRP084(Appliance):
         # read+write; the unit also auto-cancels after ~20 min.
         "powerful": E_1003_PATH + ["e_3002", "p_44"],
         "dry_comfort_offset": E_1002_E_3001_PATH + ["p_34"],
+        # Outdoor unit compressor state (e_2006): p_01 is a run flag, p_04 the
+        # operating frequency in Hz as a little-endian uint16. Found by sweeping
+        # the setpoint on an FTXM71 (adapter firmware 3.12.3) and watching which
+        # nodes tracked the compressor; not every model exposes e_2006.
+        "compressor_running": E_1003_PATH + ["e_2006", "p_01"],
+        "compressor_frequency": E_1003_PATH + ["e_2006", "p_04"],
         # Outdoor unit sensors (read-only)
         "compressor_temp": E_1003_PATH + ["e_A005", "p_01"],
         "discharge_temp": E_1003_PATH + ["e_A005", "p_02"],
@@ -589,6 +595,21 @@ class DaikinBRP084(Appliance):
         except DaikinException:
             pass
 
+        # Compressor frequency and run flag (outdoor e_2006). Reported as
+        # "cmpfreq" so support_compressor_frequency/compressor_frequency on the
+        # base class start working; consumers use the frequency to tell an
+        # actively modulating unit from an idle one.
+        raw = self._safe_extract(response, *self.get_path("compressor_frequency"))
+        if raw is not None and len(raw) >= 4:
+            try:
+                self.values["cmpfreq"] = str(self.hex_le_to_int(raw[:4]))
+            except ValueError:
+                pass
+
+        raw = self._safe_extract(response, *self.get_path("compressor_running"))
+        if raw is not None:
+            self.values["compressor_running"] = "1" if raw == "01" else "0"
+
         # Outdoor-unit compressor temperature.
         try:
             self.values['cmp_temp'] = str(
@@ -988,6 +1009,17 @@ class DaikinBRP084(Appliance):
     def support_compressor_temperature(self) -> bool:
         """Return True if the device reports outdoor compressor temperature."""
         return 'cmp_temp' in self.values
+
+    @property
+    def support_compressor_running(self) -> bool:
+        """Return True if the device reports whether the compressor runs."""
+        return "compressor_running" in self.values
+
+    @property
+    def compressor_running(self) -> Optional[bool]:
+        """Return True while the outdoor compressor is running."""
+        raw = self.values.get("compressor_running")
+        return None if raw is None else raw == "1"
 
     @property
     def compressor_temperature(self) -> Optional[float]:

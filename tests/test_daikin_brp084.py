@@ -1926,3 +1926,82 @@ async def test_get_resource_http_error(aresponses, client_session):
     device = DaikinBRP084('ip', session=client_session)
     with pytest.raises(ClientResponseError):
         await device._get_resource("")
+
+
+def _outdoor_response(entities):
+    """Build a multireq response with the given entities under e_1003."""
+    return {
+        "responses": [
+            {
+                "fr": "/dsiot/edge/adr_0200.dgc_status",
+                "pc": {
+                    "pn": "dgc_status",
+                    "pch": [
+                        {
+                            "pn": "e_1003",
+                            "pch": [
+                                {
+                                    "pn": ent,
+                                    "pch": [
+                                        {"pn": pn, "pv": pv} for pn, pv in props.items()
+                                    ],
+                                }
+                                for ent, props in entities.items()
+                            ],
+                        }
+                    ],
+                },
+            }
+        ]
+    }
+
+
+@pytest.mark.parametrize(
+    "run_flag, freq_hex, running, frequency",
+    [
+        ("01", "3400", True, 52.0),  # modulating
+        ("01", "2C00", True, 44.0),
+        ("00", "0000", False, 0.0),  # stopped
+        ("00", "0001", False, 256.0),  # second byte is significant
+    ],
+)
+def test_compressor_state(run_flag, freq_hex, running, frequency):
+    """e_2006 exposes the compressor run flag and frequency in Hz."""
+    device = DaikinBRP084("127.0.0.1", session=MagicMock())
+    device.values["mode"] = "hot"
+
+    device._extract_optional_readings(
+        _outdoor_response({"e_2006": {"p_01": run_flag, "p_04": freq_hex}})
+    )
+
+    assert device.support_compressor_frequency is True
+    assert device.compressor_frequency == frequency
+    assert device.support_compressor_running is True
+    assert device.compressor_running is running
+
+
+def test_compressor_state_absent_on_models_without_e_2006():
+    """Models that do not expose e_2006 keep working, without the values."""
+    device = DaikinBRP084("127.0.0.1", session=MagicMock())
+    device.values["mode"] = "hot"
+
+    device._extract_optional_readings(_outdoor_response({"e_A005": {"p_01": "8C00"}}))
+
+    assert device.support_compressor_frequency is False
+    assert device.compressor_frequency is None
+    assert device.support_compressor_running is False
+    assert device.compressor_running is None
+
+
+@pytest.mark.parametrize("freq_hex", ["", "34", "zzzz"])
+def test_compressor_frequency_ignores_malformed_values(freq_hex):
+    """A truncated or non-hex frequency is skipped instead of raising."""
+    device = DaikinBRP084("127.0.0.1", session=MagicMock())
+    device.values["mode"] = "hot"
+
+    device._extract_optional_readings(
+        _outdoor_response({"e_2006": {"p_01": "01", "p_04": freq_hex}})
+    )
+
+    assert device.support_compressor_frequency is False
+    assert device.compressor_running is True
