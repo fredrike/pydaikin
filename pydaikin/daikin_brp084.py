@@ -5,7 +5,7 @@
 from dataclasses import dataclass, field
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from aiohttp import ClientSession
 
@@ -400,17 +400,31 @@ class DaikinBRP084(Appliance):
         except DaikinException:
             return None
 
-    def _safe_hex_temp(self, response: dict, path_key: str, divisor: int = 2) -> str:
+    def _safe_hex_temp(
+        self,
+        response: dict,
+        path_key: str,
+        divisor: int = 2,
+        decoder: Optional[Callable[[str, int], float]] = None,
+    ) -> str:
         """Extract a temperature value, returning '--' if missing or null.
 
         Decodes as a little-endian signed value so sub-zero outdoor readings
         (two's complement, e.g. a negative outdoor temperature) are handled
         correctly rather than being read from the first byte only.
+
+        Args:
+            response: The decoded ``/dsiot/multireq`` response.
+            path_key: Key into ``API_PATHS`` naming the datapoint to read.
+            divisor: Divisor applied to the decoded value.
+            decoder: Conversion to apply, defaulting to ``hex_le_to_temp``.
+                Sensors reporting a single unsigned byte pass ``hex_to_temp``.
         """
+        decode = self.hex_le_to_temp if decoder is None else decoder
         try:
             raw = self.find_value_by_pn(response, *self.get_path(path_key))
             if raw is not None:
-                return str(self.hex_le_to_temp(raw, divisor))
+                return str(decode(raw, divisor))
         except DaikinException:
             pass
         return "--"
@@ -467,11 +481,8 @@ class DaikinBRP084(Appliance):
             # guarded so a missing/null sensor yields '--' rather than crashing.
             self.values['otemp'] = self._safe_hex_temp(response, "outdoor_temp")
 
-            self.values['htemp'] = str(
-                self.hex_to_temp(
-                    self.find_value_by_pn(response, *self.get_path("indoor_temp")),
-                    divisor=1,
-                )
+            self.values['htemp'] = self._safe_hex_temp(
+                response, "indoor_temp", divisor=1, decoder=self.hex_to_temp
             )
 
             # Get humidity
