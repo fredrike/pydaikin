@@ -91,6 +91,19 @@ def get_devices():
     return discovery.poll()
 
 
+def get_device_by_ip(ip):
+    """Returns the info of a discovered device matching the given IP."""
+    discovery = Discovery()
+
+    devices = discovery.poll()
+
+    for device in devices:
+        if device.get("ip") == ip:
+            return device
+
+    return None
+
+
 def get_name(name):
     """Returns the name of discovered devices."""
     discovery = Discovery()
