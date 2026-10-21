@@ -1926,3 +1926,51 @@ async def test_get_resource_http_error(aresponses, client_session):
     device = DaikinBRP084('ip', session=client_session)
     with pytest.raises(ClientResponseError):
         await device._get_resource("")
+
+
+def _indoor_temp_response(pv):
+    """Build a minimal dgc_status response carrying the indoor temperature."""
+    return {
+        "responses": [
+            {
+                "fr": "/dsiot/edge/adr_0100.dgc_status",
+                "pc": {
+                    "pn": "dgc_status",
+                    "pch": [
+                        {
+                            "pn": "e_1002",
+                            "pch": [
+                                {
+                                    "pn": "e_A00B",
+                                    "pch": [{"pn": "p_01", "pv": pv}],
+                                }
+                            ],
+                        }
+                    ],
+                },
+            }
+        ]
+    }
+
+
+@pytest.mark.parametrize(
+    "response, expected",
+    [
+        (_indoor_temp_response("16"), "22.0"),
+        (_indoor_temp_response("00"), "0.0"),
+        # Some indoor units leave e_A00B/p_01 null while the sensor works and
+        # reports elsewhere; this must not abort the whole status update.
+        (_indoor_temp_response(None), "--"),
+        # Firmware that omits the datapoint entirely.
+        ({"responses": []}, "--"),
+    ],
+)
+def test_indoor_temp_tolerates_missing_sensor(response, expected):
+    """Indoor temperature yields '--' when null or absent, as outdoor does."""
+    device = DaikinBRP084("127.0.0.1", session=MagicMock())
+    assert (
+        device._safe_hex_temp(
+            response, "indoor_temp", divisor=1, decoder=device.hex_to_temp
+        )
+        == expected
+    )
