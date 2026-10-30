@@ -968,9 +968,6 @@ class DaikinBRP084(Appliance):
             if failures:
                 raise DaikinException("Write not acknowledged: " + "; ".join(failures))
 
-            # Update status after setting
-            await self.update_status()
-
     # pylint: disable=unused-argument
     async def set_streamer(self, mode):
         """Streamer mode not supported in firmware 2.8.0"""
