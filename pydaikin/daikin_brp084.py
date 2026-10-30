@@ -289,6 +289,7 @@ class DaikinBRP084(Appliance):
         """Initialize the Daikin appliance for firmware 2.8.0."""
         super().__init__(device_id, session)
         self.url = f"{self.base_url}/dsiot/multireq"
+        self._last_mode: Optional[str] = None
 
     @staticmethod
     def hex_to_temp(value: str, divisor=2) -> float:
@@ -372,30 +373,41 @@ class DaikinBRP084(Appliance):
                 raise DaikinException(f"Key {current_key} not found")
         return None
 
-    def get_swing_state(self, data: dict) -> str:
-        """Get the current swing state from response data."""
-        mode = self.values.get('mode', invalidate=False)
+    def get_swing_state(
+        self, data: dict, default: Optional[str] = None, *, mode: Optional[str] = None
+    ) -> str:
+        """Get swing state, preserving missing axes and accepting a write's mode."""
+        if mode is None:
+            mode = self.values.get('mode', invalidate=False)
         if (
             mode is not None
             and mode != 'off'
             and mode in self.API_PATHS["swing_settings"]
         ):
-            try:
-                vertical = "F" in self.find_value_by_pn(
-                    data, *self.get_path("swing_settings", mode, "vertical")
-                )
-                horizontal = "F" in self.find_value_by_pn(
-                    data, *self.get_path("swing_settings", mode, "horizontal")
-                )
-
-                if horizontal and vertical:
-                    return 'both'
-                if horizontal:
-                    return 'horizontal'
-                if vertical:
-                    return 'vertical'
-            except DaikinException:
-                pass  # Keep default 'off'
+            vertical_raw = self._safe_extract(
+                data, *self.get_path("swing_settings", mode, "vertical")
+            )
+            horizontal_raw = self._safe_extract(
+                data, *self.get_path("swing_settings", mode, "horizontal")
+            )
+            if default is None and (vertical_raw is None or horizontal_raw is None):
+                return "off"
+            vertical = (
+                "F" in vertical_raw
+                if vertical_raw is not None
+                else default in ("vertical", "both", "3d")
+            )
+            horizontal = (
+                "F" in horizontal_raw
+                if horizontal_raw is not None
+                else default in ("horizontal", "both", "3d")
+            )
+            if horizontal and vertical:
+                return 'both'
+            if horizontal:
+                return 'horizontal'
+            if vertical:
+                return 'vertical'
 
         return 'off'  # Default return value
 
@@ -479,8 +491,9 @@ class DaikinBRP084(Appliance):
             # Get mode
             mode_value = self.find_value_by_pn(response, *self.get_path("mode"))
 
+            self._last_mode = self.MODE_MAP[mode_value]
             self.values['pow'] = "0" if is_off else "1"
-            self.values['mode'] = 'off' if is_off else self.MODE_MAP[mode_value]
+            self.values['mode'] = 'off' if is_off else self._last_mode
 
             # Get temperatures. Outdoor temp is decoded as a little-endian
             # signed value (see _safe_hex_temp) to handle sub-zero readings, and
@@ -556,13 +569,14 @@ class DaikinBRP084(Appliance):
 
         self._register_energy_consumption_history()
 
-    def _extract_optional_readings(self, response):
+    def _extract_optional_readings(self, response, *, mode: Optional[str] = None):
         """Extract optional values that not all firmware/models expose.
 
         Covers the on/off feature toggles, the active-mode vertical vane
         position, adapter capability/firmware info and outdoor-unit sensors.
         Each read is guarded individually so a missing container just leaves
         that value unset rather than failing the whole status update.
+        A mode override decodes acknowledged vane writes while power is off.
         """
         # On/off feature toggles (comfort/econo/outdoor_quiet/powerful).
         for key in self.POWER_TOGGLES:
@@ -574,15 +588,16 @@ class DaikinBRP084(Appliance):
 
         # Current vertical vane position for the active mode.
         try:
-            if self.values['mode'] in self.API_PATHS["swing_settings"]:
+            mode = self.values.get("mode", invalidate=False) if mode is None else mode
+            if mode in self.API_PATHS["swing_settings"]:
                 vane_raw = self.find_value_by_pn(
                     response,
-                    *self.get_path("swing_settings", self.values['mode'], "vertical"),
+                    *self.get_path("swing_settings", mode, "vertical"),
                 )
                 self.values['vane_vertical'] = self.VERTICAL_VANE_MAP.get(
-                    vane_raw, 'off'
+                    str(vane_raw).upper().ljust(8, "0"), 'off'
                 )
-        except DaikinException:
+        except (DaikinException, KeyError):
             pass
 
         # Dry-mode comfort offset (STD +/- bias), not a normal target temp.
@@ -666,22 +681,66 @@ class DaikinBRP084(Appliance):
             _LOGGER.debug("Error in _get_resource: %s", e)
             raise
 
-    async def _update_settings(self, settings):
-        """Update settings to set on Daikin device."""
-        # Start with current values
-        _LOGGER.debug("Updating settings: %s", settings)
+    def _get_setting_mode(self, settings: Dict) -> Optional[str]:
+        """Resolve the operating mode without changing confirmed values."""
+        mode = settings.get("mode")
+        if mode is None or mode == "off":
+            mode = self.values.get("mode", invalidate=False)
+        return self._last_mode if mode is None or mode == "off" else mode
 
-        # Handle specific translations for this firmware version
-        for key, value in settings.items():
-            if key == 'mode' and value == 'off':
-                self.values['pow'] = '0'
-            elif key == 'mode':
-                self.values['pow'] = '1'
-                self.values['mode'] = value
-            else:
-                self.values[key] = value
+    async def _update_settings(self, requests: List[DaikinAttribute]) -> None:
+        """Apply acknowledged writes using the existing response decoders."""
+        if not requests:
+            return
 
-        return self.values
+        # Writes and reads use the same pc tree; decode only acknowledged writes.
+        written = {
+            "responses": [
+                {"fr": request["to"], "pc": request["pc"]}
+                for request in DaikinRequest(requests).serialize()["requests"]
+            ]
+        }
+
+        def get_value(*keys):
+            return self._safe_extract(written, *self.get_path(*keys))
+
+        settings = {}
+        raw = get_value("power")
+        if raw is not None:
+            settings["pow"] = "0" if raw == "00" else "1"
+        raw = get_value("mode")
+        if raw is not None:
+            settings["mode"] = self.daikin_to_human("mode", raw)
+
+        active_mode = settings.get("mode", self._get_setting_mode({}))
+        for group, key, decode in (
+            ("temp_settings", "stemp", self.hex_to_temp),
+            ("fan_settings", "f_rate", self.FAN_MODE_MAP.__getitem__),
+        ):
+            if active_mode in self.API_PATHS[group]:
+                raw = get_value(group, active_mode)
+                if raw is not None:
+                    settings[key] = str(decode(raw))
+
+        if active_mode in self.MODE_MAP.values():
+            self._last_mode = active_mode
+        if settings.get("pow") == "0":
+            settings["mode"] = "off"
+        elif settings.get("pow") == "1" and self._last_mode is not None:
+            settings.setdefault("mode", self._last_mode)
+
+        self.values.update(settings)
+        # OFF writes still address the saved operating mode's settings.
+        self._extract_optional_readings(written, mode=active_mode)
+        if active_mode in self.API_PATHS["swing_settings"] and any(
+            get_value("swing_settings", active_mode, axis) is not None
+            for axis in ("vertical", "horizontal")
+        ):
+            self.values["f_dir"] = self.get_swing_state(
+                written,
+                default=self.values.get("f_dir", "off", invalidate=False),
+                mode=active_mode,
+            )
 
     def add_request(self, requests, path, value):
         """Append DaikinAttribute to requests."""
@@ -732,19 +791,18 @@ class DaikinBRP084(Appliance):
 
     def _handle_temperature_setting(self, settings, requests):
         """Handle temperature-related settings."""
-        if (
-            'stemp' not in settings
-            or self.values['mode'] not in self.API_PATHS["temp_settings"]
-        ):
+        mode = self._get_setting_mode(settings)
+        if 'stemp' not in settings or mode not in self.API_PATHS["temp_settings"]:
             return
 
-        path = self.get_path("temp_settings", self.values['mode'])
+        path = self.get_path("temp_settings", mode)
         temp_hex = self.temp_to_hex(float(settings['stemp']))
         self.add_request(requests, path, temp_hex)
 
     def _handle_dry_comfort_offset_setting(self, settings, requests):
         """Handle dry-mode comfort offset settings."""
-        if "dry_comfort_offset" not in settings or self.values.get("mode") != "dry":
+        mode = self._get_setting_mode(settings)
+        if "dry_comfort_offset" not in settings or mode != "dry":
             return
 
         path = self.get_path("dry_comfort_offset")
@@ -760,13 +818,11 @@ class DaikinBRP084(Appliance):
 
     def _handle_fan_setting(self, settings, requests):
         """Handle fan-related settings."""
-        if (
-            'f_rate' not in settings
-            or self.values['mode'] not in self.API_PATHS["fan_settings"]
-        ):
+        mode = self._get_setting_mode(settings)
+        if 'f_rate' not in settings or mode not in self.API_PATHS["fan_settings"]:
             return
 
-        path = self.get_path("fan_settings", self.values['mode'])
+        path = self.get_path("fan_settings", mode)
         fan_value = None
 
         # Try both formats - the internal one and the user-friendly one
@@ -780,18 +836,14 @@ class DaikinBRP084(Appliance):
 
     def _handle_swing_setting(self, settings, requests):
         """Handle swing-related settings."""
-        if (
-            'f_dir' not in settings
-            or self.values['mode'] not in self.API_PATHS["swing_settings"]
-        ):
+        mode = self._get_setting_mode(settings)
+        if 'f_dir' not in settings or mode not in self.API_PATHS["swing_settings"]:
             return
 
         # Set vertical swing, unless an explicit vane position is also being
         # set (that takes precedence for the vertical axis, handled separately).
         if 'vane_vertical' not in settings:
-            vertical_path = self.get_path(
-                "swing_settings", self.values['mode'], "vertical"
-            )
+            vertical_path = self.get_path("swing_settings", mode, "vertical")
             self.add_request(
                 requests,
                 vertical_path,
@@ -803,9 +855,7 @@ class DaikinBRP084(Appliance):
             )
 
         # Set horizontal swing
-        horizontal_path = self.get_path(
-            "swing_settings", self.values['mode'], "horizontal"
-        )
+        horizontal_path = self.get_path("swing_settings", mode, "horizontal")
         self.add_request(
             requests,
             horizontal_path,
@@ -857,9 +907,10 @@ class DaikinBRP084(Appliance):
         restores 'off'/'swing'. Mode-specific, like swing. Only these byte-0
         states have physical effect on this firmware.
         """
+        mode = self._get_setting_mode(settings)
         if (
             'vane_vertical' not in settings
-            or self.values['mode'] not in self.API_PATHS["swing_settings"]
+            or mode not in self.API_PATHS["swing_settings"]
         ):
             return
 
@@ -867,12 +918,11 @@ class DaikinBRP084(Appliance):
         if raw is None:
             return
 
-        path = self.get_path("swing_settings", self.values['mode'], "vertical")
+        path = self.get_path("swing_settings", mode, "vertical")
         self.add_request(requests, path, raw)
 
     async def set(self, settings):
         """Set settings on Daikin device."""
-        await self._update_settings(settings)
         requests = []
 
         # Handle different types of settings
@@ -891,6 +941,32 @@ class DaikinBRP084(Appliance):
             _LOGGER.debug("Sending request: %s", request_payload)
             response = await self._get_resource("", params=request_payload)
             _LOGGER.debug("Response: %s", response)
+
+            responses = (
+                response.get("responses") if isinstance(response, dict) else None
+            )
+            if not isinstance(responses, list):
+                raise DaikinException("Invalid write response from device")
+
+            acknowledged = set()
+            failures = []
+            for target in dict.fromkeys(request.to for request in requests):
+                replies = [
+                    reply
+                    for reply in responses
+                    if isinstance(reply, dict) and reply.get("fr") == target
+                ]
+                if len(replies) == 1 and replies[0].get("rsc") == 2004:
+                    acknowledged.add(target)
+                else:
+                    codes = [reply.get("rsc") for reply in replies]
+                    failures.append(f"{target}: {codes}")
+
+            await self._update_settings(
+                [request for request in requests if request.to in acknowledged]
+            )
+            if failures:
+                raise DaikinException("Write not acknowledged: " + "; ".join(failures))
 
             # Update status after setting
             await self.update_status()

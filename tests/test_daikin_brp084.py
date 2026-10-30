@@ -1862,9 +1862,12 @@ async def test_update_settings_mode_off():
     """_update_settings turns the power flag off when mode is 'off'."""
     device = DaikinBRP084('ip', session=MagicMock())
 
-    await device._update_settings({'mode': 'off'})
+    requests = []
+    device._handle_power_setting({"mode": "off"}, requests)
+    await device._update_settings(requests)
 
     assert device.values['pow'] == '0'
+    assert device.values["mode"] == "off"
 
 
 def test_handle_temperature_setting_unsupported_mode():
@@ -2053,3 +2056,306 @@ def test_compressor_frequency_ignores_malformed_values(freq_hex):
 
     assert device.support_compressor_frequency is False
     assert device.compressor_running is True
+
+
+@pytest.fixture
+def brp084_writer():
+    """A writer with known settings and real-device-style write acknowledgements."""
+    device = DaikinBRP084("127.0.0.1", session=MagicMock())
+    device.values.update(
+        {
+            "pow": "1",
+            "mode": "cool",
+            "stemp": "25.0",
+            "f_rate": "auto",
+            "f_dir": "off",
+            "vane_vertical": "off",
+            "comfort": "off",
+            "econo": "off",
+            "outdoor_quiet": "off",
+            "powerful": "off",
+            "dry_comfort_offset": "0.0",
+            "htemp": "24.0",
+        }
+    )
+    device._last_mode = "cool"
+
+    async def acknowledge(_path, params):
+        return {
+            "responses": [
+                {"fr": request["to"], "rsc": 2004}
+                for request in params["requests"]
+            ]
+        }
+
+    device._get_resource = AsyncMock(side_effect=acknowledge)
+    device.update_status = AsyncMock()
+    return device
+
+
+def _confirmed_values(device):
+    """Inspect values without invalidating any resource."""
+    return {key: device.values.get(key, invalidate=False) for key in device.values}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "settings, expected",
+    [
+        ({}, {"pow": "1", "mode": "cool"}),
+        ({"mode": "off"}, {"pow": "0", "mode": "off"}),
+        ({"mode": "hot", "stemp": 26}, {"pow": "1", "mode": "hot", "stemp": "26.0"}),
+        ({"stemp": 26}, {"stemp": "26.0", "pow": "1"}),
+        ({"f_rate": "quiet"}, {"f_rate": "quiet"}),
+        ({"f_rate": "0B00"}, {"f_rate": "quiet"}),
+        ({"f_dir": "3d"}, {"f_dir": "both", "vane_vertical": "swing"}),
+        ({"f_dir": "horizontal"}, {"f_dir": "horizontal", "vane_vertical": "off"}),
+        ({"vane_vertical": "down"}, {"f_dir": "off", "vane_vertical": "down"}),
+        (
+            {"f_dir": "both", "vane_vertical": "down"},
+            {"f_dir": "horizontal", "vane_vertical": "down"},
+        ),
+        ({"comfort": "01"}, {"comfort": "on"}),
+        ({"econo": "on"}, {"econo": "on"}),
+        ({"outdoor_quiet": "on"}, {"outdoor_quiet": "on"}),
+        ({"powerful": "on"}, {"powerful": "on"}),
+        (
+            {"mode": "dry", "dry_comfort_offset": -1.5},
+            {"mode": "dry", "dry_comfort_offset": "-1.5", "pow": "1"},
+        ),
+    ],
+)
+async def test_set_applies_acknowledged_values(brp084_writer, settings, expected):
+    """Cache changes reflect encoded writes, including accepted raw inputs."""
+    await brp084_writer.set(settings)
+
+    brp084_writer._get_resource.assert_awaited_once()
+    brp084_writer.update_status.assert_awaited_once_with()
+    for key, value in expected.items():
+        assert brp084_writer.values.get(key, invalidate=False) == value
+    assert brp084_writer.values.get("htemp", invalidate=False) == "24.0"
+    payload = brp084_writer._get_resource.call_args.kwargs["params"]
+    assert all(request["op"] == 3 for request in payload["requests"])
+
+
+@pytest.mark.asyncio
+async def test_set_waits_for_ack_before_changing_values(brp084_writer):
+    """Neither requested nor implicit settings change while the write is pending."""
+    brp084_writer.values.update({"comfort": "on", "econo": "on"})
+    before = _confirmed_values(brp084_writer)
+    acknowledge = brp084_writer._get_resource.side_effect
+
+    async def check_pending(path, params):
+        assert _confirmed_values(brp084_writer) == before
+        return await acknowledge(path, params)
+
+    brp084_writer._get_resource.side_effect = check_pending
+    await brp084_writer.set({"powerful": "on"})
+
+    assert brp084_writer.values["powerful"] == "on"
+    assert brp084_writer.values["comfort"] == "off"
+    assert brp084_writer.values["econo"] == "off"
+
+
+@pytest.mark.asyncio
+async def test_set_preserves_unspecified_swing_axis(brp084_writer):
+    """A vane-only write keeps horizontal swing and updates both local views."""
+    brp084_writer.values["f_dir"] = "both"
+
+    await brp084_writer.set({"vane_vertical": "down"})
+
+    assert brp084_writer.values["f_dir"] == "horizontal"
+    assert brp084_writer.values["vane_vertical"] == "down"
+
+
+@pytest.mark.asyncio
+async def test_set_turns_on_using_last_operating_mode(brp084_writer):
+    """Power-on works from off and subsequent partial writes use the saved mode."""
+    brp084_writer.values.update({"pow": "0", "mode": "off"})
+    brp084_writer._last_mode = "hot"
+
+    await brp084_writer.set({})
+    assert brp084_writer.values["pow"] == "1"
+    assert brp084_writer.values["mode"] == "hot"
+
+    await brp084_writer.set({"mode": "off"})
+    assert brp084_writer.values["pow"] == "0"
+    assert brp084_writer.values["mode"] == "off"
+
+    await brp084_writer.set({"stemp": 26})
+    assert brp084_writer.values["pow"] == "0"
+    assert brp084_writer.values["mode"] == "off"
+    assert brp084_writer.values["stemp"] == "26.0"
+    payload = brp084_writer._get_resource.call_args.kwargs["params"]
+    children = payload["requests"][0]["pc"]["pch"][0]["pch"]
+    assert children == [{"pn": "e_3001", "pch": [{"pn": "p_03", "pv": "34"}]}]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "response",
+    [
+        None,
+        [],
+        {},
+        {"responses": None},
+        {"responses": []},
+        {"responses": ["not an acknowledgement"]},
+        {"responses": [{"fr": "/dsiot/edge/adr_0100.dgc_status"}]},
+        {"responses": [{"fr": "/dsiot/edge/adr_0100.dgc_status", "rsc": 4000}]},
+        {"responses": [{"fr": "/dsiot/edge/adr_0100.dgc_status", "rsc": 2000}]},
+        {"responses": [{"fr": "/dsiot/edge/adr_0200.dgc_status", "rsc": 2004}]},
+        {
+            "responses": [
+                {"fr": "/dsiot/edge/adr_0100.dgc_status", "rsc": 2004},
+                {"fr": "/dsiot/edge/adr_0100.dgc_status", "rsc": 4000},
+            ]
+        },
+    ],
+)
+async def test_set_rejects_failed_or_missing_ack(brp084_writer, response):
+    """HTTP success alone and ambiguous acknowledgements cannot confirm a write."""
+    before = _confirmed_values(brp084_writer)
+    brp084_writer._get_resource.side_effect = None
+    brp084_writer._get_resource.return_value = response
+
+    with pytest.raises(DaikinException):
+        await brp084_writer.set({"mode": "hot", "stemp": 26})
+
+    assert _confirmed_values(brp084_writer) == before
+    assert brp084_writer._last_mode == "cool"
+    brp084_writer.update_status.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failed_target", ["0100", "0200"])
+async def test_set_applies_only_acknowledged_targets(brp084_writer, failed_target):
+    """Partial success updates the confirmed target but still raises an error."""
+    brp084_writer.values["comfort"] = "on"
+
+    async def acknowledge(_path, params):
+        return {
+            "responses": [
+                {
+                    "fr": request["to"],
+                    "rsc": 4000 if failed_target in request["to"] else 2004,
+                }
+                for request in params["requests"]
+            ]
+        }
+
+    brp084_writer._get_resource.side_effect = acknowledge
+
+    with pytest.raises(DaikinException, match="Write not acknowledged"):
+        await brp084_writer.set({"powerful": "on"})
+
+    expected = "on" if failed_target == "0100" else "off"
+    assert brp084_writer.values["powerful"] == expected
+    assert brp084_writer.values["comfort"] == expected
+    brp084_writer.update_status.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_set_transport_failure_preserves_values(brp084_writer):
+    """A failed HTTP request leaves requested settings unconfirmed."""
+    before = _confirmed_values(brp084_writer)
+    brp084_writer._get_resource.side_effect = TimeoutError
+
+    with pytest.raises(TimeoutError):
+        await brp084_writer.set({"mode": "hot", "stemp": 26})
+
+    assert _confirmed_values(brp084_writer) == before
+    assert brp084_writer._last_mode == "cool"
+    brp084_writer.update_status.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"unknown": "value"},
+        {"comfort": "invalid"},
+        {"f_rate": "invalid"},
+        {"vane_vertical": "invalid"},
+        {"dry_comfort_offset": -1.0},
+        {"mode": "dry", "dry_comfort_offset": -1.25},
+    ],
+)
+async def test_set_does_not_cache_unsent_values(brp084_writer, settings):
+    """Unsupported settings never become confirmed merely by being requested."""
+    if settings.get("mode") == "dry":
+        brp084_writer.values["mode"] = "dry"
+        brp084_writer._last_mode = "dry"
+        settings = {"dry_comfort_offset": settings["dry_comfort_offset"]}
+    before = _confirmed_values(brp084_writer)
+
+    await brp084_writer.set(settings)
+
+    assert _confirmed_values(brp084_writer) == before
+    brp084_writer._get_resource.assert_not_awaited()
+    brp084_writer.update_status.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_set_caches_only_sent_settings_in_mixed_request(brp084_writer):
+    """Valid changes do not make ignored fields look successfully applied."""
+    await brp084_writer.set({"stemp": 26, "comfort": "invalid"})
+
+    assert brp084_writer.values["stemp"] == "26.0"
+    assert brp084_writer.values["comfort"] == "off"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("feature", ["comfort", "econo", "powerful"])
+async def test_acknowledged_feature_does_not_require_cached_mode(brp084_writer, feature):
+    """Applying an acknowledged feature must not depend on unrelated mode data."""
+    brp084_writer.values.clear()
+    brp084_writer._last_mode = None
+
+    await brp084_writer.set({feature: "on"})
+
+    assert brp084_writer.values[feature] == "on"
+    assert "mode" not in brp084_writer.values
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["cool", "hot"])
+@pytest.mark.parametrize(
+    "settings, swing, vane",
+    [
+        ({"f_dir": "both"}, "both", "swing"),
+        ({"vane_vertical": "down"}, "horizontal", "down"),
+        ({"f_dir": "both", "vane_vertical": "down"}, "horizontal", "down"),
+    ],
+)
+async def test_off_swing_writes_update_cache(
+    brp084_writer, mode, settings, swing, vane
+):
+    """Acknowledged OFF writes use the saved mode without powering on."""
+    brp084_writer.values.update({"pow": "0", "mode": "off", "f_dir": "horizontal"})
+    brp084_writer._last_mode = mode
+
+    await brp084_writer.set(settings)
+
+    assert brp084_writer.values["pow"] == "0"
+    assert brp084_writer.values["mode"] == "off"
+    assert brp084_writer._last_mode == mode
+    assert brp084_writer.values["f_dir"] == swing
+    assert brp084_writer.values["vane_vertical"] == vane
+    brp084_writer._get_resource.assert_awaited_once()
+    brp084_writer.update_status.assert_awaited_once_with()
+    payload = brp084_writer._get_resource.call_args.kwargs["params"]
+    children = payload["requests"][0]["pc"]["pch"][0]["pch"]
+    assert [node["pn"] for node in children] == ["e_3001"]
+    vertical = brp084_writer.get_path("swing_settings", mode, "vertical")[-1]
+    assert vertical in [node["pn"] for node in children[0]["pch"]]
+
+
+def test_swing_read_while_off_still_returns_off(brp084_writer):
+    """Ordinary reads do not use the saved mode as an implicit override."""
+    brp084_writer.values.update({"pow": "0", "mode": "off"})
+    response = _swing_state_response("0F0000", "0F0000")
+
+    assert brp084_writer.get_swing_state(response) == "off"
+    brp084_writer._extract_optional_readings(response)
+    assert brp084_writer.values["vane_vertical"] == "off"
