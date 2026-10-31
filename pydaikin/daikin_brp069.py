@@ -175,6 +175,8 @@ class DaikinBRP069(Appliance):
     CONTROL_KEYS = ("pow", "mode", "stemp", "shum")
     # Time budget for the read-only resync after an unknown write outcome
     RESYNC_TIMEOUT = 5
+    # Modes without a setpoint: dry reports stemp=M, fan stemp=--
+    NO_SETPOINT_MODES = ("2", "6")
 
     @staticmethod
     def parse_response(response_body):
@@ -434,11 +436,12 @@ class DaikinBRP069(Appliance):
     async def _verify_stemp(self, stemp) -> bool:
         """Read the setpoint back; return True if it matches.
 
-        Returns False if the mode has no setpoint (``M``/``--``, e.g. fan mode
-        ignores it) and raises DaikinVerificationError for another number.
+        Returns False for ``M``/``--`` in NO_SETPOINT_MODES (fan mode accepts
+        and ignores ``stemp``); any other value raises DaikinVerificationError.
         """
-        actual = (await self._read_control_info())["stemp"]
-        if _temperature(actual) is None:
+        state = await self._read_control_info()
+        actual = state["stemp"]
+        if _temperature(actual) is None and state["mode"] in self.NO_SETPOINT_MODES:
             return False
         if _temperature(actual) != _temperature(stemp):
             raise DaikinVerificationError(stemp, actual)

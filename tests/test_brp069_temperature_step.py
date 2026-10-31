@@ -695,18 +695,38 @@ async def test_airbase_set_without_shum(aresponses, client_session):
 FAN = CONTROL.replace("mode=4", "mode=6").replace("stemp={stemp}", "stemp=--")
 
 
+@pytest.mark.parametrize(
+    ("mode", "readback", "error", "status"),
+    [
+        ("6", "--", None, "unknown"),  # fan: accepts and ignores stemp (real adapter)
+        ("2", "M", None, "unknown"),  # dry: no setpoint either
+        ("4", "--", DaikinVerificationError, "unknown"),  # heat must confirm
+        ("3", "M", DaikinVerificationError, "unknown"),  # cool must confirm
+        ("0", "--", DaikinVerificationError, "unknown"),  # auto must confirm
+        ("4", "22.5", None, "confirmed"),
+        ("2", "24.0", DaikinVerificationError, "unknown"),  # a number is checked
+    ],
+)
 @pytest.mark.asyncio
-async def test_setpoint_ignored_in_fan_mode(aresponses, client_session):
-    """Fan mode accepts but ignores stemp (seen on a real adapter): no error."""
-    add_routes(aresponses, [], ["ret=OK"])
-    aresponses.add(path_pattern=GET, response=FAN)
-    aresponses.add(path_pattern=GET, response=FAN)
+async def test_non_numeric_readback_only_without_setpoint_mode(
+    aresponses, client_session, mode, readback, error, status
+):
+    """Only dry/fan may read back M/--; elsewhere it is an unconfirmed setpoint."""
+    after = CONTROL.replace("mode=4", f"mode={mode}").replace(
+        "stemp={stemp}", "stemp=" + readback
+    )
+    add_routes(aresponses, ["22.0"], ["ret=OK"])
+    aresponses.add(path_pattern=GET, response=after.replace("{stemp}", readback))
     device = DaikinBRP069("192.168.1.100", session=client_session)
 
-    await device.set({"stemp": "22.5"})
+    if error:
+        with pytest.raises(error):
+            await device.set({"stemp": "22.5"})
+    else:
+        await device.set({"stemp": "22.5"})
 
-    assert device.target_temperature_step_status == "unknown"
-    assert device.values.get("stemp", invalidate=False) == "--"
+    assert device.target_temperature_step_status == status
+    assert device.values.get("stemp", invalidate=False) == readback
     aresponses.assert_no_unused_routes()
 
 
