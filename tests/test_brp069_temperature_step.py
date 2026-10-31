@@ -388,14 +388,18 @@ async def test_cancelled_set_releases_lock(aresponses, client_session):
     aresponses.add(path_pattern=SET, response=_slow_ok)
     device = DaikinBRP069("192.168.1.100", session=client_session)
 
+    TIMED_OUT.clear()
     task = asyncio.create_task(device.set({"stemp": "23.5"}))
-    await asyncio.sleep(0.2)
+    async with asyncio.timeout(2):
+        while not TIMED_OUT:  # the write has reached the device
+            await asyncio.sleep(0.01)
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
 
     assert "stemp" not in device.values
-    await device.update_status(["aircon/get_control_info"])
+    async with asyncio.timeout(2):  # the lock was released
+        await device.update_status(["aircon/get_control_info"])
     assert device.values.get("stemp", invalidate=False) == "22.0"
 
 
@@ -533,8 +537,10 @@ def test_invalid_status_is_rejected(status):
         (404, "Not Found"),
         "ret=OK,mode=4,stemp=22.0,shum=0",  # no pow
         "ret=OK,pow=0,stemp=22.0,shum=0",  # no mode
+        "ret=OK,pow=0,mode=4,shum=0",  # no stemp
+        "ret=OK,pow=0,mode=4,stemp=22.0",  # no shum
     ],
-    ids=["ret_ng", "http404", "no_pow", "no_mode"],
+    ids=["ret_ng", "http404", "no_pow", "no_mode", "no_stemp", "no_shum"],
 )
 @pytest.mark.parametrize("cached", [False, True], ids=["empty_cache", "old_cache"])
 @pytest.mark.parametrize("settings", [{"stemp": "23.5"}, {"mode": "cool"}])
@@ -609,10 +615,112 @@ async def test_unknown_outcome_reads_state_back(
     with pytest.raises(asyncio.TimeoutError):
         await device.set(settings)
 
+    if stemp is None:  # resync failed: the last read state must be refetched
+        assert device.values.should_resource_be_updated("aircon/get_control_info")
     assert device.values.get("mode", invalidate=False) == mode
     if stemp is None and "stemp" in settings:
         assert "stemp" not in device.values
     elif stemp is not None:
         assert device.values.get("stemp", invalidate=False) == stemp
+    assert device.target_temperature_step_status == "unknown"
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.parametrize(
+    "changed", [("pow=0", "pow=1"), ("mode=4", "mode=3"), ("f_rate=B", "f_rate=A")]
+)
+@pytest.mark.asyncio
+async def test_no_retry_when_state_changed(aresponses, client_session, changed):
+    """A remote or app change after the rejection stops the fallback retry."""
+    aresponses.add(path_pattern=GET, response=CONTROL.format(stemp="22.0"))
+    aresponses.add(
+        path_pattern=GET, response=CONTROL.format(stemp="22.0").replace(*changed, 1)
+    )
+    aresponses.add(path_pattern=SET, response="ret=PARAM NG")
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+
+    with pytest.raises(DaikinCommandRejected):
+        await device.set({"stemp": "23.5"})
+
+    assert len(sent(aresponses)) == 1
+    assert device.target_temperature_step_status == "unknown"
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
+async def test_no_fallback_without_numeric_setpoint(aresponses, client_session):
+    """In dry mode (stemp=M) a rejected half degree is not a precision issue."""
+    dry = CONTROL.replace("mode=4", "mode=2").replace("stemp={stemp}", "stemp=M")
+    add_routes(aresponses, ["22.0"], ["ret=PARAM NG"], dry)
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+
+    with pytest.raises(DaikinCommandRejected):
+        await device.set({"stemp": "23.5"})
+
+    assert len(sent(aresponses)) == 1
+
+
+@pytest.mark.asyncio
+async def test_resync_is_time_boxed(aresponses, client_session):
+    """A hanging read-back does not delay the error beyond RESYNC_TIMEOUT."""
+    add_routes(aresponses, ["22.0"], [])
+    aresponses.add(path_pattern=SET, response=_reply(aresponses, (500, "Error")))
+    aresponses.add(path_pattern=GET, response=_slow_ok)
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    device.RESYNC_TIMEOUT = 0.1
+
+    async with asyncio.timeout(0.8):
+        with pytest.raises(Exception):  # the write error, not the resync timeout
+            await device.set({"stemp": "23.5"})
+
+    assert "stemp" not in device.values
+
+
+@pytest.mark.asyncio
+async def test_airbase_set_without_shum(aresponses, client_session):
+    """AirBase units without shum still write, using the "--" default."""
+    aresponses.add(
+        path_pattern="/skyfi/aircon/get_control_info",
+        response="ret=OK,pow=1,mode=2,stemp=22.0,f_rate=A,f_dir=0,f_auto=0",
+    )
+    aresponses.add(path_pattern="/skyfi/aircon/set_control_info", response="ret=OK")
+    device = DaikinAirBase("192.168.1.100", session=client_session)
+    device.values.update(device.DEFAULTS)
+
+    await device.set({"stemp": "23"})
+
+    assert sent(aresponses, "/skyfi/aircon/set_control_info")[0]["shum"] == "--"
+
+
+FAN = CONTROL.replace("mode=4", "mode=6").replace("stemp={stemp}", "stemp=--")
+
+
+@pytest.mark.asyncio
+async def test_setpoint_ignored_in_fan_mode(aresponses, client_session):
+    """Fan mode accepts but ignores stemp (seen on a real adapter): no error."""
+    add_routes(aresponses, [], ["ret=OK"])
+    aresponses.add(path_pattern=GET, response=FAN)
+    aresponses.add(path_pattern=GET, response=FAN)
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+
+    await device.set({"stemp": "22.5"})
+
+    assert device.target_temperature_step_status == "unknown"
+    assert device.values.get("stemp", invalidate=False) == "--"
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
+async def test_no_inference_when_retry_reads_back_no_setpoint(
+    aresponses, client_session
+):
+    """A retry read back as M/-- (mode changed meanwhile) infers nothing."""
+    add_routes(aresponses, ["22.0", "22.0"], ["ret=PARAM NG", "ret=OK"])
+    aresponses.add(path_pattern=GET, response=FAN)
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+
+    with pytest.raises(DaikinCommandRejected):
+        await device.set({"stemp": "23.5"})
+
     assert device.target_temperature_step_status == "unknown"
     aresponses.assert_no_unused_routes()

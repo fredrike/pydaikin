@@ -310,10 +310,9 @@ class DaikinBRP069(Appliance):
         """Update settings to set on Daikin device."""
         # start with current values
         resource = 'aircon/get_control_info'
-        current_val = self._check_control_info(await self._get_resource(resource))
+        current_val = await self._read_control_info()
 
         # Merge current_val with mapped settings
-        self.values.update_by_resource(resource, current_val)
         self.values.update_by_resource(
             resource, {k: self.human_to_daikin(k, v) for k, v in settings.items()}
         )
@@ -376,8 +375,9 @@ class DaikinBRP069(Appliance):
                 raise
             await self._apply_whole_degree_fallback(params, current_val, exc)
             return
-        if _is_half_degree(settings.get("stemp")):
-            await self._verify_stemp(settings["stemp"])
+        if _is_half_degree(settings.get("stemp")) and await self._verify_stemp(
+            settings["stemp"]
+        ):
             self._step_status = "confirmed"
 
     def _may_fall_back(self, rejection, settings, current_val) -> bool:
@@ -419,7 +419,8 @@ class DaikinBRP069(Appliance):
             _temperature(params["stemp"]).quantize(Decimal(1), rounding=ROUND_HALF_UP)
         )
         await self._write_control_info({**params, "stemp": stemp})
-        await self._verify_stemp(stemp)
+        if not await self._verify_stemp(stemp):
+            raise rejection
         self._step_status = "inferred"
         _LOGGER.warning(
             "%s rejected target temperature %s (ret=%s), set %s instead; "
@@ -430,11 +431,18 @@ class DaikinBRP069(Appliance):
             stemp,
         )
 
-    async def _verify_stemp(self, stemp):
-        """Read the setpoint back; raise DaikinVerificationError if it differs."""
+    async def _verify_stemp(self, stemp) -> bool:
+        """Read the setpoint back; return True if it matches.
+
+        Returns False if the mode has no setpoint (``M``/``--``, e.g. fan mode
+        ignores it) and raises DaikinVerificationError for another number.
+        """
         actual = (await self._read_control_info())["stemp"]
+        if _temperature(actual) is None:
+            return False
         if _temperature(actual) != _temperature(stemp):
             raise DaikinVerificationError(stemp, actual)
+        return True
 
     def _control_params(self) -> dict:
         """Build the set_control_info request from the cached values."""

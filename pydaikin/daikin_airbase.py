@@ -15,6 +15,8 @@ class DaikinAirBase(DaikinBRP069):
 
     # AirBase uses its own set(), which does not learn the step
     TARGET_TEMPERATURE_STEP = 1.0
+    # Some AirBase units report no shum (see DEFAULTS), so don't require it
+    CONTROL_KEYS = ("pow", "mode", "stemp")
 
     TRANSLATIONS = dict(
         DaikinBRP069.TRANSLATIONS,
