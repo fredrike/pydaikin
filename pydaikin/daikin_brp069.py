@@ -167,9 +167,14 @@ class DaikinBRP069(Appliance):
     # Optimistic until a half-degree request is rejected, see set()
     TARGET_TEMPERATURE_STEP = 0.5
     TARGET_TEMPERATURE_STEP_STATUSES = ("unknown", "confirmed", "inferred")
-    # Whole degrees inside this range are valid in every mode, so a rejected
-    # half degree there is not a range error (17.5 or 30.5 never fall back)
+    # Whole degrees in this range are assumed valid in cool, heat and auto, so
+    # a rejected half degree there is unlikely a range error (17.5 and 30.5
+    # never fall back)
     WHOLE_DEGREE_FALLBACK_RANGE = (18, 30)
+    # get_control_info fields a set_control_info request is built from
+    CONTROL_KEYS = ("pow", "mode", "stemp", "shum")
+    # Time budget for the read-only resync after an unknown write outcome
+    RESYNC_TIMEOUT = 5
 
     @staticmethod
     def parse_response(response_body):
@@ -305,7 +310,7 @@ class DaikinBRP069(Appliance):
         """Update settings to set on Daikin device."""
         # start with current values
         resource = 'aircon/get_control_info'
-        current_val = await self._get_resource(resource)
+        current_val = self._check_control_info(await self._get_resource(resource))
 
         # Merge current_val with mapped settings
         self.values.update_by_resource(resource, current_val)
@@ -336,11 +341,13 @@ class DaikinBRP069(Appliance):
     async def set(self, settings):
         """Set settings on Daikin device.
 
-        Raises DaikinCommandRejected if the adapter rejects the write and
+        Nothing is sent unless the current state can be read first. Raises
+        DaikinCommandRejected if the adapter rejects the write and
         DaikinVerificationError if an accepted half-degree ``stemp`` reads back
         differently; the cache then holds the device state. Other errors leave
-        the outcome unknown: the requested ``stemp`` is dropped from the cache.
-        A rejected half degree may be retried once, see _may_fall_back.
+        the outcome unknown: the state is read back once if possible, else the
+        requested ``stemp`` is dropped from the cache. A rejected half degree
+        may be retried once, see _may_fall_back.
         """
         async with self._control_lock:
             current_val = await self._update_settings(settings)
@@ -348,10 +355,14 @@ class DaikinBRP069(Appliance):
                 await self._set_control_info(settings, current_val)
             except (DaikinCommandRejected, DaikinVerificationError):
                 raise
-            except BaseException:
+            except BaseException as exc:
+                # Outcome unknown: keep the last read state minus the requested
+                # stemp, then try to read the actual state back
                 self._restore_control_info(current_val)
                 if "stemp" in settings:
                     self.values.pop("stemp", None)
+                if isinstance(exc, Exception):
+                    await self._resync_control_info()
                 raise
 
     async def _set_control_info(self, settings, current_val):
@@ -373,7 +384,7 @@ class DaikinBRP069(Appliance):
         """Return True if only an unsupported half degree explains the rejection.
 
         Never once 0.5 °C is confirmed, and only for a pure ``stemp`` change
-        inside WHOLE_DEGREE_FALLBACK_RANGE, so range errors don't count.
+        inside WHOLE_DEGREE_FALLBACK_RANGE, where range errors are unlikely.
         """
         if (
             not self.whole_degree_fallback
@@ -454,17 +465,28 @@ class DaikinBRP069(Appliance):
         # Writes carry params and are never coalesced, so skip _get_resource
         await self._do_get_resource(path, params, strict=True)
 
-    async def _read_control_info(self) -> dict:
-        """Read the control state back from the device and cache it.
+    def _check_control_info(self, state) -> dict:
+        """Return state, or raise DaikinException if a CONTROL_KEYS field is missing."""
+        if missing := [k for k in self.CONTROL_KEYS if k not in state]:
+            raise DaikinException(
+                f"Incomplete control info from {self.device_ip}, missing {missing}"
+            )
+        return state
 
-        Raises DaikinException unless it reports a numeric ``stemp``.
-        """
+    async def _read_control_info(self) -> dict:
+        """Read the control state back from the device and cache it."""
         resource = "aircon/get_control_info"
-        state = await self._get_resource(resource)
-        if _temperature(state.get("stemp")) is None:
-            raise DaikinException(f"No valid control state from {self.device_ip}")
+        state = self._check_control_info(await self._get_resource(resource))
         self.values.update_by_resource(resource, state)
         return state
+
+    async def _resync_control_info(self):
+        """Best-effort read-only resync after a write with unknown outcome."""
+        try:
+            async with asyncio.timeout(self.RESYNC_TIMEOUT):
+                await self._read_control_info()
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            _LOGGER.debug("Could not read back %s: %s", self.device_ip, exc)
 
     def _restore_control_info(self, current_val):
         """Revert unconfirmed requested values and refetch on the next update."""

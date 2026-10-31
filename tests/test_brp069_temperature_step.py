@@ -309,6 +309,7 @@ async def test_failed_write_is_sent_once_and_learns_nothing(
     """pydaikin never repeats a write: the device may have applied it anyway."""
     add_routes(aresponses, ["22.0"], [])
     aresponses.add(path_pattern=SET, response=_reply(aresponses, reply))
+    aresponses.add(path_pattern=GET, response="ret=NG")  # read-back fails too
     device = DaikinBRP069("192.168.1.100", session=client_session)
     device.HTTP_TIMEOUT = ClientTimeout(total=0.1)
     TIMED_OUT.clear()
@@ -319,6 +320,7 @@ async def test_failed_write_is_sent_once_and_learns_nothing(
     assert [r["stemp"] for r in sent(aresponses) + TIMED_OUT] == [stemp] * sends
     assert device.target_temperature_step_status == "unknown"
     # Outcome unknown: neither the old nor the requested setpoint is cached
+    assert len(sent(aresponses, GET)) == 2
     assert "stemp" not in device.values
     assert device.values.get("mode", invalidate=False) == "4"
     assert device.values.should_resource_be_updated("aircon/get_control_info")
@@ -331,8 +333,9 @@ async def test_failed_write_is_sent_once_and_learns_nothing(
         ((200, "ret=NG"), DaikinException),
         ((404, "Not Found"), DaikinException),
         ((200, "ret=OK,pow=0,mode=4"), DaikinException),  # no stemp
+        ((200, "ret=OK,stemp=23.5"), DaikinException),  # no pow, mode, shum
     ],
-    ids=["timeout", "ret_ng", "http404", "no_stemp"],
+    ids=["timeout", "ret_ng", "http404", "no_stemp", "no_mode"],
 )
 @pytest.mark.asyncio
 async def test_failed_readback_confirms_nothing(
@@ -341,6 +344,7 @@ async def test_failed_readback_confirms_nothing(
     """An accepted half degree that cannot be read back is reported, not cached."""
     add_routes(aresponses, ["22.0"], ["ret=OK"])
     aresponses.add(path_pattern=GET, response=_reply(aresponses, reply))
+    aresponses.add(path_pattern=GET, response="ret=NG")  # resync fails too
     device = DaikinBRP069("192.168.1.100", session=client_session)
     device.HTTP_TIMEOUT = ClientTimeout(total=0.1)
 
@@ -400,6 +404,7 @@ async def test_retry_timeout_learns_nothing(aresponses, client_session):
     """A timeout on the whole-degree retry neither downgrades nor trusts the cache."""
     add_routes(aresponses, ["22.0", "22.0"], ["ret=PARAM NG"])
     aresponses.add(path_pattern=SET, response=_slow_ok)
+    aresponses.add(path_pattern=GET, response="ret=NG")  # resync fails too
     device = DaikinBRP069("192.168.1.100", session=client_session)
     device.HTTP_TIMEOUT = ClientTimeout(total=0.1)
 
@@ -519,3 +524,95 @@ def test_invalid_status_is_rejected(status):
     with pytest.raises(ValueError):
         device.target_temperature_step_status = status
     assert device.target_temperature_step_status == "unknown"
+
+
+@pytest.mark.parametrize(
+    "pre_read",
+    [
+        "ret=NG",
+        (404, "Not Found"),
+        "ret=OK,mode=4,stemp=22.0,shum=0",  # no pow
+        "ret=OK,pow=0,stemp=22.0,shum=0",  # no mode
+    ],
+    ids=["ret_ng", "http404", "no_pow", "no_mode"],
+)
+@pytest.mark.parametrize("cached", [False, True], ids=["empty_cache", "old_cache"])
+@pytest.mark.parametrize("settings", [{"stemp": "23.5"}, {"mode": "cool"}])
+@pytest.mark.asyncio
+async def test_invalid_pre_read_sends_nothing(
+    aresponses, client_session, pre_read, cached, settings
+):
+    """Without a valid device snapshot nothing is written and nothing cached."""
+    reply = pre_read if isinstance(pre_read, str) else _reply(aresponses, pre_read)
+    aresponses.add(path_pattern=GET, response=reply)
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    if cached:
+        device.values.update_by_resource(
+            "aircon/get_control_info", parse_response(CONTROL.format(stemp="22.0"))
+        )
+    before = dict(device.values)
+
+    with pytest.raises(DaikinException):
+        await device.set(settings)
+
+    assert not sent(aresponses)
+    assert dict(device.values) == before
+
+
+@pytest.mark.parametrize(
+    ("control", "settings"),
+    [
+        (CONTROL.replace("mode=4", "mode=2").replace("stemp={stemp}", "stemp=M"), {}),
+        (CONTROL, {"mode": "fan"}),
+        (CONTROL, {"mode": "dry"}),
+    ],
+    ids=["dry_stemp_M", "to_fan", "to_dry"],
+)
+@pytest.mark.asyncio
+async def test_sentinel_setpoints_still_write(
+    aresponses, client_session, control, settings
+):
+    """stemp=M or --, as in dry/fan mode, is a valid snapshot."""
+    add_routes(aresponses, ["22.0"], ["ret=OK"], control)
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+
+    await device.set({**settings, "f_rate": "auto"})
+
+    assert len(sent(aresponses)) == 1
+
+
+APPLIED = CONTROL.replace("pow=0,mode=4", "pow=1,mode=3").format(stemp="23.5")
+
+
+@pytest.mark.parametrize(
+    ("resync", "mode", "stemp"),
+    [
+        (APPLIED, "3", "23.5"),  # read back: the device did apply the write
+        ("ret=NG", "4", None),  # unreadable: last read state, refetched later
+    ],
+    ids=["resync_ok", "resync_failed"],
+)
+@pytest.mark.parametrize(
+    "settings", [{"mode": "cool"}, {"mode": "cool", "stemp": "23.5"}]
+)
+@pytest.mark.asyncio
+async def test_unknown_outcome_reads_state_back(
+    aresponses, client_session, resync, mode, stemp, settings
+):
+    """After a lost answer the cache shows the device state, not the request."""
+    add_routes(aresponses, ["22.0"], [])
+    aresponses.add(path_pattern=SET, response=_slow_ok)
+    aresponses.add(path_pattern=GET, response=resync)
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    device.HTTP_TIMEOUT = ClientTimeout(total=0.1)
+
+    with pytest.raises(asyncio.TimeoutError):
+        await device.set(settings)
+
+    assert device.values.get("mode", invalidate=False) == mode
+    if stemp is None and "stemp" in settings:
+        assert "stemp" not in device.values
+    elif stemp is not None:
+        assert device.values.get("stemp", invalidate=False) == stemp
+    assert device.target_temperature_step_status == "unknown"
+    aresponses.assert_no_unused_routes()
