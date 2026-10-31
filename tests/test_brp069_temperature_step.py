@@ -10,7 +10,11 @@ from pydaikin.daikin_airbase import DaikinAirBase
 from pydaikin.daikin_brp069 import DaikinBRP069
 from pydaikin.daikin_brp072c import DaikinBRP072C
 from pydaikin.daikin_brp084 import DaikinBRP084
-from pydaikin.exceptions import DaikinCommandRejected
+from pydaikin.exceptions import (
+    DaikinCommandRejected,
+    DaikinException,
+    DaikinVerificationError,
+)
 from pydaikin.response import parse_response
 
 # Real get_control_info of a Stylish (0FC1, adapter 4_2_303), unit off in heat mode
@@ -50,10 +54,10 @@ def sent(aresponses, path=SET):
 
 
 @pytest.mark.parametrize(
-    ("stemp", "reads", "writes", "sent_stemps", "status", "rejected"),
+    ("stemp", "reads", "writes", "sent_stemps", "status", "error"),
     [
         # Adapter accepts 0.5 °C and reads it back
-        ("23.5", ["22.0", "23.5"], ["ret=OK"], ["23.5"], "confirmed", False),
+        ("23.5", ["22.0", "23.5"], ["ret=OK"], ["23.5"], "confirmed", None),
         # Whole-degree adapter on a half-degree indoor unit (maintainer's setup)
         (
             "23.5",
@@ -61,7 +65,7 @@ def sent(aresponses, path=SET):
             ["ret=PARAM NG", "ret=OK"],
             ["23.5", "24"],
             "inferred",
-            False,
+            None,
         ),
         # Halves round up, not to even
         (
@@ -70,7 +74,7 @@ def sent(aresponses, path=SET):
             ["ret=PARAM NG", "ret=OK"],
             ["22.5", "23"],
             "inferred",
-            False,
+            None,
         ),
         # Retry rejected as well: no downgrade
         (
@@ -79,7 +83,7 @@ def sent(aresponses, path=SET):
             ["ret=PARAM NG", "ret=PARAM NG"],
             ["23.5", "24"],
             "unknown",
-            True,
+            DaikinCommandRejected,
         ),
         # Retry accepted but not read back as sent: no downgrade
         (
@@ -88,30 +92,58 @@ def sent(aresponses, path=SET):
             ["ret=PARAM NG", "ret=OK"],
             ["23.5", "24"],
             "unknown",
-            True,
+            DaikinVerificationError,
         ),
         # Accepted but normalised to a whole degree: no false confirmation
-        ("23.5", ["22.0", "24.0"], ["ret=OK"], ["23.5"], "unknown", False),
+        (
+            "23.5",
+            ["22.0", "24.0"],
+            ["ret=OK"],
+            ["23.5"],
+            "unknown",
+            DaikinVerificationError,
+        ),
         # Device state changed after the rejection: no retry
-        ("23.5", ["22.0", "21.0"], ["ret=PARAM NG"], ["23.5"], "unknown", True),
+        (
+            "23.5",
+            ["22.0", "21.0"],
+            ["ret=PARAM NG"],
+            ["23.5"],
+            "unknown",
+            DaikinCommandRejected,
+        ),
         # Other rejections are not attributed to the resolution
-        ("23.5", ["22.0"], ["ret=NG"], ["23.5"], "unknown", True),
+        ("23.5", ["22.0"], ["ret=NG"], ["23.5"], "unknown", DaikinCommandRejected),
         # Whole degree or arbitrary precision: no fallback, no readback
-        ("23.0", ["22.0"], ["ret=PARAM NG"], ["23.0"], "unknown", True),
-        ("23.2", ["22.0"], ["ret=PARAM NG"], ["23.2"], "unknown", True),
-        ("23.2", ["22.0"], ["ret=OK"], ["23.2"], "unknown", False),
+        (
+            "23.0",
+            ["22.0"],
+            ["ret=PARAM NG"],
+            ["23.0"],
+            "unknown",
+            DaikinCommandRejected,
+        ),
+        (
+            "23.2",
+            ["22.0"],
+            ["ret=PARAM NG"],
+            ["23.2"],
+            "unknown",
+            DaikinCommandRejected,
+        ),
+        ("23.2", ["22.0"], ["ret=OK"], ["23.2"], "unknown", None),
     ],
 )
 @pytest.mark.asyncio
 async def test_set_target_temperature(
-    aresponses, client_session, stemp, reads, writes, sent_stemps, status, rejected
+    aresponses, client_session, stemp, reads, writes, sent_stemps, status, error
 ):
     """A half-degree setpoint confirms 0.5 °C or falls back once to 1 °C."""
     add_routes(aresponses, reads, writes)
     device = DaikinBRP069("192.168.1.100", session=client_session)
 
-    if rejected:
-        with pytest.raises(DaikinCommandRejected):
+    if error:
+        with pytest.raises(error):
             await device.set({"stemp": stemp})
     else:
         await device.set({"stemp": stemp})
@@ -125,9 +157,45 @@ async def test_set_target_temperature(
     assert device.target_temperature_step == (1.0 if status == "inferred" else 0.5)
     # The cache holds what the device reported last, never a rejected request
     assert device.values.get("stemp", invalidate=False) == (
-        reads[-1] if rejected or len(reads) > 1 else stemp
+        reads[-1] if error or len(reads) > 1 else stemp
     )
     aresponses.assert_all_requests_matched()
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.parametrize(
+    ("status", "stemp", "falls_back"),
+    [
+        ("confirmed", "23.5", False),  # 0.5 °C proven: a rejection is not precision
+        ("unknown", "17.5", False),  # may be below the range of the mode
+        ("unknown", "30.5", False),  # may be above it
+        ("unknown", "18.5", True),
+        ("unknown", "29.5", True),
+    ],
+)
+@pytest.mark.asyncio
+async def test_fallback_only_when_precision_explains_rejection(
+    aresponses, client_session, status, stemp, falls_back
+):
+    """Range errors or a confirmed 0.5 °C step never lead to a 1 °C inference."""
+    reads, writes = ["22.0"], ["ret=PARAM NG"]
+    if falls_back:
+        rounded = str(int(float(stemp) + 0.5))
+        reads, writes = ["22.0", "22.0", f"{rounded}.0"], ["ret=PARAM NG", "ret=OK"]
+    add_routes(aresponses, reads, writes)
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    device.target_temperature_step_status = status
+
+    if falls_back:
+        await device.set({"stemp": stemp})
+    else:
+        with pytest.raises(DaikinCommandRejected):
+            await device.set({"stemp": stemp})
+
+    assert len(sent(aresponses)) == len(writes)
+    assert device.target_temperature_step_status == (
+        "inferred" if falls_back else status
+    )
     aresponses.assert_no_unused_routes()
 
 
@@ -208,41 +276,123 @@ async def _slow_ok(request):
     return web.Response(text="ret=OK")
 
 
+async def _reset(request):
+    request.transport.close()
+    return web.Response(text="ret=OK")
+
+
+def _reply(aresponses, reply):
+    """Turn a handler or a (status, text) pair into an aresponses response."""
+    if callable(reply):
+        return reply
+    return aresponses.Response(status=reply[0], text=reply[1])
+
+
 @pytest.mark.parametrize(
-    ("replies", "error"),
+    ("reply", "error", "sends"),
     [
-        ([_slow_ok], asyncio.TimeoutError),
-        ([(403, "Forbidden")], Exception),
-        ([(500, "Error")] * 3, Exception),  # transport retries, no fallback
+        (_slow_ok, asyncio.TimeoutError, 1),
+        # aiohttp itself resends an idempotent GET once when a reused keep-alive
+        # connection drops without an answer (RFC 9112); it is the same request
+        (_reset, Exception, 2),
+        ((403, "Forbidden"), Exception, 1),
+        ((404, "Not Found"), Exception, 1),
+        ((500, "Error"), Exception, 1),
     ],
-    ids=["timeout", "http403", "http500"],
+    ids=["timeout", "reset", "http403", "http404", "http500"],
 )
+@pytest.mark.parametrize("stemp", ["23.5", "23"])
 @pytest.mark.asyncio
-async def test_transport_error_learns_nothing(
-    aresponses, client_session, replies, error
+async def test_failed_write_is_sent_once_and_learns_nothing(
+    aresponses, client_session, reply, error, sends, stemp
 ):
-    """Errors without a device answer neither fall back nor keep the request."""
+    """pydaikin never repeats a write: the device may have applied it anyway."""
     add_routes(aresponses, ["22.0"], [])
-    for reply in replies:
-        if callable(reply):
-            aresponses.add(path_pattern=SET, response=reply)
-        else:
-            aresponses.add(
-                path_pattern=SET,
-                response=aresponses.Response(status=reply[0], text=reply[1]),
-            )
+    aresponses.add(path_pattern=SET, response=_reply(aresponses, reply))
     device = DaikinBRP069("192.168.1.100", session=client_session)
     device.HTTP_TIMEOUT = ClientTimeout(total=0.1)
     TIMED_OUT.clear()
 
     with pytest.raises(error):
+        await device.set({"stemp": stemp})
+
+    assert [r["stemp"] for r in sent(aresponses) + TIMED_OUT] == [stemp] * sends
+    assert device.target_temperature_step_status == "unknown"
+    # Outcome unknown: neither the old nor the requested setpoint is cached
+    assert "stemp" not in device.values
+    assert device.values.get("mode", invalidate=False) == "4"
+    assert device.values.should_resource_be_updated("aircon/get_control_info")
+
+
+@pytest.mark.parametrize(
+    ("reply", "error"),
+    [
+        (_slow_ok, asyncio.TimeoutError),
+        ((200, "ret=NG"), DaikinException),
+        ((404, "Not Found"), DaikinException),
+        ((200, "ret=OK,pow=0,mode=4"), DaikinException),  # no stemp
+    ],
+    ids=["timeout", "ret_ng", "http404", "no_stemp"],
+)
+@pytest.mark.asyncio
+async def test_failed_readback_confirms_nothing(
+    aresponses, client_session, reply, error
+):
+    """An accepted half degree that cannot be read back is reported, not cached."""
+    add_routes(aresponses, ["22.0"], ["ret=OK"])
+    aresponses.add(path_pattern=GET, response=_reply(aresponses, reply))
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    device.HTTP_TIMEOUT = ClientTimeout(total=0.1)
+
+    with pytest.raises(error):
         await device.set({"stemp": "23.5"})
 
-    stemps = [r["stemp"] for r in sent(aresponses) + TIMED_OUT]
-    assert stemps == ["23.5"] * len(replies)
+    assert len(sent(aresponses)) == 1
     assert device.target_temperature_step_status == "unknown"
-    assert device.values.get("stemp", invalidate=False) == "22.0"
+    assert "stemp" not in device.values
     assert device.values.should_resource_be_updated("aircon/get_control_info")
+
+
+@pytest.mark.parametrize(
+    ("reads", "writes", "requested", "actual"),
+    [
+        (["22.0", "24.0"], ["ret=OK"], "23.5", "24.0"),
+        (["22.0", "22.0", "23.0"], ["ret=PARAM NG", "ret=OK"], "24", "23.0"),
+    ],
+    ids=["accepted_normalised", "retry_differs"],
+)
+@pytest.mark.asyncio
+async def test_verification_error_reports_values(
+    aresponses, client_session, reads, writes, requested, actual
+):
+    """A differing read-back raises with both values; the cache shows the device."""
+    add_routes(aresponses, reads, writes)
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+
+    with pytest.raises(DaikinVerificationError) as err:
+        await device.set({"stemp": "23.5"})
+
+    assert (err.value.requested, err.value.actual) == (requested, actual)
+    assert device.values.get("stemp", invalidate=False) == actual
+    assert device.target_temperature_step_status == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_cancelled_set_releases_lock(aresponses, client_session):
+    """Cancelling set() mid-write forgets the setpoint and lets polling continue."""
+    add_routes(aresponses, ["22.0", "22.0"], [])
+    aresponses.add(path_pattern=SET, response=_slow_ok)
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+
+    task = asyncio.create_task(device.set({"stemp": "23.5"}))
+    await asyncio.sleep(0.2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert "stemp" not in device.values
+    await device.update_status(["aircon/get_control_info"])
+    assert device.values.get("stemp", invalidate=False) == "22.0"
 
 
 @pytest.mark.asyncio
@@ -260,6 +410,7 @@ async def test_retry_timeout_learns_nothing(aresponses, client_session):
 
     assert [r["stemp"] for r in sent(aresponses) + TIMED_OUT] == ["23.5", "24"]
     assert device.target_temperature_step_status == "unknown"
+    assert "stemp" not in device.values
     assert device.values.should_resource_be_updated("aircon/get_control_info")
 
 
@@ -344,14 +495,10 @@ def test_parse_response_strict(body, strict, expected):
         assert parse_response(body, strict=strict) == expected
 
 
-@pytest.mark.parametrize(
-    ("restored", "step"), [("inferred", 1.0), ("confirmed", 0.5), ("bogus", 0.5)]
-)
+@pytest.mark.parametrize(("restored", "step"), [("inferred", 1.0), ("confirmed", 0.5)])
 @pytest.mark.asyncio
-async def test_restored_status_only_affects_reported_step(
-    aresponses, client_session, restored, step
-):
-    """A status restored by the consumer never changes what is sent."""
+async def test_restored_status(aresponses, client_session, restored, step):
+    """A restored status sets the step and never changes what is sent."""
     add_routes(aresponses, ["22.0", "23.5"], ["ret=OK"])
     device = DaikinBRP069("192.168.1.100", session=client_session)
     device.target_temperature_step_status = restored
@@ -363,3 +510,12 @@ async def test_restored_status_only_affects_reported_step(
     assert [r["stemp"] for r in sent(aresponses)] == ["23.5"]
     assert device.target_temperature_step_status == "confirmed"
     assert device.target_temperature_step == 0.5
+
+
+@pytest.mark.parametrize("status", ["bogus", "", None, 1.0])
+def test_invalid_status_is_rejected(status):
+    """Only the documented statuses can be restored."""
+    device = DaikinBRP069("192.168.1.100", session=object())
+    with pytest.raises(ValueError):
+        device.target_temperature_step_status = status
+    assert device.target_temperature_step_status == "unknown"

@@ -56,10 +56,10 @@ The `DaikinFactory` automatically detects your device type and firmware version,
 
 `device.target_temperature_step` starts optimistic at `0.5` on BRP069/BRP072C adapters and is learned from normal setpoint changes, without probing writes:
 
-* A half-degree `set({'stemp': '23.5'})` that the adapter accepts is read back; `target_temperature_step_status` becomes `"confirmed"`.
-* If the adapter answers `ret=PARAM NG`, the same request is retried once with only `stemp` rounded half up (23.5 → 24), and the step becomes `1.0` (`"inferred"`) once 24 is read back. A warning is logged; set `device.whole_degree_fallback = False` to get the rejection as `DaikinCommandRejected` instead.
-* Rejected writes raise `DaikinCommandRejected`; timeouts and other errors never change the step.
-* pydaikin does not persist the learned state. Consumers can store `target_temperature_step_status` and assign it back after creating the device. The status only affects the reported step, never what is sent, and a stale value is corrected by the next confirmed setpoint.
+* A half-degree `set({'stemp': '23.5'})` that the adapter accepts is read back; `target_temperature_step_status` becomes `"confirmed"`. If the device reports another value, `DaikinVerificationError` (with `requested` and `actual`) is raised.
+* If the adapter answers `ret=PARAM NG` to a pure `stemp` change between 18 and 30 °C, and 0.5 °C has not been confirmed, the same request is retried once with only `stemp` rounded half up (23.5 → 24). The step becomes `1.0` (`"inferred"`) once 24 is read back. A warning is logged; set `device.whole_degree_fallback = False` to get the rejection as `DaikinCommandRejected` instead.
+* Rejected writes raise `DaikinCommandRejected`. pydaikin never repeats a write. aiohttp itself may resend the identical request once if a reused keep-alive connection drops without an answer. After a timeout or another error the outcome is unknown: `stemp` is removed from the cache until the next update, and the step is unchanged.
+* pydaikin does not persist the learned state. Consumers can store `target_temperature_step_status` and assign it back after creating the device; other values raise `ValueError`. `"inferred"` reports a 1 °C step, and `"confirmed"` disables the fallback. A stale `"inferred"` is corrected by the next accepted half degree.
 
 Other adapters report `1.0`.
 

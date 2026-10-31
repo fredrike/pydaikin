@@ -19,6 +19,7 @@ from aiohttp.web_exceptions import HTTPForbidden
 from tenacity import (
     before_sleep_log,
     retry,
+    retry_all,
     retry_if_exception_type,
     stop_after_attempt,
     wait_random_exponential,
@@ -30,6 +31,11 @@ from .response import parse_response
 from .values import ApplianceValues
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _is_read(retry_state) -> bool:
+    """Only reads are retried: a failed write may still have been applied."""
+    return not retry_state.kwargs.get("strict", False)
 
 
 # pylint: disable-next=too-many-public-methods,too-many-instance-attributes
@@ -224,20 +230,23 @@ class Appliance(DaikinPowerMixin):
         reraise=True,
         wait=wait_random_exponential(multiplier=0.2, max=1.2),
         stop=stop_after_attempt(3),
-        retry=retry_if_exception_type(
-            (
-                ClientOSError,
-                ClientResponseError,
-                ServerDisconnectedError,
-            )
+        retry=retry_all(
+            retry_if_exception_type(
+                (
+                    ClientOSError,
+                    ClientResponseError,
+                    ServerDisconnectedError,
+                )
+            ),
+            _is_read,
         ),
         before_sleep=before_sleep_log(_LOGGER, logging.DEBUG),
     )
     async def _do_get_resource(self, path: str, params: dict, strict: bool = False):
         """Make the actual http request with retry logic.
 
-        With ``strict`` a non-OK ``ret`` raises DaikinCommandRejected instead of
-        returning an empty dict; it is never retried.
+        ``strict`` marks a write: it is sent once, never retried, and a non-OK
+        ``ret`` or HTTP 404 raises instead of returning an empty dict.
         """
         _LOGGER.debug(
             "Calling: %s/%s %s [%s]",
@@ -267,7 +276,7 @@ class Appliance(DaikinPowerMixin):
                 if response.status == 403:
                     raise HTTPForbidden(reason=f"HTTP 403 Forbidden for {response.url}")
                 # Airbase returns a 404 response on invalid urls but requires fallback
-                if response.status == 404:
+                if response.status == 404 and not strict:
                     _LOGGER.debug("HTTP 404 Not Found for %s", response.url)
                     return {}  # return an empty dict to indicate successful connection but bad data
                 if response.status != 200:
