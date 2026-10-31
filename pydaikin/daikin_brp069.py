@@ -1,10 +1,12 @@
 """Pydaikin appliance, represent a Daikin BRP069 device."""
 
+import asyncio
 from datetime import datetime, timezone
 import logging
 from typing import Optional
 
 from .daikin_base import Appliance
+from .exceptions import DaikinCommandRejected, DaikinException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -146,6 +148,11 @@ class DaikinBRP069(Appliance):
 
     MAX_CONCURRENT_REQUESTS = 1
 
+    # get_control_info fields a set_control_info request is built from
+    CONTROL_KEYS = ("pow", "mode", "stemp", "shum")
+    # Time budget for the read-only resync after an unknown write outcome
+    RESYNC_TIMEOUT = 5
+
     @staticmethod
     def parse_response(response_body):
         """Parse response from Daikin
@@ -191,6 +198,8 @@ class DaikinBRP069(Appliance):
         """
         super().__init__(device_id, session)
         self._fetch_optional = fetch_optional
+        # Serialises set() transactions and status polling
+        self._control_lock = asyncio.Lock()
 
     async def update_status(self, resources=None, *, force_refresh=False):
         """Update status with smart caching.
@@ -226,13 +235,15 @@ class DaikinBRP069(Appliance):
 
             resources_to_fetch.append(resource)
 
-        if force_refresh:
-            # Bypass TTL caching - clear last update times for resources we want to fetch
-            for resource in resources_to_fetch:
-                self.values.invalidate_resource(resource)
+        # Wait for a running set() transaction before polling
+        async with self._control_lock:
+            if force_refresh:
+                # Bypass TTL caching - clear last update times for resources we want to fetch
+                for resource in resources_to_fetch:
+                    self.values.invalidate_resource(resource)
 
-        # Call parent's update_status with filtered resources
-        await super().update_status(resources_to_fetch)
+            # Call parent's update_status with filtered resources
+            await super().update_status(resources_to_fetch)
 
     def get_info_resources(self):
         """Returns info_resources"""
@@ -252,10 +263,9 @@ class DaikinBRP069(Appliance):
         """Update settings to set on Daikin device."""
         # start with current values
         resource = 'aircon/get_control_info'
-        current_val = await self._get_resource(resource)
+        current_val = await self._read_control_info()
 
         # Merge current_val with mapped settings
-        self.values.update_by_resource(resource, current_val)
         self.values.update_by_resource(
             resource, {k: self.human_to_daikin(k, v) for k, v in settings.items()}
         )
@@ -281,10 +291,40 @@ class DaikinBRP069(Appliance):
         return current_val
 
     async def set(self, settings):
-        """Set settings on Daikin device."""
-        await self._update_settings(settings)
+        """Set settings on Daikin device.
 
-        path = 'aircon/set_control_info'
+        Nothing is sent unless the current state can be read first. Raises
+        DaikinCommandRejected if the adapter rejects the write; the cache then
+        holds the state read before the write. Other errors leave the outcome
+        unknown: the state is read back once if possible, else the requested
+        ``stemp`` is dropped from the cache.
+        """
+        async with self._control_lock:
+            current_val = await self._update_settings(settings)
+            try:
+                await self._set_control_info(current_val)
+            except DaikinCommandRejected:
+                raise
+            except BaseException as exc:
+                # Outcome unknown: keep the last read state minus the requested
+                # stemp, then try to read the actual state back
+                self._restore_control_info(current_val)
+                if "stemp" in settings:
+                    self.values.pop("stemp", None)
+                if isinstance(exc, Exception):
+                    await self._resync_control_info()
+                raise
+
+    async def _set_control_info(self, current_val):
+        """Write the control info; a rejection restores the pre-write state."""
+        try:
+            await self._write_control_info(self._control_params())
+        except DaikinCommandRejected:
+            self._restore_control_info(current_val)
+            raise
+
+    def _control_params(self) -> dict:
+        """Build the set_control_info request from the cached values."""
         params = {
             "mode": self.values["mode"],
             "pow": self.values["pow"],
@@ -303,9 +343,43 @@ class DaikinBRP069(Appliance):
                 params.update({"f_dir_ud": f_dir_ud, "f_dir_lr": f_dir_lr})
             else:
                 params.update({"f_dir": self.values['f_dir']})
+        return params
 
+    async def _write_control_info(self, params):
+        """Send set_control_info; raises DaikinCommandRejected unless ret=OK."""
+        path = "aircon/set_control_info"
         _LOGGER.debug("Sending request to %s with params: %s", path, params)
-        await self._get_resource(path, params)
+        # Writes carry params and are never coalesced, so skip _get_resource
+        await self._do_get_resource(path, params, strict=True)
+
+    def _check_control_info(self, state) -> dict:
+        """Return state, or raise DaikinException if a CONTROL_KEYS field is missing."""
+        if missing := [k for k in self.CONTROL_KEYS if k not in state]:
+            raise DaikinException(
+                f"Incomplete control info from {self.device_ip}, missing {missing}"
+            )
+        return state
+
+    async def _read_control_info(self) -> dict:
+        """Read the control state back from the device and cache it."""
+        resource = "aircon/get_control_info"
+        state = self._check_control_info(await self._get_resource(resource))
+        self.values.update_by_resource(resource, state)
+        return state
+
+    async def _resync_control_info(self):
+        """Best-effort read-only resync after a write with unknown outcome."""
+        try:
+            async with asyncio.timeout(self.RESYNC_TIMEOUT):
+                await self._read_control_info()
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            _LOGGER.debug("Could not read back %s: %s", self.device_ip, exc)
+
+    def _restore_control_info(self, current_val):
+        """Revert unconfirmed requested values and refetch on the next update."""
+        resource = "aircon/get_control_info"
+        self.values.update_by_resource(resource, current_val)
+        self.values.invalidate_resource(resource)
 
     async def set_holiday(self, mode):
         """Set holiday mode."""
