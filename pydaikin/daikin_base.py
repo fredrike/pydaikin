@@ -67,6 +67,9 @@ class Appliance(DaikinPowerMixin):
     # Maximum number of concurrent HTTP requests to device
     MAX_CONCURRENT_REQUESTS = 4
 
+    # Target temperature resolution in °C reported to consumers
+    TARGET_TEMPERATURE_STEP = 1.0
+
     def __init_subclass__(cls, **kwargs):
         """Validate that concrete subclasses override required class attributes."""
         super().__init_subclass__(**kwargs)
@@ -493,6 +496,11 @@ class Appliance(DaikinPowerMixin):
     def target_temperature(self) -> Optional[float]:
         """Return current target temperature."""
         return self._parse_number('stemp')
+
+    @property
+    def target_temperature_step(self) -> float:
+        """Return the target temperature resolution accepted by the device."""
+        return self.TARGET_TEMPERATURE_STEP
 
     @property
     def compressor_frequency(self) -> Optional[float]:

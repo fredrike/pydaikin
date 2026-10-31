@@ -2,13 +2,29 @@
 
 import asyncio
 from datetime import datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 import logging
 from typing import Optional
 
 from .daikin_base import Appliance
-from .exceptions import DaikinCommandRejected, DaikinException
+from .exceptions import DaikinCommandRejected, DaikinException, DaikinVerificationError
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _temperature(value) -> Optional[Decimal]:
+    """Return a setpoint as Decimal, or None if not numeric (e.g. ``M``, ``--``)."""
+    try:
+        number = Decimal(str(value))
+    except InvalidOperation:
+        return None
+    return number if number.is_finite() else None
+
+
+def _is_half_degree(value) -> bool:
+    """Return True for setpoints like 23.5, but not 23.0 or 23.2."""
+    number = _temperature(value)
+    return number is not None and number % 1 == Decimal("0.5")
 
 
 class DaikinBRP069(Appliance):
@@ -148,10 +164,19 @@ class DaikinBRP069(Appliance):
 
     MAX_CONCURRENT_REQUESTS = 1
 
+    # Optimistic until a half-degree request is rejected, see set()
+    TARGET_TEMPERATURE_STEP = 0.5
+    TARGET_TEMPERATURE_STEP_STATUSES = ("unknown", "confirmed", "inferred")
+    # Whole degrees in this range are assumed valid in cool, heat and auto, so
+    # a rejected half degree there is unlikely a range error (17.5 and 30.5
+    # never fall back)
+    WHOLE_DEGREE_FALLBACK_RANGE = (18, 30)
     # get_control_info fields a set_control_info request is built from
     CONTROL_KEYS = ("pow", "mode", "stemp", "shum")
     # Time budget for the read-only resync after an unknown write outcome
     RESYNC_TIMEOUT = 5
+    # Modes without a setpoint: dry reports stemp=M, fan stemp=--
+    NO_SETPOINT_MODES = ("2", "6")
 
     @staticmethod
     def parse_response(response_body):
@@ -200,6 +225,30 @@ class DaikinBRP069(Appliance):
         self._fetch_optional = fetch_optional
         # Serialises set() transactions and status polling
         self._control_lock = asyncio.Lock()
+        self._step_status = "unknown"
+        # Retry a rejected half-degree setpoint once as a whole degree
+        self.whole_degree_fallback = True
+
+    @property
+    def target_temperature_step(self) -> float:
+        """Return 1.0 once a whole-degree fallback was needed, else the default."""
+        if self._step_status == "inferred":
+            return 1.0
+        return self.TARGET_TEMPERATURE_STEP
+
+    @property
+    def target_temperature_step_status(self) -> str:
+        """Return "unknown", "confirmed" (0.5 °C read back) or "inferred" (1 °C).
+
+        pydaikin does not persist it; consumers may assign a stored value.
+        """
+        return self._step_status
+
+    @target_temperature_step_status.setter
+    def target_temperature_step_status(self, status: str) -> None:
+        if status not in self.TARGET_TEMPERATURE_STEP_STATUSES:
+            raise ValueError(f"Invalid target temperature step status: {status!r}")
+        self._step_status = status
 
     async def update_status(self, resources=None, *, force_refresh=False):
         """Update status with smart caching.
@@ -294,16 +343,18 @@ class DaikinBRP069(Appliance):
         """Set settings on Daikin device.
 
         Nothing is sent unless the current state can be read first. Raises
-        DaikinCommandRejected if the adapter rejects the write; the cache then
-        holds the state read before the write. Other errors leave the outcome
-        unknown: the state is read back once if possible, else the requested
-        ``stemp`` is dropped from the cache.
+        DaikinCommandRejected if the adapter rejects the write and
+        DaikinVerificationError if an accepted half-degree ``stemp`` reads back
+        differently; the cache then holds the device state. Other errors leave
+        the outcome unknown: the state is read back once if possible, else the
+        requested ``stemp`` is dropped from the cache. A rejected half degree
+        may be retried once, see _may_fall_back.
         """
         async with self._control_lock:
             current_val = await self._update_settings(settings)
             try:
-                await self._set_control_info(current_val)
-            except DaikinCommandRejected:
+                await self._set_control_info(settings, current_val)
+            except (DaikinCommandRejected, DaikinVerificationError):
                 raise
             except BaseException as exc:
                 # Outcome unknown: keep the last read state minus the requested
@@ -315,13 +366,97 @@ class DaikinBRP069(Appliance):
                     await self._resync_control_info()
                 raise
 
-    async def _set_control_info(self, current_val):
-        """Write the control info; a rejection restores the pre-write state."""
+    async def _set_control_info(self, settings, current_val):
+        """Write, then confirm a half-degree ``stemp`` or fall back once."""
+        params = self._control_params()
         try:
-            await self._write_control_info(self._control_params())
-        except DaikinCommandRejected:
+            await self._write_control_info(params)
+        except DaikinCommandRejected as exc:
             self._restore_control_info(current_val)
-            raise
+            if not self._may_fall_back(exc, settings, current_val):
+                raise
+            await self._apply_whole_degree_fallback(params, current_val, exc)
+            return
+        if _is_half_degree(settings.get("stemp")) and await self._verify_stemp(
+            settings["stemp"], params["mode"]
+        ):
+            self._step_status = "confirmed"
+
+    def _may_fall_back(self, rejection, settings, current_val) -> bool:
+        """Return True if only an unsupported half degree explains the rejection.
+
+        Never once 0.5 °C is confirmed, never in NO_SETPOINT_MODES, and only for
+        a pure ``stemp`` change inside WHOLE_DEGREE_FALLBACK_RANGE, where range
+        errors are unlikely.
+        """
+        if (
+            not self.whole_degree_fallback
+            or rejection.ret != "PARAM NG"
+            or self._step_status == "confirmed"
+            or settings.keys() != {"stemp"}
+            or current_val.get("mode") in self.NO_SETPOINT_MODES
+        ):
+            return False
+        low, high = self.WHOLE_DEGREE_FALLBACK_RANGE
+        stemp = settings["stemp"]
+        return (
+            _temperature(current_val.get("stemp")) is not None
+            and _is_half_degree(stemp)
+            and low < _temperature(stemp) < high
+        )
+
+    async def _apply_whole_degree_fallback(self, params, current_val, rejection):
+        """Retry a rejected half-degree ``stemp`` once, rounded half up (23.5 -> 24).
+
+        The retry differs from the rejected request in ``stemp`` only. It is
+        skipped (re-raising the rejection) if the device state changed since
+        the original request; the 1 °C step is only inferred once the rounded
+        value is read back.
+        """
+        state = await self._read_control_info()
+        if any(state.get(k) != current_val.get(k) for k in params if k in current_val):
+            _LOGGER.warning(
+                "%s changed state after rejecting target temperature %s, not retrying",
+                self.device_ip,
+                params["stemp"],
+            )
+            raise rejection
+
+        stemp = str(
+            _temperature(params["stemp"]).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+        )
+        await self._write_control_info({**params, "stemp": stemp})
+        if not await self._verify_stemp(stemp, params["mode"]):
+            raise rejection
+        self._step_status = "inferred"
+        _LOGGER.warning(
+            "%s rejected target temperature %s (ret=%s), set %s instead; "
+            "assuming 1 °C steps",
+            self.device_ip,
+            params["stemp"],
+            rejection.ret,
+            stemp,
+        )
+
+    async def _verify_stemp(self, stemp, mode) -> bool:
+        """Read the setpoint written in ``mode`` back; True only if it confirms it.
+
+        Returns False, learning nothing, if the mode changed meanwhile or has no
+        setpoint (NO_SETPOINT_MODES: fan mode accepts and ignores ``stemp``, a
+        number there proves no resolution). Raises DaikinVerificationError for
+        a different number, or for ``M``/``--`` in a mode with a setpoint.
+        """
+        state = await self._read_control_info()
+        actual = state["stemp"]
+        if state["mode"] != mode:
+            _LOGGER.debug("%s changed mode during verification", self.device_ip)
+            return False
+        no_setpoint = mode in self.NO_SETPOINT_MODES
+        if _temperature(actual) is None and no_setpoint:
+            return False
+        if _temperature(actual) != _temperature(stemp):
+            raise DaikinVerificationError(stemp, actual)
+        return not no_setpoint
 
     def _control_params(self) -> dict:
         """Build the set_control_info request from the cached values."""
