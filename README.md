@@ -52,6 +52,27 @@ if __name__ == "__main__":
 
 The `DaikinFactory` automatically detects your device type and firmware version, creating the appropriate device instance.
 
+### Control writes (BRP069)
+
+`device.set()` on BRP069/BRP072C adapters:
+
+* First reads `get_control_info`. If that answer lacks `pow`, `mode`, `stemp` or `shum` (AirBase: `shum` is optional), a `DaikinException` is raised and nothing is written.
+* Sends `set_control_info` once and never retries it; other endpoints such as `set_led` keep the general transport retry. aiohttp itself may resend the identical request once if a reused keep-alive connection drops without an answer.
+* A non-OK `ret` (e.g. `PARAM NG`) raises `DaikinCommandRejected` (with `.ret`), and HTTP 404 raises instead of counting as success. After a rejection the cache shows the state read before the write.
+* After a timeout or another error the outcome is unknown: the state is read back (read only, transport retries included, at most 5 s). If that fails, the cache keeps the last read state without the requested `stemp` and is refetched on the next update.
+* `set()` and `update_status()` are serialised per device, so a poll never runs in the middle of a write.
+
+### Target temperature step (BRP069)
+
+`device.target_temperature_step` starts optimistic at `0.5` on BRP069/BRP072C adapters and is learned from normal setpoint changes, without probing writes:
+
+* A half-degree `set({'stemp': '23.5'})` that the adapter accepts is read back immediately; `target_temperature_step_status` becomes `"confirmed"`. If the device reports another number, `DaikinVerificationError` (with `requested` and `actual`) is raised; there is no delayed second read. Dry and fan mode have no effective setpoint: nothing is learned there, not even from a matching number, and a `PARAM NG` never falls back. Fan mode accepts and ignores `stemp` (read back `--`), which is not an error. In any other mode, `M`/`--` raises `DaikinVerificationError`. If the mode changed between write and read-back, nothing is learned.
+* If the adapter answers `ret=PARAM NG` to a pure `stemp` change between 18 and 30 °C, the current setpoint is numeric (not `M`/`--`), and 0.5 °C has not been confirmed, the same request is retried once with only `stemp` rounded half up (23.5 → 24). The step becomes `1.0` (`"inferred"`) once 24 is read back; this is an inference, not proof for every mode. A warning is logged; set `device.whole_degree_fallback = False` to get the rejection as `DaikinCommandRejected` instead. The retry repeats the `pow`/`mode` of the original request, which were read just before; a remote or app change in that short window would be overwritten.
+* Timeouts and other errors without a device answer never change the step (see Control writes).
+* pydaikin does not persist the learned state. Consumers can store `target_temperature_step_status` and assign it back after creating the device; other values raise `ValueError`. `"inferred"` reports a 1 °C step, and `"confirmed"` disables the fallback. A stale `"inferred"` is corrected by the next accepted half degree.
+
+Other adapters report `1.0`.
+
 ## Firmware Version 2.8.0 Support
 
 Firmware version 2.8.0 introduces a different API structure compared to earlier versions. PyDaikin automatically detects and handles this firmware version.
