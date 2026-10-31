@@ -1,12 +1,30 @@
 """Pydaikin appliance, represent a Daikin BRP069 device."""
 
+import asyncio
 from datetime import datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 import logging
 from typing import Optional
 
 from .daikin_base import Appliance
+from .exceptions import DaikinCommandRejected
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _temperature(value) -> Optional[Decimal]:
+    """Return a setpoint as Decimal, or None if not numeric (e.g. ``M``, ``--``)."""
+    try:
+        number = Decimal(str(value))
+    except InvalidOperation:
+        return None
+    return number if number.is_finite() else None
+
+
+def _is_half_degree(value) -> bool:
+    """Return True for setpoints like 23.5, but not 23.0 or 23.2."""
+    number = _temperature(value)
+    return number is not None and number % 1 == Decimal("0.5")
 
 
 class DaikinBRP069(Appliance):
@@ -146,6 +164,9 @@ class DaikinBRP069(Appliance):
 
     MAX_CONCURRENT_REQUESTS = 1
 
+    # Optimistic until a half-degree request is rejected, see set()
+    TARGET_TEMPERATURE_STEP = 0.5
+
     @staticmethod
     def parse_response(response_body):
         """Parse response from Daikin
@@ -191,6 +212,19 @@ class DaikinBRP069(Appliance):
         """
         super().__init__(device_id, session)
         self._fetch_optional = fetch_optional
+        # Serialises set() transactions and status polling
+        self._control_lock = asyncio.Lock()
+        # "unknown", "confirmed" (0.5 °C read back) or "inferred" (1 °C fallback)
+        self.target_temperature_step_status = "unknown"
+        # Retry a rejected half-degree setpoint once as a whole degree
+        self.whole_degree_fallback = True
+
+    @property
+    def target_temperature_step(self) -> float:
+        """Return 1.0 once a whole-degree fallback was needed, else the default."""
+        if self.target_temperature_step_status == "inferred":
+            return 1.0
+        return self.TARGET_TEMPERATURE_STEP
 
     async def update_status(self, resources=None, *, force_refresh=False):
         """Update status with smart caching.
@@ -226,13 +260,15 @@ class DaikinBRP069(Appliance):
 
             resources_to_fetch.append(resource)
 
-        if force_refresh:
-            # Bypass TTL caching - clear last update times for resources we want to fetch
-            for resource in resources_to_fetch:
-                self.values.invalidate_resource(resource)
+        # Wait for a running set() transaction before polling
+        async with self._control_lock:
+            if force_refresh:
+                # Bypass TTL caching - clear last update times for resources we want to fetch
+                for resource in resources_to_fetch:
+                    self.values.invalidate_resource(resource)
 
-        # Call parent's update_status with filtered resources
-        await super().update_status(resources_to_fetch)
+            # Call parent's update_status with filtered resources
+            await super().update_status(resources_to_fetch)
 
     def get_info_resources(self):
         """Returns info_resources"""
@@ -281,10 +317,99 @@ class DaikinBRP069(Appliance):
         return current_val
 
     async def set(self, settings):
-        """Set settings on Daikin device."""
-        await self._update_settings(settings)
+        """Set settings on Daikin device.
 
-        path = 'aircon/set_control_info'
+        Raises DaikinCommandRejected if the adapter rejects the write; the
+        cache then reverts to the state read before the write. A half-degree
+        ``stemp`` is read back to confirm the 0.5 °C step. If it is rejected
+        with ``PARAM NG`` it is retried once as whole degree, see
+        _apply_whole_degree_fallback.
+        """
+        async with self._control_lock:
+            current_val = await self._update_settings(settings)
+            params = self._control_params()
+            try:
+                await self._write_control_info(params)
+            except DaikinCommandRejected as exc:
+                self._restore_control_info(current_val)
+                if not self._may_fall_back(exc, settings, current_val):
+                    raise
+                try:
+                    await self._apply_whole_degree_fallback(params, current_val, exc)
+                except BaseException:
+                    self.values.invalidate_resource("aircon/get_control_info")
+                    raise
+                return
+            except BaseException:
+                # Outcome unknown (e.g. timeout): don't keep requested values
+                self._restore_control_info(current_val)
+                raise
+
+            if _is_half_degree(settings.get("stemp")):
+                state = await self._read_control_info()
+                if _temperature(state.get("stemp")) == _temperature(settings["stemp"]):
+                    self.target_temperature_step_status = "confirmed"
+                else:
+                    _LOGGER.warning(
+                        "%s accepted target temperature %s but reports %s",
+                        self.device_ip,
+                        settings["stemp"],
+                        state.get("stemp"),
+                    )
+
+    def _may_fall_back(self, rejection, settings, current_val) -> bool:
+        """Return True if only a half-degree ``stemp`` can explain the rejection."""
+        return (
+            self.whole_degree_fallback
+            and rejection.ret == "PARAM NG"
+            and settings.keys() == {"stemp"}
+            and _is_half_degree(settings["stemp"])
+            and _temperature(current_val.get("stemp")) is not None
+        )
+
+    async def _apply_whole_degree_fallback(self, params, current_val, rejection):
+        """Retry a rejected half-degree ``stemp`` once, rounded half up (23.5 -> 24).
+
+        The retry differs from the rejected request in ``stemp`` only. It is
+        skipped (re-raising the rejection) if the device state changed since
+        the original request; the 1 °C step is only inferred once the rounded
+        value is read back.
+        """
+        state = await self._read_control_info()
+        if any(state.get(k) != current_val.get(k) for k in params if k in current_val):
+            _LOGGER.warning(
+                "%s changed state after rejecting target temperature %s, not retrying",
+                self.device_ip,
+                params["stemp"],
+            )
+            raise rejection
+
+        stemp = str(
+            _temperature(params["stemp"]).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+        )
+        await self._write_control_info({**params, "stemp": stemp})
+        state = await self._read_control_info()
+        if _temperature(state.get("stemp")) != _temperature(stemp):
+            _LOGGER.warning(
+                "%s accepted target temperature %s but reports %s",
+                self.device_ip,
+                stemp,
+                state.get("stemp"),
+            )
+            raise rejection
+
+        self.target_temperature_step_status = "inferred"
+        _LOGGER.warning(
+            "%s rejected target temperature %s (ret=%s), set %s instead; "
+            "assuming 1 °C steps",
+            self.device_ip,
+            params["stemp"],
+            rejection.ret,
+            stemp,
+        )
+
+    def _control_params(self) -> dict:
+        """Build the set_control_info request from the cached values."""
         params = {
             "mode": self.values["mode"],
             "pow": self.values["pow"],
@@ -303,9 +428,27 @@ class DaikinBRP069(Appliance):
                 params.update({"f_dir_ud": f_dir_ud, "f_dir_lr": f_dir_lr})
             else:
                 params.update({"f_dir": self.values['f_dir']})
+        return params
 
+    async def _write_control_info(self, params):
+        """Send set_control_info; raises DaikinCommandRejected unless ret=OK."""
+        path = "aircon/set_control_info"
         _LOGGER.debug("Sending request to %s with params: %s", path, params)
-        await self._get_resource(path, params)
+        # Writes carry params and are never coalesced, so skip _get_resource
+        await self._do_get_resource(path, params, strict=True)
+
+    async def _read_control_info(self) -> dict:
+        """Read the control state back from the device and cache it."""
+        resource = "aircon/get_control_info"
+        state = await self._get_resource(resource)
+        self.values.update_by_resource(resource, state)
+        return state
+
+    def _restore_control_info(self, current_val):
+        """Revert unconfirmed requested values and refetch on the next update."""
+        resource = "aircon/get_control_info"
+        self.values.update_by_resource(resource, current_val)
+        self.values.invalidate_resource(resource)
 
     async def set_holiday(self, mode):
         """Set holiday mode."""

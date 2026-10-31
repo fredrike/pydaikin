@@ -61,6 +61,9 @@ class Appliance(DaikinPowerMixin):
     # Maximum number of concurrent HTTP requests to device
     MAX_CONCURRENT_REQUESTS = 4
 
+    # Target temperature resolution in °C reported to consumers
+    TARGET_TEMPERATURE_STEP = 1.0
+
     def __init_subclass__(cls, **kwargs):
         """Validate that concrete subclasses override required class attributes."""
         super().__init_subclass__(**kwargs)
@@ -230,8 +233,12 @@ class Appliance(DaikinPowerMixin):
         ),
         before_sleep=before_sleep_log(_LOGGER, logging.DEBUG),
     )
-    async def _do_get_resource(self, path: str, params: dict):
-        """Make the actual http request with retry logic."""
+    async def _do_get_resource(self, path: str, params: dict, strict: bool = False):
+        """Make the actual http request with retry logic.
+
+        With ``strict`` a non-OK ``ret`` raises DaikinCommandRejected instead of
+        returning an empty dict; it is never retried.
+        """
         _LOGGER.debug(
             "Calling: %s/%s %s [%s]",
             self.base_url,
@@ -270,7 +277,10 @@ class Appliance(DaikinPowerMixin):
                         response.url,
                     )
                 response.raise_for_status()
-                result = self.parse_response(await response.text())
+                body = await response.text()
+                if strict:
+                    parse_response(body, strict=True)
+                result = self.parse_response(body)
                 _LOGGER.debug("Released semaphore for %s/%s", self.device_ip, path)
                 return result
 
@@ -477,6 +487,11 @@ class Appliance(DaikinPowerMixin):
     def target_temperature(self) -> Optional[float]:
         """Return current target temperature."""
         return self._parse_number('stemp')
+
+    @property
+    def target_temperature_step(self) -> float:
+        """Return the target temperature resolution accepted by the device."""
+        return self.TARGET_TEMPERATURE_STEP
 
     @property
     def compressor_frequency(self) -> Optional[float]:

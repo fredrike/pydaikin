@@ -52,6 +52,17 @@ if __name__ == "__main__":
 
 The `DaikinFactory` automatically detects your device type and firmware version, creating the appropriate device instance.
 
+### Target temperature step (BRP069)
+
+`device.target_temperature_step` starts optimistic at `0.5` on BRP069/BRP072C adapters and is learned from normal setpoint changes, without probing writes:
+
+* A half-degree `set({'stemp': '23.5'})` that the adapter accepts is read back; `target_temperature_step_status` becomes `"confirmed"`.
+* If the adapter answers `ret=PARAM NG`, the same request is retried once with only `stemp` rounded half up (23.5 → 24), and the step becomes `1.0` (`"inferred"`) once 24 is read back. A warning is logged; set `device.whole_degree_fallback = False` to get the rejection as `DaikinCommandRejected` instead.
+* Rejected writes raise `DaikinCommandRejected`; timeouts and other errors never change the step.
+* pydaikin does not persist the learned state. Consumers can store `target_temperature_step_status` and assign it back after creating the device. The status only affects the reported step, never what is sent, and a stale value is corrected by the next confirmed setpoint.
+
+Other adapters report `1.0`.
+
 ## Firmware Version 2.8.0 Support
 
 Firmware version 2.8.0 introduces a different API structure compared to earlier versions. PyDaikin automatically detects and handles this firmware version.
