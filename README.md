@@ -62,6 +62,8 @@ The `DaikinFactory` automatically detects your device type and firmware version,
 * After a timeout or another error the outcome is unknown: the state is read back (read only, transport retries included, at most 5 s). If that fails, the cache keeps the last read state without the requested `stemp` and is refetched on the next update.
 * `set()` and `update_status()` are serialised per device, so a poll never runs in the middle of a write.
 
+AirBase (BRP15B61) adapters only get the pre-read validation; their own `set()` keeps the previous write behaviour (lenient reply parsing, transport retries, no rollback, read-back or locking).
+
 ### Target temperature step (BRP069)
 
 `device.target_temperature_step` starts optimistic at `0.5` on BRP069/BRP072C adapters and is learned from normal setpoint changes, without probing writes:

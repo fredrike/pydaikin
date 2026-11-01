@@ -359,7 +359,7 @@ class DaikinBRP069(Appliance):
             except BaseException as exc:
                 # Outcome unknown: keep the last read state minus the requested
                 # stemp, then try to read the actual state back
-                self._restore_control_info(current_val)
+                self._restore_control_info(current_val, settings)
                 if "stemp" in settings:
                     self.values.pop("stemp", None)
                 if isinstance(exc, Exception):
@@ -372,7 +372,7 @@ class DaikinBRP069(Appliance):
         try:
             await self._write_control_info(params)
         except DaikinCommandRejected as exc:
-            self._restore_control_info(current_val)
+            self._restore_control_info(current_val, settings)
             if not self._may_fall_back(exc, settings, current_val):
                 raise
             await self._apply_whole_degree_fallback(params, current_val, exc)
@@ -510,10 +510,13 @@ class DaikinBRP069(Appliance):
         except Exception as exc:  # pylint: disable=broad-exception-caught
             _LOGGER.debug("Could not read back %s: %s", self.device_ip, exc)
 
-    def _restore_control_info(self, current_val):
+    def _restore_control_info(self, current_val, settings):
         """Revert unconfirmed requested values and refetch on the next update."""
         resource = "aircon/get_control_info"
         self.values.update_by_resource(resource, current_val)
+        # Requested keys the device did not report (e.g. f_rate) are not supported
+        for key in settings.keys() - current_val.keys():
+            self.values.pop(key, None)
         self.values.invalidate_resource(resource)
 
     async def set_holiday(self, mode):

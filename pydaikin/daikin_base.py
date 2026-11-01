@@ -242,7 +242,7 @@ class Appliance(DaikinPowerMixin):
         ),
         before_sleep=before_sleep_log(_LOGGER, logging.DEBUG),
     )
-    async def _do_get_resource(self, path: str, params: dict, strict: bool = False):
+    async def _do_get_resource(self, path: str, params: dict, *, strict: bool = False):
         """Make the actual http request with retry logic.
 
         ``strict`` marks a write: it is sent once, never retried, and a non-OK
