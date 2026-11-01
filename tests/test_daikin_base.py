@@ -340,6 +340,7 @@ def test_zone_count(values, expected):
     [
         ({'shum': '50'}, 50.0),
         ({'shum': 'AUTO'}, None),
+        ({"shum": "0"}, None),
         ({}, None),
     ],
 )

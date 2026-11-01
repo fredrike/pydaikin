@@ -500,8 +500,11 @@ class Appliance(DaikinPowerMixin):
 
     @property
     def target_humidity(self) -> Optional[float]:
-        """Return target humidity."""
-        return self._parse_number('shum')
+        """Return target humidity, or None if there is no target.
+
+        Units report shum=0 in modes without a humidity target.
+        """
+        return self._parse_number("shum") or None
 
     @property
     def current_total_power_consumption(self):
