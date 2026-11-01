@@ -430,6 +430,14 @@ class Appliance(DaikinPowerMixin):
         return self.humidity is not None
 
     @property
+    def support_target_humidity(self) -> bool:
+        """Return True if the device reports a target humidity.
+
+        Checks for the key, not its value: units change shum with the mode.
+        """
+        return "shum" in self.values
+
+    @property
     def support_advanced_modes(self) -> bool:
         """Return True if the device supports advanced modes."""
         return 'adv' in self.values

@@ -206,6 +206,7 @@ async def test_daikin_brp084(aresponses, client_session):
     assert device.values.get('otemp') == '17.0'
     assert device.values.get('f_dir') == 'off'
     assert device.values.get('mac') == '112233445566'
+    assert device.support_target_humidity is False
 
     # New reads: comfort airflow, capabilities, outdoor sensors, models
     assert device.values.get('comfort') == 'off'
