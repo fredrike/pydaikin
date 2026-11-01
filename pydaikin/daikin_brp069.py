@@ -302,25 +302,25 @@ class DaikinBRP069(Appliance):
         async with self._control_lock:
             current_val = await self._update_settings(settings)
             try:
-                await self._set_control_info(current_val)
+                await self._set_control_info(settings, current_val)
             except DaikinCommandRejected:
                 raise
             except BaseException as exc:
                 # Outcome unknown: keep the last read state minus the requested
                 # stemp, then try to read the actual state back
-                self._restore_control_info(current_val)
+                self._restore_control_info(current_val, settings)
                 if "stemp" in settings:
                     self.values.pop("stemp", None)
                 if isinstance(exc, Exception):
                     await self._resync_control_info()
                 raise
 
-    async def _set_control_info(self, current_val):
+    async def _set_control_info(self, settings, current_val):
         """Write the control info; a rejection restores the pre-write state."""
         try:
             await self._write_control_info(self._control_params())
         except DaikinCommandRejected:
-            self._restore_control_info(current_val)
+            self._restore_control_info(current_val, settings)
             raise
 
     def _control_params(self) -> dict:
@@ -375,10 +375,13 @@ class DaikinBRP069(Appliance):
         except Exception as exc:  # pylint: disable=broad-exception-caught
             _LOGGER.debug("Could not read back %s: %s", self.device_ip, exc)
 
-    def _restore_control_info(self, current_val):
+    def _restore_control_info(self, current_val, settings):
         """Revert unconfirmed requested values and refetch on the next update."""
         resource = "aircon/get_control_info"
         self.values.update_by_resource(resource, current_val)
+        # Requested keys the device did not report (e.g. f_rate) are not supported
+        for key in settings.keys() - current_val.keys():
+            self.values.pop(key, None)
         self.values.invalidate_resource(resource)
 
     async def set_holiday(self, mode):

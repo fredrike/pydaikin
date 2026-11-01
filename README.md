@@ -62,6 +62,8 @@ The `DaikinFactory` automatically detects your device type and firmware version,
 * After a timeout or another error the outcome is unknown: the state is read back (read only, transport retries included, at most 5 s). If that fails, the cache keeps the last read state without the requested `stemp` and is refetched on the next update.
 * `set()` and `update_status()` are serialised per device, so a poll never runs in the middle of a write.
 
+AirBase (BRP15B61) adapters only get the pre-read validation; their own `set()` keeps the previous write behaviour (lenient reply parsing, transport retries, no rollback, read-back or locking).
+
 ## Firmware Version 2.8.0 Support
 
 Firmware version 2.8.0 introduces a different API structure compared to earlier versions. PyDaikin automatically detects and handles this firmware version.
