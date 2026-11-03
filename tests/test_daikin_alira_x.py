@@ -137,6 +137,8 @@ async def test_alira_x_init(aresponses, client_session):
     assert device.values.get('model', invalidate=False) == 'FTXM25QVMA'
     assert device.values.get('pow', invalidate=False) == '0'
     assert device.values.get('mode', invalidate=False) == '4'
+    assert device.support_target_humidity is True
+    assert device.target_humidity is None
 
     # Verify Alira X specific swing parameters
     assert device.values.get('f_dir_ud', invalidate=False) == '0'
