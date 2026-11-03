@@ -52,6 +52,16 @@ if __name__ == "__main__":
 
 The `DaikinFactory` automatically detects your device type and firmware version, creating the appropriate device instance.
 
+### Control writes (BRP069)
+
+`device.set()` on BRP069/BRP072C adapters:
+
+* First reads `get_control_info`. If that answer lacks `pow`, `mode`, `stemp` or `shum` (AirBase: `shum` is optional), a `DaikinException` is raised and nothing is written.
+* Sends `set_control_info` once and never retries it; other endpoints such as `set_led` keep the general transport retry. aiohttp itself may resend the identical request once if a reused keep-alive connection drops without an answer.
+* A non-OK `ret` (e.g. `PARAM NG`) raises `DaikinCommandRejected` (with `.ret`), and HTTP 404 raises instead of counting as success. After a rejection the cache shows the state read before the write.
+* After a timeout or another error the outcome is unknown: the state is read back (read only, transport retries included, at most 5 s). If that fails, the cache keeps the last read state without the requested `stemp` and is refetched on the next update.
+* `set()` and `update_status()` are serialised per device, so a poll never runs in the middle of a write.
+
 ## Firmware Version 2.8.0 Support
 
 Firmware version 2.8.0 introduces a different API structure compared to earlier versions. PyDaikin automatically detects and handles this firmware version.

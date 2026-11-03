@@ -13,6 +13,9 @@ _LOGGER = logging.getLogger(__name__)
 class DaikinAirBase(DaikinBRP069):
     """Daikin class for AirBase (BRP15B61) units."""
 
+    # Some AirBase units report no shum (see DEFAULTS), so don't require it
+    CONTROL_KEYS = ("pow", "mode", "stemp")
+
     TRANSLATIONS = dict(
         DaikinBRP069.TRANSLATIONS,
         **{
