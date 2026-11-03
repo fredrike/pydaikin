@@ -1,5 +1,5 @@
 name: Create new release
-on: 
+on:
   workflow_dispatch:
     inputs:
       part:
@@ -18,18 +18,14 @@ env:
 jobs:
   bump_version:
     name: Bump Version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
-      version: ${{ steps.version.outputs.current_version }}
+      version: v${{ steps.version.outputs.current-version }}
     steps:
     - uses: actions/checkout@v7
     - uses: actions/setup-python@v7
       with:
-        python-version-file: 'pyproject.toml' # Read python version from a file pyproject.toml
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install bump2version --user
+        python-version-file: 'pyproject.toml' # Read python version from pyproject.toml
     - name: Configure Git
       run: |
         git config user.name "${{ github.actor }}"
@@ -37,21 +33,24 @@ jobs:
 
     - name: Bump Version
       id: version
+      uses: callowayproject/bump-my-version@master
+      env:
+        BUMPVERSION_TAG: "true"
+      with:
+        args: ${{ inputs.part }}
+        github-token: ${{ github.token }}
+    - name: Check
+      if: steps.version.outputs.bumped == 'true'
       run: |
-        bump2version ${{ inputs.part }}
-        # Sets current_version=v1.2.3 
-        grep current_version .bumpversion.cfg| sed -e 's/ //g' -e 's/=/=v/' >> $GITHUB_OUTPUT
-    - name: Commit version change to master
-      run: |
-        git push --follow-tags
-    
+        echo "Version was bumped from ${{ steps.version.outputs.previous-version }} to ${{ steps.version.outputs.current-version }}!"
+
   build:
     name: Build distribution 📦
     needs:
     - bump_version
     outputs:
       version: ${{ needs.bump_version.outputs.version }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
     - uses: actions/checkout@v7
       with:
@@ -77,7 +76,7 @@ jobs:
       and upload them to GitHub Release
     needs:
     - build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     permissions:
       contents: write  # IMPORTANT: mandatory for making GitHub Releases
@@ -108,12 +107,12 @@ jobs:
         --repo '${{ github.repository }}'
         --generate-notes
         dist/**
-    
+
   publish-to-pypi:
     name: Publish Python 🐍 distribution 📦 to PyPI
     needs:
     - build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     environment:
       name: pypi
