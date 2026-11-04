@@ -24,7 +24,10 @@ def _temperature(value) -> Optional[Decimal]:
 def _is_half_degree(value) -> bool:
     """Return True for setpoints like 23.5, but not 23.0 or 23.2."""
     number = _temperature(value)
-    return number is not None and number % 1 == Decimal("0.5")
+    try:
+        return number is not None and number % 1 == Decimal("0.5")
+    except InvalidOperation:  # too large for % (e.g. 1e100), never a setpoint
+        return False
 
 
 class DaikinBRP069(Appliance):
@@ -359,7 +362,7 @@ class DaikinBRP069(Appliance):
             except BaseException as exc:
                 # Outcome unknown: keep the last read state minus the requested
                 # stemp, then try to read the actual state back
-                self._restore_control_info(current_val)
+                self._restore_control_info(current_val, settings)
                 if "stemp" in settings:
                     self.values.pop("stemp", None)
                 if isinstance(exc, Exception):
@@ -372,7 +375,7 @@ class DaikinBRP069(Appliance):
         try:
             await self._write_control_info(params)
         except DaikinCommandRejected as exc:
-            self._restore_control_info(current_val)
+            self._restore_control_info(current_val, settings)
             if not self._may_fall_back(exc, settings, current_val):
                 raise
             await self._apply_whole_degree_fallback(params, current_val, exc)
@@ -398,11 +401,12 @@ class DaikinBRP069(Appliance):
         ):
             return False
         low, high = self.WHOLE_DEGREE_FALLBACK_RANGE
-        stemp = settings["stemp"]
+        stemp: Optional[Decimal] = _temperature(settings["stemp"])
         return (
             _temperature(current_val.get("stemp")) is not None
+            and stemp is not None
             and _is_half_degree(stemp)
-            and low < _temperature(stemp) < high
+            and low < stemp < high
         )
 
     async def _apply_whole_degree_fallback(self, params, current_val, rejection):
@@ -411,7 +415,8 @@ class DaikinBRP069(Appliance):
         The retry differs from the rejected request in ``stemp`` only. It is
         skipped (re-raising the rejection) if the device state changed since
         the original request; the 1 °C step is only inferred once the rounded
-        value is read back.
+        value is read back. If the mode changed before that read-back, the
+        accepted retry returns without learning anything.
         """
         state = await self._read_control_info()
         if any(state.get(k) != current_val.get(k) for k in params if k in current_val):
@@ -427,9 +432,14 @@ class DaikinBRP069(Appliance):
         )
         await self._write_control_info({**params, "stemp": stemp})
         if not await self._verify_stemp(stemp, params["mode"]):
-            raise rejection
+            # Accepted, but the mode changed before the read-back: learn nothing
+            _LOGGER.debug("%s set %s, step not inferred", self.device_ip, stemp)
+            return
+        # Warn once, not on every fallback of an already inferred device
+        level = logging.DEBUG if self._step_status == "inferred" else logging.WARNING
         self._step_status = "inferred"
-        _LOGGER.warning(
+        _LOGGER.log(
+            level,
             "%s rejected target temperature %s (ret=%s), set %s instead; "
             "assuming 1 °C steps",
             self.device_ip,
@@ -510,10 +520,13 @@ class DaikinBRP069(Appliance):
         except Exception as exc:  # pylint: disable=broad-exception-caught
             _LOGGER.debug("Could not read back %s: %s", self.device_ip, exc)
 
-    def _restore_control_info(self, current_val):
+    def _restore_control_info(self, current_val, settings):
         """Revert unconfirmed requested values and refetch on the next update."""
         resource = "aircon/get_control_info"
         self.values.update_by_resource(resource, current_val)
+        # Requested keys the device did not report (e.g. f_rate) are not supported
+        for key in settings.keys() - current_val.keys():
+            self.values.pop(key, None)
         self.values.invalidate_resource(resource)
 
     async def set_holiday(self, mode):

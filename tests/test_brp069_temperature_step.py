@@ -1,13 +1,14 @@
 """Test adaptive target temperature step detection on BRP069 (issue #168)."""
 
 import asyncio
+import logging
 
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import ClientResponseError, ClientSession, ClientTimeout
 import pytest
 import pytest_asyncio
 
 from pydaikin.daikin_airbase import DaikinAirBase
-from pydaikin.daikin_brp069 import DaikinBRP069
+from pydaikin.daikin_brp069 import DaikinBRP069, _is_half_degree
 from pydaikin.daikin_brp072c import DaikinBRP072C
 from pydaikin.daikin_brp084 import DaikinBRP084
 from pydaikin.exceptions import (
@@ -126,11 +127,13 @@ async def test_set_target_temperature(
     device = DaikinBRP069("192.168.1.100", session=client_session)
 
     if error:
-        with pytest.raises(error):
+        with pytest.raises(error) as err:
             await device.set({"stemp": stemp})
     else:
         await device.set({"stemp": stemp})
 
+    if error is DaikinVerificationError:  # reports what was sent and read back
+        assert (err.value.requested, err.value.actual) == (sent_stemps[-1], reads[-1])
     requests = sent(aresponses)
     assert [r.pop("stemp") for r in requests] == sent_stemps
     # The retry differs in stemp only, and pow/mode are never touched
@@ -283,30 +286,6 @@ async def test_failed_readback_confirms_nothing(
     assert device.values.should_resource_be_updated("aircon/get_control_info")
 
 
-@pytest.mark.parametrize(
-    ("reads", "writes", "requested", "actual"),
-    [
-        (["22.0", "24.0"], ["ret=OK"], "23.5", "24.0"),
-        (["22.0", "22.0", "23.0"], ["ret=PARAM NG", "ret=OK"], "24", "23.0"),
-    ],
-    ids=["accepted_normalised", "retry_differs"],
-)
-@pytest.mark.asyncio
-async def test_verification_error_reports_values(
-    aresponses, client_session, reads, writes, requested, actual
-):
-    """A differing read-back raises with both values; the cache shows the device."""
-    add_routes(aresponses, reads, writes)
-    device = DaikinBRP069("192.168.1.100", session=client_session)
-
-    with pytest.raises(DaikinVerificationError) as err:
-        await device.set({"stemp": "23.5"})
-
-    assert (err.value.requested, err.value.actual) == (requested, actual)
-    assert device.values.get("stemp", invalidate=False) == actual
-    assert device.target_temperature_step_status == "unknown"
-
-
 @pytest.mark.asyncio
 async def test_retry_timeout_learns_nothing(aresponses, client_session):
     """A timeout on the whole-degree retry neither downgrades nor trusts the cache."""
@@ -437,17 +416,22 @@ async def test_no_retry_when_state_changed(aresponses, client_session, changed):
     aresponses.assert_no_unused_routes()
 
 
+@pytest.mark.parametrize(("mode", "current"), [("4", "--"), ("3", "M")])
 @pytest.mark.asyncio
-async def test_no_fallback_without_numeric_setpoint(aresponses, client_session):
-    """In dry mode (stemp=M) a rejected half degree is not a precision issue."""
-    dry = CONTROL.replace("mode=4", "mode=2").replace("stemp={stemp}", "stemp=M")
-    add_routes(aresponses, ["22.0"], ["ret=PARAM NG"], dry)
+async def test_no_fallback_without_numeric_setpoint(
+    aresponses, client_session, mode, current
+):
+    """Without a numeric current setpoint a rejection is no precision evidence."""
+    aresponses.add(path_pattern=GET, response=ctrl(mode, current))
+    aresponses.add(path_pattern=SET, response="ret=PARAM NG")
     device = DaikinBRP069("192.168.1.100", session=client_session)
 
     with pytest.raises(DaikinCommandRejected):
         await device.set({"stemp": "23.5"})
 
     assert len(sent(aresponses)) == 1
+    assert device.target_temperature_step_status == "unknown"
+    aresponses.assert_no_unused_routes()
 
 
 FAN = CONTROL.replace("mode=4", "mode=6").replace("stemp={stemp}", "stemp=--")
@@ -515,25 +499,75 @@ async def test_no_fallback_in_no_setpoint_modes(aresponses, client_session, mode
     aresponses.assert_no_unused_routes()
 
 
+@pytest.mark.parametrize(
+    "back", [FAN.format(stemp="24.0"), ctrl("3", "24.0")], ids=["fan", "cool"]
+)
 @pytest.mark.asyncio
-async def test_no_inference_when_retry_reads_back_no_setpoint(
-    aresponses, client_session
+async def test_no_inference_when_mode_changed_after_retry(
+    aresponses, client_session, back
 ):
-    """A retry read back as M/-- (mode changed meanwhile) infers nothing."""
+    """An accepted retry read back in another mode infers nothing, raises nothing."""
     add_routes(aresponses, ["22.0", "22.0"], ["ret=PARAM NG", "ret=OK"])
-    aresponses.add(path_pattern=GET, response=FAN)
+    aresponses.add(path_pattern=GET, response=back)
     device = DaikinBRP069("192.168.1.100", session=client_session)
 
-    with pytest.raises(DaikinCommandRejected):
-        await device.set({"stemp": "23.5"})
+    await device.set({"stemp": "23.5"})
 
+    assert [r["stemp"] for r in sent(aresponses)] == ["23.5", "24"]
     assert device.target_temperature_step_status == "unknown"
+    assert device.target_temperature_step == 0.5
+    assert device.values.get("mode", invalidate=False) != "4"
     aresponses.assert_no_unused_routes()
 
 
 @pytest.mark.parametrize(
+    ("status", "level"),
+    [("unknown", logging.WARNING), ("inferred", logging.DEBUG)],
+    ids=["new", "known"],
+)
+@pytest.mark.asyncio
+async def test_fallback_warns_only_on_status_change(
+    aresponses, client_session, caplog, status, level
+):
+    """Repeated fallbacks of an inferred device are logged at DEBUG only."""
+    add_routes(aresponses, ["22.0", "22.0", "24.0"], ["ret=PARAM NG", "ret=OK"])
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+    device.target_temperature_step_status = status
+
+    with caplog.at_level(logging.DEBUG, logger="pydaikin.daikin_brp069"):
+        await device.set({"stemp": "23.5"})
+
+    fallback = [r for r in caplog.records if "assuming 1 °C steps" in r.getMessage()]
+    assert [r.levelno for r in fallback] == [level]
+    assert device.target_temperature_step_status == "inferred"
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("23.5", True),
+        ("30.5", True),
+        ("23", False),
+        ("23.2", False),
+        ("M", False),
+        ("--", False),
+        ("nan", False),
+        ("inf", False),
+        ("1E+27", False),
+        ("1E+28", False),  # too large for Decimal % at the default precision
+        ("1e100", False),
+        ("-1e100", False),
+    ],
+)
+def test_is_half_degree(value, expected):
+    """Huge or non-numeric values are never half degrees and never raise."""
+    assert _is_half_degree(value) is expected
+
+
+@pytest.mark.parametrize(
     ("reply", "error"),
-    [(slow_ok, asyncio.TimeoutError), ((500, "Error"), Exception)],
+    [(slow_ok, asyncio.TimeoutError), ((500, "Error"), ClientResponseError)],
     ids=["timeout", "http500"],
 )
 @pytest.mark.asyncio

@@ -2,7 +2,14 @@
 
 import asyncio
 
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import (
+    ClientOSError,
+    ClientResponseError,
+    ClientSession,
+    ClientTimeout,
+    ServerDisconnectedError,
+)
+from aiohttp.web_exceptions import HTTPForbidden
 import pytest
 import pytest_asyncio
 
@@ -55,10 +62,10 @@ def test_parse_response_strict(body, strict, expected):
         (slow_ok, asyncio.TimeoutError, 1),
         # aiohttp itself resends an idempotent GET once when a reused keep-alive
         # connection drops without an answer (RFC 9112); it is the same request
-        (reset_connection, Exception, 2),
-        ((403, "Forbidden"), Exception, 1),
-        ((404, "Not Found"), Exception, 1),
-        ((500, "Error"), Exception, 1),
+        (reset_connection, (ServerDisconnectedError, ClientOSError), 2),
+        ((403, "Forbidden"), HTTPForbidden, 1),
+        ((404, "Not Found"), ClientResponseError, 1),
+        ((500, "Error"), ClientResponseError, 1),
     ],
     ids=["timeout", "reset", "http403", "http404", "http500"],
 )
@@ -69,7 +76,9 @@ async def test_failed_write_is_sent_once(
 ):
     """pydaikin never repeats a write: the device may have applied it anyway."""
     add_routes(aresponses, ["22.0"], [])
-    aresponses.add(path_pattern=SET, response=mock_reply(aresponses, reply))
+    aresponses.add(
+        path_pattern=SET, response=mock_reply(aresponses, reply), repeat=sends
+    )
     aresponses.add(path_pattern=GET, response="ret=NG")  # read-back fails too
     device = DaikinBRP069("192.168.1.100", session=client_session)
     device.HTTP_TIMEOUT = ClientTimeout(total=0.1)
@@ -84,6 +93,7 @@ async def test_failed_write_is_sent_once(
     assert "stemp" not in device.values
     assert device.values.get("mode", invalidate=False) == "4"
     assert device.values.should_resource_be_updated("aircon/get_control_info")
+    aresponses.assert_no_unused_routes()
 
 
 @pytest.mark.asyncio
@@ -106,6 +116,7 @@ async def test_cancelled_set_releases_lock(aresponses, client_session):
     async with asyncio.timeout(2):  # the lock was released
         await device.update_status(["aircon/get_control_info"])
     assert device.values.get("stemp", invalidate=False) == "22.0"
+    aresponses.assert_no_unused_routes()
 
 
 @pytest.mark.parametrize(
@@ -141,6 +152,7 @@ async def test_invalid_pre_read_sends_nothing(
 
     assert not sent(aresponses)
     assert dict(device.values) == before
+    aresponses.assert_no_unused_routes()
 
 
 @pytest.mark.parametrize(
@@ -163,6 +175,7 @@ async def test_sentinel_setpoints_still_write(
     await device.set({**settings, "f_rate": "auto"})
 
     assert len(sent(aresponses)) == 1
+    aresponses.assert_no_unused_routes()
 
 
 APPLIED = CONTROL.replace("pow=0,mode=4", "pow=1,mode=3").format(stemp="23.5")
@@ -213,10 +226,11 @@ async def test_resync_is_time_boxed(aresponses, client_session):
     device.RESYNC_TIMEOUT = 0.1
 
     async with asyncio.timeout(0.8):
-        with pytest.raises(Exception):  # the write error, not the resync timeout
+        with pytest.raises(ClientResponseError):  # not the resync timeout
             await device.set({"stemp": "23.5"})
 
     assert "stemp" not in device.values
+    aresponses.assert_no_unused_routes()
 
 
 @pytest.mark.asyncio
@@ -233,11 +247,11 @@ async def test_airbase_set_without_shum(aresponses, client_session):
     await device.set({"stemp": "23"})
 
     assert sent(aresponses, "/skyfi/aircon/set_control_info")[0]["shum"] == "--"
+    aresponses.assert_no_unused_routes()
 
 
 @pytest.mark.parametrize(
     "settings",
-    # 23.2 is not a half degree, so a later fallback layer leaves it alone too
     [{"stemp": "23"}, {"stemp": "23.2"}, {"mode": "cool"}, {"f_rate": "auto"}],
 )
 @pytest.mark.parametrize("ret", ["ret=PARAM NG", "ret=NG"])
@@ -283,3 +297,53 @@ async def test_concurrent_writes_and_polls_are_serialised(
     order = [(h.request.path, h.request.query.get("stemp")) for h in aresponses.history]
     assert order == [(GET, None), (SET, "23"), *tail]
     aresponses.assert_no_unused_routes()
+
+
+# A unit without fan rate or swing control reports neither f_rate nor f_dir
+CONTROL_BASIC = "ret=OK,pow=0,mode=4,stemp={stemp},shum=0,dt4={stemp},dh4=0"
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [{"f_rate": "auto"}, {"f_dir": "vertical"}, {"f_rate": "3", "f_dir": "3d"}],
+)
+@pytest.mark.parametrize(
+    ("reply", "error", "reads"),
+    [
+        ("ret=PARAM NG", DaikinCommandRejected, ["22.0"]),
+        ((500, "Error"), ClientResponseError, ["22.0", "22.0"]),  # with read-back
+    ],
+    ids=["rejected", "unknown_outcome"],
+)
+@pytest.mark.asyncio
+async def test_failed_write_drops_unreported_keys(
+    aresponses, client_session, settings, reply, error, reads
+):
+    """Keys the pre-read lacked do not make a failed write look supported."""
+    add_routes(aresponses, reads, [], CONTROL_BASIC)
+    response = reply if isinstance(reply, str) else mock_reply(aresponses, reply)
+    aresponses.add(path_pattern=SET, response=response)
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+
+    with pytest.raises(error):
+        await device.set(settings)
+
+    assert sent(aresponses)[0].keys() >= settings.keys()
+    assert not settings.keys() & device.values.keys()
+    assert not device.support_fan_rate
+    assert not device.support_swing_mode
+    assert device.values.get("stemp", invalidate=False) == "22.0"
+    aresponses.assert_no_unused_routes()
+
+
+@pytest.mark.asyncio
+async def test_strict_is_keyword_only(aresponses, client_session):
+    """A positional strict flag must not slip past the no-retry check."""
+    device = DaikinBRP069("192.168.1.100", session=client_session)
+
+    with pytest.raises(TypeError):
+        await device._do_get_resource(  # pylint: disable=protected-access
+            "aircon/set_control_info", {}, True
+        )
+
+    assert not aresponses.history

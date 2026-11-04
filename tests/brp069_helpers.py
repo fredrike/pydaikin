@@ -41,12 +41,14 @@ TIMED_OUT = []
 
 
 async def slow_ok(request):
+    """Record the request in TIMED_OUT, then answer OK too late for short timeouts."""
     TIMED_OUT.append(dict(request.query))
     await asyncio.sleep(1)
     return web.Response(text="ret=OK")
 
 
 async def reset_connection(request):
+    """Drop the connection without an answer (the reply is never delivered)."""
     request.transport.close()
     return web.Response(text="ret=OK")
 
