@@ -8,7 +8,7 @@ authors = [
   { name = "Yari Adan", email = "mustang@yadan.org" },
 ]
 name = "pydaikin"
-version = "2.22.0"
+version = "2.22.1"
 license = "GPL-3.0-or-later"
 description = "Python Daikin HVAC appliances interface"
 classifiers = [
@@ -68,3 +68,10 @@ docstring-quotes = "double"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.bumpversion]
+commit = true
+tag = true
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"

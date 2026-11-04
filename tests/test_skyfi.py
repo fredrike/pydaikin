@@ -35,6 +35,7 @@ async def test_daikinSkiFi(aresponses, client_session):
     assert device.support_away_mode is False
     assert device.support_fan_rate is True
     assert device.support_swing_mode is False
+    assert device.support_target_humidity is False
     assert device.represent("zone1") == ("zone1", "Zone 1")
     assert device.represent("zone") == ('zone', '00000000')
     assert device.inside_temperature == 23.0

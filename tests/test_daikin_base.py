@@ -98,6 +98,23 @@ def test_support_humidity(values, expected):
     assert device.support_humidity is expected
 
 
+@pytest.mark.parametrize(
+    "values, expected",
+    [
+        ({"shum": "50"}, True),
+        ({"shum": "0"}, True),  # shum changes with the mode, so any value counts
+        ({"shum": "AUTO"}, True),
+        ({"shum": "--"}, True),
+        ({}, False),  # 'shum' key not present
+    ],
+)
+def test_support_target_humidity(values, expected):
+    """Test the support_target_humidity property."""
+    device = DaikinBRP069("127.0.0.1", session=MagicMock())
+    device.values.update(values)
+    assert device.support_target_humidity is expected
+
+
 def test_translate_mac():
     """Test MAC address translation."""
     assert DaikinBRP069.translate_mac('112233445566') == '11:22:33:44:55:66'
@@ -340,6 +357,7 @@ def test_zone_count(values, expected):
     [
         ({'shum': '50'}, 50.0),
         ({'shum': 'AUTO'}, None),
+        ({"shum": "0"}, None),
         ({}, None),
     ],
 )
