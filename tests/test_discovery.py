@@ -11,7 +11,10 @@ from pydaikin.discovery import (
     UDP_DST_PORT,
     Discovery,
     get_devices,
+    get_discovery_info,
     get_name,
+    is_unsupported,
+    parse_firmware_version,
 )
 
 
@@ -133,6 +136,68 @@ def test_get_devices():
         patch("socket.socket", return_value=sock),
     ):
         assert list(get_devices()) == []
+
+
+def test_get_discovery_info_polls_given_ip(monkeypatch):
+    """get_discovery_info polls the requested IP and returns its attributes."""
+    calls = []
+    device = {"ip": "192.168.127.1", "protocol": "DGC", "ver": "2_6_1"}
+
+    class FakeDiscovery:
+        def poll(self, ip=None):
+            calls.append(ip)
+            return [device]
+
+    monkeypatch.setattr("pydaikin.discovery.Discovery", FakeDiscovery)
+
+    assert get_discovery_info("192.168.127.1") == device
+    assert calls == ["192.168.127.1"]
+
+
+def test_get_discovery_info_swallows_errors(monkeypatch):
+    """get_discovery_info returns None when discovery fails."""
+
+    class FakeDiscovery:
+        def poll(self, ip=None):
+            raise OSError("broadcast unavailable")
+
+    monkeypatch.setattr("pydaikin.discovery.Discovery", FakeDiscovery)
+
+    assert get_discovery_info("192.168.127.1") is None
+
+
+@pytest.mark.parametrize(
+    ("ver", "expected"),
+    [
+        ("2_6_1", (2, 6)),
+        ("2_8_0", (2, 8)),
+        ("3_1", (3, 1)),
+        ("", None),
+        ("bogus", None),
+        (None, None),
+    ],
+)
+def test_parse_firmware_version(ver, expected):
+    """parse_firmware_version returns (major, minor) or None when malformed."""
+    assert parse_firmware_version(ver) == expected
+
+
+@pytest.mark.parametrize(
+    ("device", "expected"),
+    [
+        ({"protocol": "DGC", "ver": "2_6_1"}, True),
+        ({"protocol": "DGC", "ver": "2_0_0"}, True),
+        ({"protocol": "DGC", "ver": "2_8_0"}, False),
+        ({"protocol": "DGC", "ver": "3_0_0"}, False),
+        ({"protocol": "DGC", "ver": "bogus"}, False),
+        ({"protocol": "DGC"}, False),
+        ({"protocol": "BRP069", "ver": "2_6_1"}, False),
+        ({}, False),
+    ],
+)
+def test_is_unsupported(device, expected):
+    """is_unsupported detects pre-2.8.0 DGC adapters only."""
+    assert is_unsupported(device) is expected
 
 
 def test_get_name_returns_matching_device():

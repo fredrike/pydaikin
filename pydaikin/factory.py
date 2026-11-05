@@ -14,7 +14,7 @@ from .daikin_brp069 import DaikinBRP069
 from .daikin_brp072c import DaikinBRP072C
 from .daikin_brp084 import DaikinBRP084
 from .daikin_skyfi import DaikinSkyFi
-from .discovery import get_name
+from .discovery import get_discovery_info, get_name, is_unsupported
 from .exceptions import DaikinException
 
 _LOGGER = logging.getLogger(__name__)
@@ -103,9 +103,26 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
             setattr(obj, "_own_session", True)
         try:
             if not already_initialized:
-                await obj.init()
+                try:
+                    await obj.init()
+                except DaikinException as err:
+                    # The last-resort driver could not read any values at all.
+                    # If discovery identifies a known unsupported fingerprint,
+                    # report it instead of the bare exception.
+                    if not isinstance(obj, DaikinAirBase):
+                        raise
+                    discovery_info = get_discovery_info(device_ip)
+                    if discovery_info is None:
+                        raise
+                    raise DaikinException(
+                        self._unsupported_device_message(obj, device_id, discovery_info)
+                    ) from err
             if not obj.values.get("mode"):
-                raise DaikinException(self._unsupported_device_message(obj, device_id))
+                raise DaikinException(
+                    self._unsupported_device_message(
+                        obj, device_id, get_discovery_info(device_ip)
+                    )
+                )
         except Exception:
             if own_session:
                 await obj.aclose()
@@ -142,12 +159,18 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
             return None
 
     @staticmethod
-    def _unsupported_device_message(obj: Appliance, device_id: str) -> str:
+    def _unsupported_device_message(
+        obj: Appliance,
+        device_id: str,
+        discovery_info: Optional[dict] = None,
+    ) -> str:
         """Build a clear error message for a detected but unsupported device.
 
         Some adapters answer /common/basic_info (so type, subtype and firmware
         are known) but expose no control API. A known example is the BRP069C8x
         running firmware 2.3.x, which returns 404 for every /aircon endpoint.
+        Other adapters answer UDP discovery only, with every HTTP endpoint
+        returning 404 - for those ``discovery_info`` carries the fingerprint.
         """
         values = obj.values
         device_type = values.get("type", invalidate=False)
@@ -164,6 +187,27 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                 f"Error creating device, {device_id} is not supported: "
                 f"BRP069C8x with firmware {firmware.replace('_', '.')} is not "
                 "supported by pydaikin."
+            )
+
+        # Adapters speaking the DGC protocol (Onecta generation) without a
+        # local control API respond to UDP discovery but expose no local HTTP
+        # endpoints at all. This covers BRP069C4x/C8x gateways below firmware
+        # 2.8.0 (issues #83, #116) and the built-in WiFi adapters of newer
+        # units, whose latest firmware (2.6.3) has no local API (issue #153).
+        if discovery_info and is_unsupported(discovery_info):
+            protocol = discovery_info.get("protocol")
+            disc_firmware = discovery_info.get("ver")
+            disc_type = discovery_info.get("type", "unknown")
+            return (
+                f"Error creating device, {device_id} is not supported: "
+                f"detected {disc_type}/{protocol} adapter with firmware "
+                f"{disc_firmware.replace('_', '.')}. This adapter generation "
+                "(e.g. BRP069C4x/C8x, or built-in adapters such as the "
+                "Stylish FTXA20C2V1BW) has no local control API: "
+                "BRP069C4x/C8x require firmware 2.8.0 or later, while the "
+                "built-in adapters have no local API at all (2.6.3 is the "
+                "latest firmware). Control the device through the Daikin "
+                "cloud/Onecta app."
             )
 
         details = []
