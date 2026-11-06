@@ -2,6 +2,7 @@
 
 # pylint: disable=too-many-lines
 
+import asyncio
 from dataclasses import dataclass, field
 import json
 import logging
@@ -290,6 +291,7 @@ class DaikinBRP084(Appliance):
         super().__init__(device_id, session)
         self.url = f"{self.base_url}/dsiot/multireq"
         self._last_mode: Optional[str] = None
+        self._set_lock = asyncio.Lock()
 
     @staticmethod
     def hex_to_temp(value: str, divisor=2) -> float:
@@ -923,6 +925,12 @@ class DaikinBRP084(Appliance):
 
     async def set(self, settings):
         """Set settings on Daikin device."""
+        # Resolve dependent settings only after the preceding write is confirmed.
+        async with self._set_lock:
+            await self._set_settings(settings)
+
+    async def _set_settings(self, settings):
+        """Build and apply one write while holding the settings lock."""
         requests = []
 
         # Handle different types of settings
