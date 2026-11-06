@@ -1,5 +1,6 @@
 """Verify that init() calls the expected set of endpoints for firmware 2.8.0 devices."""
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock
 
@@ -2062,8 +2063,7 @@ def brp084_writer():
     async def acknowledge(_path, params):
         return {
             "responses": [
-                {"fr": request["to"], "rsc": 2004}
-                for request in params["requests"]
+                {"fr": request["to"], "rsc": 2004} for request in params["requests"]
             ]
         }
 
@@ -2286,7 +2286,9 @@ async def test_set_caches_only_sent_settings_in_mixed_request(brp084_writer):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("feature", ["comfort", "econo", "powerful"])
-async def test_acknowledged_feature_does_not_require_cached_mode(brp084_writer, feature):
+async def test_acknowledged_feature_does_not_require_cached_mode(
+    brp084_writer, feature
+):
     """Applying an acknowledged feature must not depend on unrelated mode data."""
     brp084_writer.values.clear()
     brp084_writer._last_mode = None
@@ -2295,6 +2297,87 @@ async def test_acknowledged_feature_does_not_require_cached_mode(brp084_writer, 
 
     assert brp084_writer.values[feature] == "on"
     assert "mode" not in brp084_writer.values
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("outcome", ["success", "failed_ack", "transport", "cancelled"])
+async def test_overlapping_writes_use_confirmed_mode(brp084_writer, outcome):
+    """Queued setpoints use the preceding result, including failure or cancellation."""
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    queued = asyncio.Event()
+    calls = []
+
+    async def acknowledge(_path, params):
+        calls.append(params)
+        if len(calls) == 1:
+            entered.set()
+            await release.wait()
+            if outcome == "transport":
+                raise TimeoutError
+        code = 4000 if len(calls) == 1 and outcome == "failed_ack" else 2004
+        return {
+            "responses": [
+                {"fr": request["to"], "rsc": code} for request in params["requests"]
+            ]
+        }
+
+    async def set_temperature():
+        queued.set()
+        await brp084_writer.set({"stemp": 26})
+
+    brp084_writer._get_resource.side_effect = acknowledge
+    first = asyncio.create_task(brp084_writer.set({"mode": "hot"}))
+    second = None
+    try:
+        await asyncio.wait_for(entered.wait(), 1)
+        second = asyncio.create_task(set_temperature())
+        await asyncio.wait_for(queued.wait(), 1)
+        assert len(calls) == 1
+        assert brp084_writer.values["mode"] == "cool"
+        assert brp084_writer.values["stemp"] == "25.0"
+        if outcome == "cancelled":
+            first.cancel()
+        else:
+            release.set()
+        results = await asyncio.wait_for(
+            asyncio.gather(first, second, return_exceptions=True), 1
+        )
+        expected_error = {
+            "failed_ack": DaikinException,
+            "transport": TimeoutError,
+            "cancelled": asyncio.CancelledError,
+        }.get(outcome)
+        if expected_error:
+            assert isinstance(results[0], expected_error)
+        else:
+            assert results[0] is None
+        assert results[1] is None
+        mode = "hot" if outcome == "success" else "cool"
+        assert brp084_writer.values["mode"] == mode
+        assert brp084_writer.values["stemp"] == "26.0"
+        written = {
+            "responses": [
+                {"fr": request["to"], "pc": request["pc"]}
+                for request in calls[1]["requests"]
+            ]
+        }
+        assert (
+            brp084_writer.find_value_by_pn(
+                written, *brp084_writer.get_path("temp_settings", mode)
+            )
+            == "34"
+        )
+        assert len(calls) == 2
+        brp084_writer.update_status.assert_not_awaited()
+    finally:
+        for task in (first, second):
+            if task is not None and not task.done():
+                task.cancel()
+        await asyncio.gather(
+            *(task for task in (first, second) if task is not None),
+            return_exceptions=True,
+        )
 
 
 @pytest.mark.asyncio
