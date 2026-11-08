@@ -372,6 +372,15 @@ class DaikinBRP084(Appliance):
                 raise DaikinException(f"Key {current_key} not found")
         return None
 
+    def _is_swing_axis_on(self, data: dict, mode: str, axis: str) -> bool:
+        """Return whether a swing axis is active; a missing axis counts as off."""
+        try:
+            return "F" in self.find_value_by_pn(
+                data, *self.get_path("swing_settings", mode, axis)
+            )
+        except DaikinException:
+            return False
+
     def get_swing_state(self, data: dict) -> str:
         """Get the current swing state from response data."""
         mode = self.values.get('mode', invalidate=False)
@@ -380,22 +389,18 @@ class DaikinBRP084(Appliance):
             and mode != 'off'
             and mode in self.API_PATHS["swing_settings"]
         ):
-            try:
-                vertical = "F" in self.find_value_by_pn(
-                    data, *self.get_path("swing_settings", mode, "vertical")
-                )
-                horizontal = "F" in self.find_value_by_pn(
-                    data, *self.get_path("swing_settings", mode, "horizontal")
-                )
+            # Read each axis independently: units that only support vertical
+            # swing omit the horizontal property entirely, and that must not
+            # hide an active vertical swing.
+            vertical = self._is_swing_axis_on(data, mode, "vertical")
+            horizontal = self._is_swing_axis_on(data, mode, "horizontal")
 
-                if horizontal and vertical:
-                    return 'both'
-                if horizontal:
-                    return 'horizontal'
-                if vertical:
-                    return 'vertical'
-            except DaikinException:
-                pass  # Keep default 'off'
+            if horizontal and vertical:
+                return 'both'
+            if horizontal:
+                return 'horizontal'
+            if vertical:
+                return 'vertical'
 
         return 'off'  # Default return value
 
