@@ -121,7 +121,18 @@ If you have a device with firmware 2.8.0 that is not working correctly, please o
 
 The following device and firmware combinations are not currently supported:
 
-* BRP069C4x with firmware version 2.0.0
+* BRP069C4x/C8x gateways running Onecta adapter firmware below 2.8.0, such as
+  2.0.0, 2.3.0, 2.6.1 and 2.6.2, and the built-in WiFi adapters of newer units
+  (e.g. the Stylish FTXA20C2V1BW) running firmware 2.6.3 or earlier. These
+  answer UDP discovery with `type=GPF,protocol=DGC` but return 404 for every
+  local HTTP endpoint, so there is no local control API. BRP069C4x/C8x gain
+  local control with firmware 2.8.0 or later; the built-in adapters have no
+  local control API at all, with 2.6.3 being the latest firmware. Until then
+  use a cloud-based integration
+  ([#153](https://github.com/fredrike/pydaikin/issues/153),
+  [#169](https://github.com/fredrike/pydaikin/issues/169),
+  [#83](https://github.com/fredrike/pydaikin/issues/83),
+  [#116](https://github.com/fredrike/pydaikin/issues/116))
 
 ## About
 
