@@ -5,6 +5,15 @@ class DaikinException(Exception):
     """Daikin base exception class."""
 
 
+class DaikinUnsupportedError(DaikinException):
+    """The device was detected but has no usable control API.
+
+    Raised when the device identity (from HTTP or UDP discovery) matches a
+    known unsupported combination, so integrations can abort early instead of
+    treating it as a transient connection failure.
+    """
+
+
 class DaikinCommandRejected(DaikinException):
     """The adapter answered a write request with a non-OK ``ret``."""
 

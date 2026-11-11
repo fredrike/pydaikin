@@ -12,7 +12,7 @@ from pydaikin.daikin_brp069 import DaikinBRP069
 from pydaikin.daikin_brp072c import DaikinBRP072C
 from pydaikin.daikin_brp084 import DaikinBRP084
 from pydaikin.daikin_skyfi import DaikinSkyFi
-from pydaikin.exceptions import DaikinException
+from pydaikin.exceptions import DaikinException, DaikinUnsupportedError
 from pydaikin.factory import DaikinFactory
 
 
@@ -320,7 +320,7 @@ async def test_factory_unsupported_brp069c8x_firmware_230(aresponses, client_ses
         )
 
     with pytest.raises(
-        DaikinException, match="BRP069C8x with firmware 2.3.0 is not supported"
+        DaikinUnsupportedError, match="BRP069C8x with firmware 2.3.0 is not supported"
     ):
         await DaikinFactory("192.168.1.100", session=client_session)
 
@@ -366,7 +366,7 @@ async def test_factory_unsupported_unknown_device_reports_details(
     # subtype=qa alone is not the unsupported fingerprint (firmware is 1.2.x),
     # but it is still reported in the error details.
     with pytest.raises(
-        DaikinException,
+        DaikinUnsupportedError,
         match="detected type=aircon, subtype=qa, firmware 1.2.54, adp_kind=3.*not supported",
     ):
         await DaikinFactory("192.168.1.100", session=client_session)
@@ -383,6 +383,11 @@ def test_unsupported_device_message_without_identity():
         DaikinFactory._unsupported_device_message(fake_device, "192.168.1.100")
         == "Error creating device, 192.168.1.100 is not supported."
     )
+
+
+def test_daikin_unsupported_error_is_daikin_exception():
+    """Integrations can keep catching DaikinException for all device errors."""
+    assert issubclass(DaikinUnsupportedError, DaikinException)
 
 
 @pytest.mark.asyncio
@@ -436,7 +441,7 @@ async def test_factory_unsupported_gpf_dgc_pre280_reports_cloud_only(
         )
 
     with pytest.raises(
-        DaikinException,
+        DaikinUnsupportedError,
         match=(
             "GPF/DGC adapter with firmware 2\\.6\\.1.*"
             "has no local control API.*2\\.6\\.3 is the latest firmware"
@@ -479,8 +484,10 @@ async def test_factory_unsupported_gpf_dgc_without_discovery_keeps_bare_error(
             response=aresponses.Response(status=404, text="Page Not Found"),
         )
 
-    with pytest.raises(DaikinException, match="^Empty values\\.$"):
+    with pytest.raises(DaikinException, match="^Empty values\\.$") as exc_info:
         await DaikinFactory("192.168.127.1", session=client_session)
+
+    assert not isinstance(exc_info.value, DaikinUnsupportedError)
 
     aresponses.assert_all_requests_matched()
     aresponses.assert_no_unused_routes()
@@ -497,8 +504,10 @@ async def test_factory_does_not_mask_non_airbase_init_errors(
 
     monkeypatch.setattr(DaikinSkyFi, "init", fail_init)
 
-    with pytest.raises(DaikinException, match="bad password"):
+    with pytest.raises(DaikinException, match="bad password") as exc_info:
         await DaikinFactory("192.168.1.100", session=client_session, password="wrong")
+
+    assert not isinstance(exc_info.value, DaikinUnsupportedError)
 
 
 @pytest.mark.asyncio
@@ -949,7 +958,7 @@ async def test_factory_closes_session_on_unsupported_device(aresponses, monkeypa
         response="ret=OK",
     )
 
-    with pytest.raises(DaikinException, match="not supported"):
+    with pytest.raises(DaikinUnsupportedError, match="not supported"):
         await DaikinFactory("192.168.1.100")
 
     assert len(closed_sessions) == 1

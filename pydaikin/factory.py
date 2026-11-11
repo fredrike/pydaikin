@@ -15,7 +15,7 @@ from .daikin_brp072c import DaikinBRP072C
 from .daikin_brp084 import DaikinBRP084
 from .daikin_skyfi import DaikinSkyFi
 from .discovery import get_discovery_info, get_name, is_unsupported
-from .exceptions import DaikinException
+from .exceptions import DaikinException, DaikinUnsupportedError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -114,11 +114,11 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
                     discovery_info = get_discovery_info(device_ip)
                     if discovery_info is None:
                         raise
-                    raise DaikinException(
+                    raise DaikinUnsupportedError(
                         self._unsupported_device_message(obj, device_id, discovery_info)
                     ) from err
             if not obj.values.get("mode"):
-                raise DaikinException(
+                raise DaikinUnsupportedError(
                     self._unsupported_device_message(
                         obj, device_id, get_discovery_info(device_ip)
                     )
