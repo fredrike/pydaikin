@@ -112,6 +112,8 @@ The behaviour of `device.set(...)` was validated against the unit's behaviour (s
 * FTKM20YVMA
 * FTXM46WVMA
 * FTXV80WVMA
+* FTXA25C2V1BW
+* FTXA50C2V1BW
 
 If you have a device with firmware 2.8.0 that is not working correctly, please open an issue with your device model and debug logs.
 

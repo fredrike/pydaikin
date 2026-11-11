@@ -198,10 +198,11 @@ class DaikinFactory:  # pylint: disable=too-few-public-methods
             protocol = discovery_info.get("protocol")
             disc_firmware = discovery_info.get("ver")
             disc_type = discovery_info.get("type", "unknown")
+            disc_version = disc_firmware.replace("_", ".")
             return (
                 f"Error creating device, {device_id} is not supported: "
                 f"detected {disc_type}/{protocol} adapter with firmware "
-                f"{disc_firmware.replace('_', '.')}. This adapter generation "
+                f"{disc_version}. This adapter generation "
                 "(e.g. BRP069C4x/C8x, or built-in adapters such as the "
                 "Stylish FTXA20C2V1BW) has no local control API: "
                 "BRP069C4x/C8x require firmware 2.8.0 or later, while the "

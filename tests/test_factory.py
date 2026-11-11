@@ -497,7 +497,7 @@ async def test_factory_unsupported_gpf_dgc_without_discovery_keeps_bare_error(
 async def test_factory_does_not_mask_non_airbase_init_errors(
     client_session, monkeypatch
 ):
-    """A failing non-last-resort driver keeps its own error, not 'not supported'."""
+    """A failing non-last-resort driver keeps its own error, not an unsupported message."""
 
     async def fail_init(self):
         raise DaikinException("bad password")
