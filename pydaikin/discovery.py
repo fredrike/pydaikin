@@ -2,6 +2,7 @@
 
 import logging
 import socket
+from typing import Optional, Tuple
 
 import psutil
 
@@ -91,7 +92,7 @@ def get_devices():
     return discovery.poll()
 
 
-def get_discovery_info(ip):
+def get_discovery_info(ip: str) -> Optional[dict]:
     """Best-effort lookup of discovery attributes for a device IP.
 
     Returns None if discovery fails or the device does not answer.
@@ -109,7 +110,7 @@ def get_discovery_info(ip):
 MIN_LOCAL_API_FIRMWARE = (2, 8)
 
 
-def parse_firmware_version(ver):
+def parse_firmware_version(ver: Optional[str]) -> Optional[Tuple[int, int]]:
     """Parse an adapter version string such as ``2_6_1`` into ``(2, 6)``."""
     try:
         major, minor = (int(part) for part in ver.split("_")[:2])
@@ -118,7 +119,7 @@ def parse_firmware_version(ver):
     return (major, minor)
 
 
-def is_unsupported(device):
+def is_unsupported(device: dict) -> bool:
     """Return True if a discovered device has no local control API.
 
     Onecta-generation adapters (``protocol=DGC``) without local control answer
