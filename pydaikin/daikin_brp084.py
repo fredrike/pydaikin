@@ -519,33 +519,9 @@ class DaikinBRP084(Appliance):
             except DaikinException:
                 self.values['hhum'] = "--"
 
-            # Get target temperature
-            if self.values['mode'] in self.API_PATHS["temp_settings"]:
-                try:
-                    self.values['stemp'] = str(
-                        self.hex_to_temp(
-                            self.find_value_by_pn(
-                                response,
-                                *self.get_path("temp_settings", self.values['mode']),
-                            )
-                        )
-                    )
-                except DaikinException:
-                    self.values['stemp'] = "--"
-            else:
-                self.values['stemp'] = "--"
-
-            # Get fan mode
-            if self.values['mode'] in self.API_PATHS["fan_settings"]:
-                fan_value = self.find_value_by_pn(
-                    response, *self.get_path("fan_settings", self.values['mode'])
-                )
-                self.values['f_rate'] = self.FAN_MODE_MAP.get(fan_value, 'auto')
-            else:
-                self.values['f_rate'] = 'auto'
-
-            # Get swing mode
-            self.values['f_dir'] = self.get_swing_state(response)
+            settings = self._parse_mode_settings(response, self.values["mode"])
+            for key, default in (("stemp", "--"), ("f_rate", "auto"), ("f_dir", "off")):
+                self.values[key] = settings.get(key, default)
 
             # Optional feature toggles, vane position, capability flags and
             # outdoor sensors (each guarded - not all firmware exposes them).
@@ -692,6 +668,30 @@ class DaikinBRP084(Appliance):
             mode = self.values.get("mode", invalidate=False)
         return self._last_mode if mode is None or mode == "off" else mode
 
+    def _parse_mode_settings(
+        self, response: dict, mode: Optional[str], *, default: Optional[str] = None
+    ) -> Dict[str, str]:
+        """Decode only fields present in a status response or acknowledged write."""
+        settings = {}
+        for group, key in (("temp_settings", "stemp"), ("fan_settings", "f_rate")):
+            if mode not in self.API_PATHS[group]:
+                continue
+            raw = self._safe_extract(response, *self.get_path(group, mode))
+            if raw is not None:
+                settings[key] = (
+                    str(self.hex_to_temp(raw))
+                    if key == "stemp"
+                    else self.FAN_MODE_MAP.get(raw, "auto")
+                )
+        if mode in self.API_PATHS["swing_settings"] and any(
+            self._safe_extract(response, *path) is not None
+            for path in self.API_PATHS["swing_settings"][mode].values()
+        ):
+            settings["f_dir"] = self.get_swing_state(
+                response, default=default, mode=mode
+            )
+        return settings
+
     def _mode_paths(self, mode: Optional[str]) -> list:
         """Return the existing API paths for a mode's settings."""
         return [
@@ -780,14 +780,15 @@ class DaikinBRP084(Appliance):
                     "vane_vertical": "off",
                 }
             )
-        for group, key, decode in (
-            ("temp_settings", "stemp", self.hex_to_temp),
-            ("fan_settings", "f_rate", self.FAN_MODE_MAP.__getitem__),
-        ):
-            if active_mode in self.API_PATHS[group]:
-                raw = get_value(group, active_mode)
-                if raw is not None:
-                    settings[key] = str(decode(raw))
+        settings.update(
+            self._parse_mode_settings(
+                written,
+                active_mode,
+                default=settings.get(
+                    "f_dir", self.values.get("f_dir", "off", invalidate=False)
+                ),
+            )
+        )
 
         if active_mode in self.MODE_MAP.values():
             self._last_mode = active_mode
@@ -799,15 +800,6 @@ class DaikinBRP084(Appliance):
         self.values.update(settings)
         # OFF writes still address the saved operating mode's settings.
         self._extract_optional_readings(written, mode=active_mode)
-        if active_mode in self.API_PATHS["swing_settings"] and any(
-            get_value("swing_settings", active_mode, axis) is not None
-            for axis in ("vertical", "horizontal")
-        ):
-            self.values["f_dir"] = self.get_swing_state(
-                written,
-                default=self.values.get("f_dir", "off", invalidate=False),
-                mode=active_mode,
-            )
 
     def add_request(self, requests, path, value):
         """Append DaikinAttribute to requests."""

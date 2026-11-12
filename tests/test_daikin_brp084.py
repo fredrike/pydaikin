@@ -2665,3 +2665,30 @@ async def test_failed_ack_does_not_trigger_fallback(brp084_writer):
     with pytest.raises(DaikinException):
         await brp084_writer.set({"mode": "hot"})
     brp084_writer.update_status.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_unknown_cached_fan_uses_status_read_fallback(
+    brp084_writer, mode_settings_response
+):
+    """ACK updates and status reads both tolerate an unknown fan code."""
+    device = brp084_writer
+    fields = mode_settings_response["responses"][0]["pc"]["pch"][0]["pch"][1]["pch"]
+    next(node for node in fields if node["pn"] == "p_0A")["pv"] = "FFFF"
+    acknowledge = device._get_resource.side_effect
+    device._get_resource.side_effect = None
+    device._get_resource.return_value = mode_settings_response
+    await DaikinBRP084.update_status(device)
+    device._get_resource.side_effect = acknowledge
+
+    await device.set({"mode": "hot"})
+    assert device.values["mode"] == "hot"
+    assert device.values["stemp"] == "22.0"
+    assert device.values["f_rate"] == "auto"
+    device.update_status.assert_not_awaited()
+
+    fields[0]["pv"] = "0100"
+    device._get_resource.side_effect = None
+    await DaikinBRP084.update_status(device)
+    assert device.values["mode"] == "hot"
+    assert device.values["f_rate"] == "auto"
