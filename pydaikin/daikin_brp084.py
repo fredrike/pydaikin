@@ -292,6 +292,7 @@ class DaikinBRP084(Appliance):
         self.url = f"{self.base_url}/dsiot/multireq"
         self._last_mode: Optional[str] = None
         self._set_lock = asyncio.Lock()
+        self._mode_settings: Dict[tuple, Optional[str]] = {}
 
     @staticmethod
     def hex_to_temp(value: str, divisor=2) -> float:
@@ -569,6 +570,7 @@ class DaikinBRP084(Appliance):
             _LOGGER.error("Error extracting values: %s", e)
             raise
 
+        self._cache_mode_settings(response)
         self._register_energy_consumption_history()
 
     def _extract_optional_readings(self, response, *, mode: Optional[str] = None):
@@ -690,18 +692,62 @@ class DaikinBRP084(Appliance):
             mode = self.values.get("mode", invalidate=False)
         return self._last_mode if mode is None or mode == "off" else mode
 
+    def _mode_paths(self, mode: Optional[str]) -> list:
+        """Return the existing API paths for a mode's settings."""
+        return [
+            self.API_PATHS[group][mode]
+            for group in ("temp_settings", "fan_settings")
+            if mode in self.API_PATHS[group]
+        ] + list(self.API_PATHS["swing_settings"].get(mode, {}).values())
+
+    def _cache_mode_settings(self, response: dict, *, partial: bool = False) -> None:
+        """Keep raw values; None records a field absent from a full read."""
+        for mode in self.MODE_MAP.values():
+            for path in self._mode_paths(mode):
+                raw = self._safe_extract(response, *path)
+                if raw is not None or not partial:
+                    self._mode_settings[tuple(path)] = raw
+
+    def _settings_response(self, requests: List[DaikinAttribute], paths=()) -> dict:
+        """Expose written or cached values to the existing response decoders."""
+        attributes = {(r.to, *r.path, r.name): r for r in requests}
+        for path in paths:
+            raw = self._mode_settings.get(tuple(path))
+            if raw is not None:
+                attribute = DaikinAttribute(path[-1], raw, path[2:4], path[0])
+                attributes.setdefault(
+                    (attribute.to, *attribute.path, attribute.name), attribute
+                )
+        # Keep each container's attributes together for the existing serializer.
+        requests = sorted(attributes.values(), key=lambda r: (r.to, r.path))
+        return {
+            "responses": [
+                {"fr": request["to"], "pc": request["pc"]}
+                for request in DaikinRequest(requests).serialize()["requests"]
+            ]
+        }
+
+    async def _refresh_missing_settings(self) -> None:
+        """Read only settings never obtained by a read or acknowledged write."""
+        paths = self._mode_paths(self._get_setting_mode({}))
+        if all(tuple(path) in self._mode_settings for path in paths):
+            return
+        confirmed = {key: self.values.get(key, invalidate=False) for key in self.values}
+        last_mode = self._last_mode
+        try:
+            await self.update_status()
+        except Exception as exc:  # pylint: disable=broad-except
+            self.values.update(confirmed)
+            self._last_mode = last_mode
+            _LOGGER.warning("Write acknowledged, but status refresh failed: %s", exc)
+
     async def _update_settings(self, requests: List[DaikinAttribute]) -> None:
         """Apply acknowledged writes using the existing response decoders."""
         if not requests:
             return
 
         # Writes and reads use the same pc tree; decode only acknowledged writes.
-        written = {
-            "responses": [
-                {"fr": request["to"], "pc": request["pc"]}
-                for request in DaikinRequest(requests).serialize()["requests"]
-            ]
-        }
+        written = self._settings_response(requests)
 
         def get_value(*keys):
             return self._safe_extract(written, *self.get_path(*keys))
@@ -715,6 +761,25 @@ class DaikinBRP084(Appliance):
             settings["mode"] = self.daikin_to_human("mode", raw)
 
         active_mode = settings.get("mode", self._get_setting_mode({}))
+        self._cache_mode_settings(written, partial=True)
+        swing_paths = list(
+            self.API_PATHS["swing_settings"].get(active_mode, {}).values()
+        )
+        restoring = "mode" in settings or settings.get("pow") == "1"
+        paths = self._mode_paths(active_mode) if restoring else swing_paths
+        if restoring or any(
+            self._safe_extract(written, *path) is not None for path in swing_paths
+        ):
+            written = self._settings_response(requests, paths)
+        if restoring:
+            settings.update(
+                {
+                    "stemp": "--",
+                    "f_rate": "auto",
+                    "f_dir": "off",
+                    "vane_vertical": "off",
+                }
+            )
         for group, key, decode in (
             ("temp_settings", "stemp", self.hex_to_temp),
             ("fan_settings", "f_rate", self.FAN_MODE_MAP.__getitem__),
@@ -975,6 +1040,10 @@ class DaikinBRP084(Appliance):
             )
             if failures:
                 raise DaikinException("Write not acknowledged: " + "; ".join(failures))
+            if (not settings or "mode" in settings) and self.values.get(
+                "pow", invalidate=False
+            ) == "1":
+                await self._refresh_missing_settings()
 
     # pylint: disable=unused-argument
     async def set_streamer(self, mode):
