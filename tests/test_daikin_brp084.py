@@ -1349,7 +1349,16 @@ async def test_update_status_tolerates_energy_response_without_pn():
 
 
 def _swing_state_response(vertical, horizontal):
-    """Build a minimal adr_0100 response exposing cool-mode swing values."""
+    """Build a minimal adr_0100 response exposing cool-mode swing values.
+
+    Pass ``None`` for an axis to omit its property, as vertical-only or
+    horizontal-only units do.
+    """
+    swing_props = [
+        {"pn": pn, "pv": value}
+        for pn, value in (("p_05", vertical), ("p_06", horizontal))
+        if value is not None
+    ]
     return {
         "responses": [
             {
@@ -1362,10 +1371,7 @@ def _swing_state_response(vertical, horizontal):
                             "pch": [
                                 {
                                     "pn": "e_3001",
-                                    "pch": [
-                                        {"pn": "p_05", "pv": vertical},
-                                        {"pn": "p_06", "pv": horizontal},
-                                    ],
+                                    "pch": swing_props,
                                 }
                             ],
                         }
@@ -1383,6 +1389,11 @@ def _swing_state_response(vertical, horizontal):
         ("000000", "0F0000", 'horizontal'),
         ("0F0000", "0F0000", 'both'),
         ("000000", "000000", 'off'),
+        # Vertical-only units have no horizontal swing property (issue #166)
+        ("0F0000", None, 'vertical'),
+        ("000000", None, 'off'),
+        # Horizontal-only units have no vertical swing property
+        (None, "0F0000", 'horizontal'),
     ],
 )
 def test_swing_state(vertical, horizontal, expected):
