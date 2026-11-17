@@ -4,9 +4,15 @@ import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock
 
-from aiohttp import ClientSession
+from aiohttp import (
+    ClientConnectionError,
+    ClientResponseError,
+    ClientSession,
+    ServerDisconnectedError,
+)
 import pytest
 import pytest_asyncio
+from tenacity import wait_none
 
 from pydaikin.daikin_brp084 import DaikinBRP084
 from pydaikin.exceptions import DaikinException
@@ -2693,3 +2699,58 @@ async def test_unknown_cached_fan_uses_status_read_fallback(
     await DaikinBRP084.update_status(device)
     assert device.values["mode"] == "hot"
     assert device.values["f_rate"] == "auto"
+
+
+@pytest.fixture
+def no_retry_wait(monkeypatch):
+    """Skip the real delays between status read retries."""
+    monkeypatch.setattr(DaikinBRP084._read_status.retry, "wait", wait_none())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error", [TimeoutError(), ServerDisconnectedError(), ClientConnectionError()]
+)
+async def test_status_read_retries_missed_answer(no_retry_wait, error):
+    """A missed answer is retried; the next answer is used."""
+    device = DaikinBRP084("127.0.0.1", MagicMock())
+    answer = {"responses": []}
+    device._get_resource = AsyncMock(side_effect=[error, answer])
+
+    assert await device._read_status({"requests": []}) is answer
+    assert device._get_resource.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_status_read_gives_up_after_three_tries(no_retry_wait):
+    """A device that stays silent still fails the update, after 3 tries."""
+    device = DaikinBRP084("127.0.0.1", MagicMock())
+    device._get_resource = AsyncMock(side_effect=TimeoutError())
+
+    with pytest.raises(DaikinException):
+        await device.update_status()
+    assert device._get_resource.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_status_read_does_not_retry_http_errors(no_retry_wait):
+    """An HTTP error (e.g. 404 on an older adapter) is not retried."""
+    device = DaikinBRP084("127.0.0.1", MagicMock())
+    device._get_resource = AsyncMock(
+        side_effect=ClientResponseError(MagicMock(), (), status=404)
+    )
+
+    with pytest.raises(DaikinException):
+        await device.update_status()
+    assert device._get_resource.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_write_is_not_retried(no_retry_wait):
+    """Writes are sent once, never retried."""
+    device = DaikinBRP084("127.0.0.1", MagicMock())
+    device._get_resource = AsyncMock(side_effect=TimeoutError())
+
+    with pytest.raises(TimeoutError):
+        await device.set({"mode": "cool"})
+    assert device._get_resource.await_count == 1
