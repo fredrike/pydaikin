@@ -1,7 +1,7 @@
 import asyncio
 from unittest.mock import MagicMock
 
-from aiohttp.client_exceptions import ClientResponseError
+from aiohttp.client_exceptions import ClientConnectionError, ClientResponseError
 from aiohttp.web_exceptions import HTTPForbidden
 import pytest
 
@@ -734,3 +734,21 @@ def test_indirect_subclass_not_validated():
         pass
 
     assert GrandChild.INFO_RESOURCES == ["aircon/getinfo"]
+
+
+@pytest.mark.asyncio
+async def test_update_status_raises_the_failure_not_cancelled_error():
+    """When one resource fails, the others are cancelled; the caller must get
+    the real error, not the CancelledError of a cancelled sibling."""
+    device = Appliance("127.0.0.1", MagicMock())
+
+    async def get_resource(path, params=None):
+        if path == "fails":
+            raise ClientConnectionError("unit did not answer")
+        await asyncio.sleep(10)
+        return {}
+
+    device._get_resource = get_resource
+
+    with pytest.raises(ClientConnectionError):
+        await device.update_status(["slow", "fails"])
