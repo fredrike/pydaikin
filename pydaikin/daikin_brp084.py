@@ -8,7 +8,15 @@ import json
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
-from aiohttp import ClientSession
+from aiohttp import ClientConnectionError, ClientSession
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_chain,
+    wait_fixed,
+)
 
 from .daikin_base import Appliance
 from .exceptions import DaikinException
@@ -471,7 +479,7 @@ class DaikinBRP084(Appliance):
         }
 
         try:
-            response = await self._get_resource("", params=payload)
+            response = await self._read_status(payload)
 
             if not response or 'responses' not in response:
                 raise DaikinException("Invalid response from device")
@@ -637,6 +645,20 @@ class DaikinBRP084(Appliance):
                 )
             except DaikinException:
                 pass
+
+    # BRP084 adapters often miss one request and answer the next one, see
+    # https://github.com/home-assistant/core/issues/190590. Retry status reads
+    # only: writes are sent once.
+    @retry(
+        reraise=True,
+        wait=wait_chain(wait_fixed(2), wait_fixed(5)),
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type((TimeoutError, ClientConnectionError)),
+        before_sleep=before_sleep_log(_LOGGER, logging.DEBUG),
+    )
+    async def _read_status(self, payload: Dict) -> Dict:
+        """Read the device status, retrying a missed answer."""
+        return await self._get_resource("", params=payload)
 
     async def _get_resource(self, path: str, params: Optional[Dict] = None):
         """Make the HTTP request to the device."""
